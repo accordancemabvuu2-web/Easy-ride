@@ -43,6 +43,17 @@ interface AuthContextValue {
 }
 
 const AUTH_CACHE_KEY = "easy-ride:auth-profile";
+const DEMO_ADMIN_EMAIL = "admin@easyride.local";
+const DEMO_ADMIN_PASSWORD = "admin123";
+const DEMO_ADMIN_PROFILE: EasyRideUser = {
+  id: "local-admin",
+  name: "Easy Ride Admin",
+  email: DEMO_ADMIN_EMAIL,
+  phone: "",
+  role: "admin",
+  photoURL: "",
+  createdAt: new Date().toISOString(),
+};
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function readCachedProfile(): EasyRideUser | null {
@@ -93,14 +104,13 @@ async function persistFallbackProfile(profile: EasyRideUser) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<EasyRideUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<EasyRideUser | null>(() =>
+    auth ? null : readCachedProfile(),
+  );
+  const [loading, setLoading] = useState(() => Boolean(auth));
 
   useEffect(() => {
     if (!auth) {
-      const cached = readCachedProfile();
-      setProfile(cached);
-      setLoading(false);
       return;
     }
 
@@ -166,8 +176,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     if (!auth || !db) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedPassword = password.trim();
+
+      if (
+        normalizedEmail === DEMO_ADMIN_EMAIL &&
+        normalizedPassword === DEMO_ADMIN_PASSWORD
+      ) {
+        await persistFallbackProfile(DEMO_ADMIN_PROFILE);
+        setProfile(DEMO_ADMIN_PROFILE);
+        return;
+      }
+
       const cached = readCachedProfile();
-      if (!cached || cached.email.toLowerCase() !== email.toLowerCase()) {
+      if (!cached || cached.email.toLowerCase() !== normalizedEmail) {
         throw new Error(
           "Firebase is not configured yet. Set your .env.local values to enable email login."
         );

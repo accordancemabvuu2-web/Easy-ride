@@ -11,8 +11,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -41,6 +43,26 @@ function writeLocalFavoriteIds(userId: string, ids: string[]) {
   window.localStorage.setItem(storageKey(userId), JSON.stringify(ids));
 }
 
+function updateLocalListingFavoriteCount(listingId: string, delta: number) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const raw = window.localStorage.getItem("easy-ride:listings");
+    if (!raw) return;
+
+    const listings = JSON.parse(raw) as Vehicle[];
+    const next = listings.map((listing) =>
+      listing.id === listingId
+        ? { ...listing, favoritesCount: Math.max(0, (listing.favoritesCount ?? 0) + delta) }
+        : listing,
+    );
+
+    window.localStorage.setItem("easy-ride:listings", JSON.stringify(next));
+  } catch {
+    // Ignore best-effort local count updates.
+  }
+}
+
 async function notifyOwnerAboutFavorite(listing: Vehicle, userId: string) {
   if (listing.ownerId === userId) {
     return;
@@ -48,9 +70,10 @@ async function notifyOwnerAboutFavorite(listing: Vehicle, userId: string) {
 
   await createNotification({
     userId: listing.ownerId,
-    type: "listing_favorited",
+    type: "listing",
     title: "Your listing was saved",
     message: `${listing.make} ${listing.model} ${listing.year} was added to favorites.`,
+    actionUrl: `/vehicle/${listing.id}`,
     link: `/vehicle/${listing.id}`,
   });
 }
@@ -63,6 +86,7 @@ export async function addFavorite(
     const ids = readLocalFavoriteIds(userId);
     if (!ids.includes(listingId)) {
       writeLocalFavoriteIds(userId, [listingId, ...ids]);
+      updateLocalListingFavoriteCount(listingId, 1);
     }
 
     const listings = await getActiveListings();
@@ -79,6 +103,10 @@ export async function addFavorite(
     userId,
     listingId,
     createdAt: Timestamp.now(),
+  });
+
+  await updateDoc(doc(db, "listings", listingId), {
+    favoritesCount: increment(1),
   });
 
   const listingSnapshot = await getDoc(doc(db, "listings", listingId));
@@ -99,11 +127,15 @@ export async function removeFavorite(
   if (!firebaseReady || !db) {
     const ids = readLocalFavoriteIds(userId).filter((id) => id !== listingId);
     writeLocalFavoriteIds(userId, ids);
+    updateLocalListingFavoriteCount(listingId, -1);
     return;
   }
 
   const favoriteId = `${userId}_${listingId}`;
   await deleteDoc(doc(db, "favorites", favoriteId));
+  await updateDoc(doc(db, "listings", listingId), {
+    favoritesCount: increment(-1),
+  });
 }
 
 export async function isFavorite(

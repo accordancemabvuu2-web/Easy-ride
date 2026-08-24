@@ -57,6 +57,8 @@ export interface Vehicle {
   favoritesCount: number;
 
   rejectionReason?: string;
+  soldToUserId?: string;
+  completedOfferId?: string;
 
   createdAt?: string;
   updatedAt?: string;

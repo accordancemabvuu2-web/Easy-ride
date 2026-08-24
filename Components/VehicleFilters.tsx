@@ -48,8 +48,8 @@ export default function VehicleFilters({
 }: VehicleFiltersProps) {
   return (
     <div className="rounded-[32px] border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-6">
-        <label className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-4 lg:col-span-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        <label className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-4 sm:col-span-2 lg:col-span-2">
           <Search size={18} className="text-[#0B5D3B]" />
           <input
             value={search}
@@ -63,7 +63,7 @@ export default function VehicleFilters({
         <select
           value={listingType}
           onChange={(event) => setListingType(event.target.value as FilterType)}
-          className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
+          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
           aria-label="Listing type"
         >
           <option value="all">All listings</option>
@@ -74,7 +74,7 @@ export default function VehicleFilters({
         <select
           value={location}
           onChange={(event) => setLocation(event.target.value)}
-          className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
+          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
           aria-label="Location filter"
         >
           <option value="all">All locations</option>
@@ -88,7 +88,7 @@ export default function VehicleFilters({
         <select
           value={fuelType}
           onChange={(event) => setFuelType(event.target.value)}
-          className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
+          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
           aria-label="Fuel type filter"
         >
           <option value="all">All fuel types</option>
@@ -101,7 +101,7 @@ export default function VehicleFilters({
         <select
           value={transmission}
           onChange={(event) => setTransmission(event.target.value)}
-          className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
+          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
           aria-label="Transmission filter"
         >
           <option value="all">All transmissions</option>
@@ -112,7 +112,7 @@ export default function VehicleFilters({
         <select
           value={sortBy}
           onChange={(event) => setSortBy(event.target.value as SortType)}
-          className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
+          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
           aria-label="Sort vehicles"
         >
           <option value="featured">Sort by featured</option>
@@ -122,7 +122,7 @@ export default function VehicleFilters({
         </select>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="mr-1 flex items-center gap-2 text-sm font-medium text-gray-500">
           <SlidersHorizontal size={17} />
           View:
@@ -131,7 +131,7 @@ export default function VehicleFilters({
         <button
           type="button"
           onClick={() => setViewMode("grid")}
-          className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition sm:w-auto ${
             viewMode === "grid"
               ? "bg-[#0B5D3B] text-white"
               : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
@@ -144,7 +144,7 @@ export default function VehicleFilters({
         <button
           type="button"
           onClick={() => setViewMode("list")}
-          className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition sm:w-auto ${
             viewMode === "list"
               ? "bg-[#0B5D3B] text-white"
               : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
@@ -156,7 +156,7 @@ export default function VehicleFilters({
 
         <Link
           href="/map"
-          className="inline-flex items-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-2.5 text-sm font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B] hover:text-white"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-2.5 text-sm font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B] hover:text-white sm:w-auto"
         >
           <Map size={16} />
           Map View
@@ -166,7 +166,7 @@ export default function VehicleFilters({
           <button
             type="button"
             onClick={clearFilters}
-            className="ml-auto text-sm font-semibold text-[#0B5D3B]"
+            className="text-sm font-semibold text-[#0B5D3B] sm:ml-auto"
           >
             Clear filters
           </button>

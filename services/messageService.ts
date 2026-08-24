@@ -28,12 +28,12 @@ const MESSAGES_KEY = "easy-ride:messages";
 const CONVERSATIONS_EVENT = "easy-ride-conversations-updated";
 const MESSAGES_EVENT = "easy-ride-messages-updated";
 
-function conversationId(
-  listingId: string,
-  buyerId: string,
-  sellerId: string,
-): string {
+function conversationId(listingId: string, buyerId: string, sellerId: string): string {
   return `${listingId}_${buyerId}_${sellerId}`;
+}
+
+function nowIso() {
+  return new Date().toISOString();
 }
 
 function readLocalConversations(): Conversation[] {
@@ -74,9 +74,31 @@ function writeLocalMessages(messages: Record<string, EasyRideMessage[]>) {
   window.dispatchEvent(new Event(MESSAGES_EVENT));
 }
 
-function sortByMessageDate(conversations: Conversation[]) {
+function normalizeConversation(conversation: Conversation): Conversation {
+  return {
+    ...conversation,
+    participants: conversation.participants?.length
+      ? conversation.participants
+      : [conversation.buyerId, conversation.sellerId],
+    unreadBy: conversation.unreadBy ?? [],
+    lastMessageAt: conversation.lastMessageAt ?? conversation.updatedAt ?? conversation.createdAt ?? nowIso(),
+    createdAt: conversation.createdAt ?? nowIso(),
+    updatedAt: conversation.updatedAt ?? nowIso(),
+  };
+}
+
+function normalizeMessage(message: EasyRideMessage): EasyRideMessage {
+  return {
+    ...message,
+    body: message.body ?? "",
+    read: Boolean(message.read),
+    createdAt: message.createdAt ?? nowIso(),
+  };
+}
+
+function sortConversations(conversations: Conversation[]) {
   return [...conversations].sort((left, right) =>
-    String(right.lastMessageAt ?? "").localeCompare(String(left.lastMessageAt ?? ""))
+    String(right.lastMessageAt ?? "").localeCompare(String(left.lastMessageAt ?? "")),
   );
 }
 
@@ -88,38 +110,56 @@ async function notifyRecipient(params: {
 }) {
   await createNotification({
     userId: params.recipientId,
-    type: "new_message",
+    type: "message",
     title: params.title,
     message: params.message,
+    actionUrl: params.link,
     link: params.link,
   });
 }
 
-async function persistConversationAndMessage(
-  id: string,
+async function persistLocalConversationAndMessage(
   conversation: Conversation,
   message: EasyRideMessage,
 ) {
-  const conversations = readLocalConversations();
+  const conversations = readLocalConversations().map(normalizeConversation);
   const nextConversation: Conversation = {
     ...conversation,
     lastMessage: message.body,
     lastMessageAt: message.createdAt,
-    unreadBy: [message.senderId === conversation.buyerId ? conversation.sellerId : conversation.buyerId],
+    unreadBy: [
+      message.senderId === conversation.buyerId ? conversation.sellerId : conversation.buyerId,
+    ],
+    updatedAt: message.createdAt,
   };
 
-  const nextConversations = conversations.some((item) => item.id === id)
-    ? conversations.map((item) => (item.id === id ? nextConversation : item))
+  const nextConversations = conversations.some((item) => item.id === conversation.id)
+    ? conversations.map((item) => (item.id === conversation.id ? nextConversation : item))
     : [nextConversation, ...conversations];
 
   const messages = readLocalMessages();
-  const nextMessages = messages[id] ?? [];
+  const nextMessages = messages[conversation.id] ?? [];
 
   writeLocalMessages({
     ...messages,
-    [id]: [...nextMessages, message],
+    [conversation.id]: [...nextMessages, normalizeMessage(message)],
   });
   writeLocalConversations(nextConversations);
+}
+
+async function persistLocalRead(conversationIdValue: string, userId: string) {
+  const conversations = readLocalConversations().map(normalizeConversation);
+  writeLocalConversations(
+    conversations.map((conversation) =>
+      conversation.id === conversationIdValue
+        ? {
+            ...conversation,
+            unreadBy: conversation.unreadBy.filter((entry) => entry !== userId),
+            updatedAt: nowIso(),
+          }
+        : conversation,
+    ),
+  );
 }
 
 export async function startConversation(
@@ -130,15 +170,25 @@ export async function startConversation(
   },
   firstMessage: string,
 ): Promise<string> {
+  const cleanMessage = firstMessage.trim();
+
+  if (!cleanMessage) {
+    throw new Error("Enter a message.");
+  }
+
+  if (buyer.id === listing.ownerId) {
+    throw new Error("You cannot start a conversation on your own listing.");
+  }
+
   const id = conversationId(listing.id, buyer.id, listing.ownerId);
-  const now = Timestamp.now();
-  const recipientId = listing.ownerId;
   const firestore = db;
+  const recipientId = listing.ownerId;
+  const now = Timestamp.now();
 
   if (!firebaseReady || !firestore) {
     const existing =
       readLocalConversations().find((conversation) => conversation.id === id) ??
-      ({
+      normalizeConversation({
         id,
         listingId: listing.id,
         listingTitle: `${listing.make} ${listing.model} ${listing.year}`,
@@ -148,25 +198,26 @@ export async function startConversation(
         sellerId: listing.ownerId,
         sellerName: listing.ownerName,
         participants: [buyer.id, listing.ownerId],
-        lastMessage: firstMessage,
-        lastMessageAt: new Date().toISOString(),
+        lastMessage: cleanMessage,
+        lastMessageAt: nowIso(),
         unreadBy: [listing.ownerId],
-      } satisfies Conversation);
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      });
 
-    const message: EasyRideMessage = {
+    await persistLocalConversationAndMessage(existing, {
       id: crypto.randomUUID(),
       conversationId: id,
       senderId: buyer.id,
       senderName: buyer.name,
-      body: firstMessage,
-      createdAt: new Date().toISOString(),
+      body: cleanMessage,
       read: false,
-    };
+      createdAt: nowIso(),
+    });
 
-    await persistConversationAndMessage(id, existing, message);
     await notifyRecipient({
       recipientId,
-      title: "New message",
+      title: "New Message",
       message: `${buyer.name} sent a message about ${listing.make} ${listing.model}.`,
       link: `/messages?conversation=${id}`,
     });
@@ -174,11 +225,11 @@ export async function startConversation(
     return id;
   }
 
-  const reference = doc(firestore, "conversations", id);
-  const snapshot = await getDoc(reference);
+  const conversationReference = doc(firestore, "conversations", id);
+  const existingConversation = await getDoc(conversationReference);
 
-  if (!snapshot.exists()) {
-    await setDoc(reference, {
+  if (!existingConversation.exists()) {
+    await setDoc(conversationReference, {
       listingId: listing.id,
       listingTitle: `${listing.make} ${listing.model} ${listing.year}`,
       listingImage: listing.coverImage,
@@ -187,33 +238,36 @@ export async function startConversation(
       sellerId: listing.ownerId,
       sellerName: listing.ownerName,
       participants: [buyer.id, listing.ownerId],
-      lastMessage: firstMessage,
+      lastMessage: cleanMessage,
       lastMessageAt: now,
       unreadBy: [listing.ownerId],
+      createdAt: now,
+      updatedAt: now,
     });
   }
 
-    await addDoc(collection(firestore, "conversations", id, "messages"), {
+  await addDoc(collection(firestore, "conversations", id, "messages"), {
     conversationId: id,
     senderId: buyer.id,
     senderName: buyer.name,
-    body: firstMessage,
-    createdAt: now,
+    body: cleanMessage,
     read: false,
+    createdAt: now,
   });
 
-  await updateDoc(reference, {
-    lastMessage: firstMessage,
+  await updateDoc(conversationReference, {
+    lastMessage: cleanMessage,
     lastMessageAt: now,
     unreadBy: [listing.ownerId],
+    updatedAt: now,
   });
 
-  await notifyRecipient({
-    recipientId,
-    title: "New message",
-    message: `${buyer.name} sent a message about ${listing.make} ${listing.model}.`,
-    link: `/messages?conversation=${id}`,
-  });
+    await notifyRecipient({
+      recipientId,
+      title: "New Message",
+      message: `${buyer.name} sent a message about ${listing.make} ${listing.model}.`,
+      link: `/messages?conversation=${id}`,
+    });
 
   return id;
 }
@@ -226,28 +280,35 @@ export async function sendMessage(
   },
   body: string,
 ): Promise<void> {
+  const cleanBody = body.trim();
+
+  if (!cleanBody) {
+    throw new Error("Enter a message.");
+  }
+
+  if (!conversation.participants.includes(sender.id)) {
+    throw new Error("You are not part of this conversation.");
+  }
+
   const recipientId =
-    sender.id === conversation.buyerId
-      ? conversation.sellerId
-      : conversation.buyerId;
-  const now = Timestamp.now();
+    sender.id === conversation.buyerId ? conversation.sellerId : conversation.buyerId;
   const firestore = db;
+  const now = Timestamp.now();
 
   if (!firebaseReady || !firestore) {
-    const message: EasyRideMessage = {
+    await persistLocalConversationAndMessage(conversation, {
       id: crypto.randomUUID(),
       conversationId: conversation.id,
       senderId: sender.id,
       senderName: sender.name,
-      body,
-      createdAt: new Date().toISOString(),
+      body: cleanBody,
       read: false,
-    };
+      createdAt: nowIso(),
+    });
 
-    await persistConversationAndMessage(conversation.id, conversation, message);
     await notifyRecipient({
       recipientId,
-      title: "New message",
+      title: "New Message",
       message: `${sender.name} sent a message about ${conversation.listingTitle}.`,
       link: `/messages?conversation=${conversation.id}`,
     });
@@ -258,20 +319,21 @@ export async function sendMessage(
     conversationId: conversation.id,
     senderId: sender.id,
     senderName: sender.name,
-    body,
-    createdAt: now,
+    body: cleanBody,
     read: false,
+    createdAt: now,
   });
 
   await updateDoc(doc(firestore, "conversations", conversation.id), {
-    lastMessage: body,
+    lastMessage: cleanBody,
     lastMessageAt: now,
     unreadBy: [recipientId],
+    updatedAt: now,
   });
 
   await notifyRecipient({
     recipientId,
-    title: "New message",
+    title: "New Message",
     message: `${sender.name} sent a message about ${conversation.listingTitle}.`,
     link: `/messages?conversation=${conversation.id}`,
   });
@@ -287,9 +349,11 @@ export function subscribeToMessages(
     const emit = () => {
       const messages = readLocalMessages()[conversationIdValue] ?? [];
       callback(
-        [...messages].sort((left, right) =>
-          String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? ""))
-        ),
+        [...messages]
+          .map(normalizeMessage)
+          .sort((left, right) =>
+            String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? "")),
+          ),
       );
     };
 
@@ -308,7 +372,7 @@ export function subscribeToMessages(
   const messagesQuery = query(
     collection(firestore, "conversations", conversationIdValue, "messages"),
     orderBy("createdAt", "asc"),
-    limit(100),
+    limit(150),
   );
 
   return onSnapshot(messagesQuery, (snapshot) => {
@@ -318,22 +382,91 @@ export function subscribeToMessages(
           ({
             id: messageDocument.id,
             ...messageDocument.data(),
-          }) as EasyRideMessage,
+          } as EasyRideMessage),
       ),
     );
   });
 }
 
-export async function getUserConversations(
+export function subscribeToUserConversations(
   userId: string,
-): Promise<Conversation[]> {
+  callback: (conversations: Conversation[]) => void,
+): () => void {
   const firestore = db;
 
   if (!firebaseReady || !firestore) {
-    return sortByMessageDate(
-      readLocalConversations().filter((conversation) =>
-        conversation.participants.includes(userId),
+    const emit = () => {
+      callback(
+        sortConversations(
+          readLocalConversations()
+            .map(normalizeConversation)
+            .filter((conversation) => conversation.participants.includes(userId)),
+        ),
+      );
+    };
+
+    emit();
+
+    const listener = () => emit();
+    window.addEventListener("storage", listener);
+    window.addEventListener(CONVERSATIONS_EVENT, listener);
+
+    return () => {
+      window.removeEventListener("storage", listener);
+      window.removeEventListener(CONVERSATIONS_EVENT, listener);
+    };
+  }
+
+  const conversationsQuery = query(
+    collection(firestore, "conversations"),
+    where("participants", "array-contains", userId),
+    orderBy("lastMessageAt", "desc"),
+    limit(50),
+  );
+
+  return onSnapshot(conversationsQuery, (snapshot) => {
+    callback(
+      snapshot.docs.map(
+        (conversationDocument) =>
+          ({
+            id: conversationDocument.id,
+            ...conversationDocument.data(),
+          } as Conversation),
       ),
+    );
+  });
+}
+
+export async function getConversationById(conversationIdValue: string): Promise<Conversation | null> {
+  const firestore = db;
+
+  if (!firebaseReady || !firestore) {
+    return (
+      readLocalConversations().map(normalizeConversation).find((conversation) => conversation.id === conversationIdValue) ??
+      null
+    );
+  }
+
+  const snapshot = await getDoc(doc(firestore, "conversations", conversationIdValue));
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...(snapshot.data() as Omit<Conversation, "id">),
+  } as Conversation;
+}
+
+export async function getUserConversations(userId: string): Promise<Conversation[]> {
+  const firestore = db;
+
+  if (!firebaseReady || !firestore) {
+    return sortConversations(
+      readLocalConversations()
+        .map(normalizeConversation)
+        .filter((conversation) => conversation.participants.includes(userId)),
     );
   }
 
@@ -341,6 +474,7 @@ export async function getUserConversations(
     collection(firestore, "conversations"),
     where("participants", "array-contains", userId),
     orderBy("lastMessageAt", "desc"),
+    limit(50),
   );
 
   const snapshot = await getDocs(conversationsQuery);
@@ -350,32 +484,20 @@ export async function getUserConversations(
       ({
         id: conversationDocument.id,
         ...conversationDocument.data(),
-      }) as Conversation,
+      } as Conversation),
   );
 }
 
-export async function markConversationRead(
-  conversationIdValue: string,
-  userId: string,
-): Promise<void> {
+export async function markConversationRead(conversationIdValue: string, userId: string): Promise<void> {
   const firestore = db;
 
   if (!firebaseReady || !firestore) {
-    const conversations = readLocalConversations();
-    const next = conversations.map((conversation) =>
-      conversation.id === conversationIdValue
-        ? {
-            ...conversation,
-            unreadBy: conversation.unreadBy.filter((entry) => entry !== userId),
-          }
-        : conversation,
-    );
-
-    writeLocalConversations(next);
+    await persistLocalRead(conversationIdValue, userId);
     return;
   }
 
   await updateDoc(doc(firestore, "conversations", conversationIdValue), {
     unreadBy: arrayRemove(userId),
+    updatedAt: Timestamp.now(),
   });
 }

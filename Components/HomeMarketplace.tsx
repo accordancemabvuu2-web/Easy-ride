@@ -1,45 +1,46 @@
 "use client";
 
-import { getActiveListings } from "@/services/listingService";
-import type { ListingType, Vehicle } from "@/Types/vehicle";
-import {
-  Grid2x2,
-  LayoutList,
-  Loader2,
-  Map,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import CarCard from "@/Components/CarCard";
+import VehicleFilters from "@/Components/VehicleFilters";
+import { getActiveListingPage } from "@/services/listingService";
+import type { ListingType, Vehicle } from "@/Types/vehicle";
+import { Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { DocumentSnapshot } from "firebase/firestore";
+import type { Dispatch, SetStateAction } from "react";
 
 type FilterType = ListingType | "all";
 type ViewMode = "grid" | "list";
 type SortType = "featured" | "price-asc" | "price-desc" | "year-desc";
 
-const pageSize = 3;
-
 export default function HomeMarketplace() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
-  const [search, setSearch] = useState("");
-  const [listingType, setListingType] = useState<FilterType>("all");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDocument, setLastDocument] = useState<DocumentSnapshot | null>(null);
+  const search = searchParams.get("q") ?? "";
+  const urlType = searchParams.get("type");
+  const listingType: FilterType =
+    urlType === "buy" || urlType === "rent" || urlType === "all" ? urlType : "all";
   const [location, setLocation] = useState("all");
   const [fuelType, setFuelType] = useState("all");
   const [transmission, setTransmission] = useState("all");
   const [sortBy, setSortBy] = useState<SortType>("featured");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    async function loadVehicles() {
+    async function loadInitialPage() {
       try {
         setLoadingVehicles(true);
-        const result = await getActiveListings();
-        setVehicles(result);
+        const page = await getActiveListingPage();
+        setVehicles(page.listings);
+        setLastDocument(page.lastDocument);
+        setHasMore(Boolean(page.lastDocument));
       } catch (error) {
         console.error("Could not load listings:", error);
       } finally {
@@ -47,26 +48,49 @@ export default function HomeMarketplace() {
       }
     }
 
-    loadVehicles();
+    void loadInitialPage();
   }, []);
 
-  useEffect(() => {
-    const urlType = searchParams.get("type");
-    const urlSearch = searchParams.get("q") ?? "";
+  const updateSearchParams = (key: "q" | "type", value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
 
-    if (urlType === "buy" || urlType === "rent" || urlType === "all") {
-      setListingType(urlType);
+    if (value && !(key === "type" && value === "all")) {
+      params.set(key, value);
     } else {
-      setListingType("all");
+      params.delete(key);
     }
 
-    setSearch(urlSearch);
-    setPage(1);
-  }, [searchParams]);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, listingType, location, fuelType, transmission, sortBy]);
+  const setSearch: Dispatch<SetStateAction<string>> = (value) => {
+    updateSearchParams("q", typeof value === "function" ? value(search) : value);
+  };
+  const setListingType: Dispatch<SetStateAction<FilterType>> = (value) => {
+    updateSearchParams(
+      "type",
+      typeof value === "function" ? value(listingType) : value,
+    );
+  };
+
+  const loadMore = async () => {
+    if (!lastDocument || loadingMore) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+      const page = await getActiveListingPage(lastDocument ?? undefined);
+      setVehicles((current) => [...current, ...page.listings]);
+      setLastDocument(page.lastDocument);
+      setHasMore(Boolean(page.lastDocument));
+    } catch (error) {
+      console.error("Could not load more listings:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const locations = useMemo(
     () => [...new Set(vehicles.map((vehicle) => vehicle.location.city))],
@@ -114,18 +138,6 @@ export default function HomeMarketplace() {
     });
   }, [fuelType, listingType, location, search, sortBy, transmission, vehicles]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredVehicles.length / pageSize));
-  const visibleVehicles = filteredVehicles.slice(
-    (page - 1) * pageSize,
-    page * pageSize
-  );
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [page, totalPages]);
-
   const clearFilters = () => {
     setSearch("");
     setListingType("all");
@@ -134,16 +146,16 @@ export default function HomeMarketplace() {
     setTransmission("all");
     setSortBy("featured");
     setViewMode("grid");
-    setPage(1);
   };
 
-  const hasFilters =
+  const hasFilters = Boolean(
     search ||
-    listingType !== "all" ||
-    location !== "all" ||
-    fuelType !== "all" ||
-    transmission !== "all" ||
-    sortBy !== "featured";
+      listingType !== "all" ||
+      location !== "all" ||
+      fuelType !== "all" ||
+      transmission !== "all" ||
+      sortBy !== "featured",
+  );
 
   if (loadingVehicles) {
     return (
@@ -155,134 +167,27 @@ export default function HomeMarketplace() {
 
   return (
     <section id="vehicles" className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
-      <div className="rounded-[32px] border border-[#E5E7EB] bg-white p-5 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-6">
-          <label className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-4 lg:col-span-2">
-            <Search size={18} className="text-[#0B5D3B]" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="w-full bg-transparent outline-none"
-              placeholder="Search brand, model, location, dealer..."
-              aria-label="Search vehicles"
-            />
-          </label>
+      <VehicleFilters
+        search={search}
+        setSearch={setSearch}
+        listingType={listingType}
+        setListingType={setListingType}
+        location={location}
+        setLocation={setLocation}
+        fuelType={fuelType}
+        setFuelType={setFuelType}
+        transmission={transmission}
+        setTransmission={setTransmission}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        locations={locations}
+        hasFilters={hasFilters}
+        clearFilters={clearFilters}
+      />
 
-          <select
-            value={listingType}
-            onChange={(event) => setListingType(event.target.value as FilterType)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-            aria-label="Listing type"
-          >
-            <option value="all">All listings</option>
-            <option value="buy">For sale</option>
-            <option value="rent">For rent</option>
-          </select>
-
-          <select
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-            aria-label="Location filter"
-          >
-            <option value="all">All locations</option>
-            {locations.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={fuelType}
-            onChange={(event) => setFuelType(event.target.value)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-            aria-label="Fuel type filter"
-          >
-            <option value="all">All fuel types</option>
-            <option value="Petrol">Petrol</option>
-            <option value="Diesel">Diesel</option>
-            <option value="Hybrid">Hybrid</option>
-            <option value="Electric">Electric</option>
-          </select>
-
-          <select
-            value={transmission}
-            onChange={(event) => setTransmission(event.target.value)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-            aria-label="Transmission filter"
-          >
-            <option value="all">All transmissions</option>
-            <option value="Automatic">Automatic</option>
-            <option value="Manual">Manual</option>
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value as SortType)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-            aria-label="Sort vehicles"
-          >
-            <option value="featured">Sort by featured</option>
-            <option value="year-desc">Newest first</option>
-            <option value="price-asc">Price: low to high</option>
-            <option value="price-desc">Price: high to low</option>
-          </select>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <div className="mr-1 flex items-center gap-2 text-sm font-medium text-gray-500">
-            <SlidersHorizontal size={17} />
-            View:
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setViewMode("grid")}
-            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-              viewMode === "grid"
-                ? "bg-[#0B5D3B] text-white"
-                : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
-            }`}
-          >
-            <Grid2x2 size={16} />
-            Grid
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
-              viewMode === "list"
-                ? "bg-[#0B5D3B] text-white"
-                : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
-            }`}
-          >
-            <LayoutList size={16} />
-            List
-          </button>
-
-          <Link
-            href="/map"
-            className="inline-flex items-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-2.5 text-sm font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B] hover:text-white"
-          >
-            <Map size={16} />
-            Map View
-          </Link>
-
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="ml-auto text-sm font-semibold text-[#0B5D3B]"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-10 flex items-end justify-between gap-4">
+      <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
             Marketplace
@@ -292,19 +197,19 @@ export default function HomeMarketplace() {
           </h2>
         </div>
 
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 sm:shrink-0">
           {filteredVehicles.length}{" "}
           {filteredVehicles.length === 1 ? "vehicle" : "vehicles"}
         </p>
       </div>
 
-      {visibleVehicles.length > 0 ? (
+      {filteredVehicles.length > 0 ? (
         <div
           className={`mt-7 gap-6 ${
             viewMode === "grid" ? "grid md:grid-cols-2 xl:grid-cols-3" : "grid"
           }`}
         >
-          {visibleVehicles.map((vehicle) => (
+          {filteredVehicles.map((vehicle) => (
             <CarCard key={vehicle.id} vehicle={vehicle} layout={viewMode} />
           ))}
         </div>
@@ -330,35 +235,22 @@ export default function HomeMarketplace() {
         </div>
       )}
 
-      {filteredVehicles.length > pageSize && (
-        <div className="mt-8 flex items-center justify-between gap-4">
-          <p className="text-sm text-gray-500">
-            Page {page} of {totalPages}
-          </p>
+      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-gray-500">
+          Loaded {vehicles.length} listings
+        </p>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page === 1}
-              className="rounded-full border border-[#E5E7EB] px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setPage((current) => Math.min(totalPages, current + 1))
-              }
-              disabled={page === totalPages}
-              className="rounded-full bg-[#0B5D3B] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="w-full rounded-full bg-[#0B5D3B] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+          >
+            {loadingMore ? "Loading..." : "Load More"}
+          </button>
+        )}
+      </div>
     </section>
   );
 }

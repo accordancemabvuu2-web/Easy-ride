@@ -8,7 +8,7 @@ import { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, firebaseEnabled } = useAuth();
   const router = useRouter();
 
   const [submitting, setSubmitting] = useState(false);
@@ -96,6 +96,18 @@ export default function LoginPage() {
           >
             Continue with Google
           </button>
+
+          {!firebaseEnabled && (
+            <div className="mt-5 rounded-2xl border border-[#C9A227]/30 bg-[#FFF9E8] p-4 text-sm text-[#5B4700]">
+              <p className="font-semibold">Local admin test account</p>
+              <p className="mt-1">
+                Email: <span className="font-bold">admin@easyride.local</span>
+              </p>
+              <p>
+                Password: <span className="font-bold">admin123</span>
+              </p>
+            </div>
+          )}
 
           <p className="mt-6 text-center text-sm text-gray-500">
             New to Easy Ride?{" "}

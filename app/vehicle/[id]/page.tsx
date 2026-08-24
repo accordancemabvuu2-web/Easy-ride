@@ -1,8 +1,11 @@
 "use client";
 
+import AvailabilityCalendar from "@/Components/AvailabilityCalendar";
+import BookingForm from "@/Components/BookingForm";
 import Footer from "@/Components/Footer";
 import MessageSellerModal from "@/Components/MessageSellerModal";
 import Navbar from "@/Components/Navbar";
+import OfferForm from "@/Components/OfferForm";
 import ReportListingModal from "@/Components/ReportListingModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { recordContactClick, recordListingView } from "@/services/analyticsService";
@@ -56,11 +59,13 @@ export default function VehiclePage() {
   }, [id, profile?.id, profile?.role]);
 
   useEffect(() => {
-    if (!vehicle) {
+    const vehicleId = vehicle?.id;
+
+    if (!vehicleId) {
       return;
     }
 
-    recordListingView(vehicle.id, firebaseUser?.uid).catch(console.error);
+    recordListingView(vehicleId, firebaseUser?.uid).catch(console.error);
   }, [vehicle?.id, firebaseUser?.uid]);
 
   if (loading) {
@@ -126,11 +131,11 @@ export default function VehiclePage() {
           href="/"
           className="text-sm font-semibold text-[#0B5D3B] hover:underline"
         >
-          ← Back to marketplace
+          {"←"} Back to marketplace
         </Link>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[1.4fr_0.8fr]">
-          <div>
+          <div className="space-y-6">
             <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gray-200 sm:h-[520px]">
               <Image
                 src={vehicle.coverImage}
@@ -142,7 +147,7 @@ export default function VehiclePage() {
               />
             </div>
 
-            <article className="mt-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8">
+            <article className="rounded-3xl border border-[#E5E7EB] bg-white p-6 sm:p-8">
               <h2 className="text-2xl font-bold">Vehicle description</h2>
               <p className="mt-4 leading-8 text-gray-600">{vehicle.description}</p>
 
@@ -172,6 +177,10 @@ export default function VehiclePage() {
                 </div>
               </div>
             </article>
+
+            {vehicle.listingType === "rent" && (
+              <AvailabilityCalendar listingId={vehicle.id} />
+            )}
           </div>
 
           <aside className="h-fit rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:sticky lg:top-24">
@@ -242,6 +251,11 @@ export default function VehiclePage() {
             <p className="mt-5 text-center text-xs leading-5 text-gray-500">
               Never send money before inspecting the vehicle and confirming the seller&apos;s identity.
             </p>
+
+            <div className="mt-6 space-y-4">
+              {vehicle.listingType === "rent" && <BookingForm vehicle={vehicle} />}
+              {vehicle.listingType === "buy" && <OfferForm vehicle={vehicle} />}
+            </div>
           </aside>
         </div>
       </section>

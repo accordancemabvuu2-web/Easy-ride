@@ -1,0 +1,20 @@
+<svg width="1000" height="700" viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mazda Demio">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2C2021"/>
+      <stop offset="100%" stop-color="#4C2F33"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFC1B2"/>
+      <stop offset="100%" stop-color="#E78366"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="700" fill="url(#bg)"/>
+  <circle cx="155" cy="150" r="110" fill="#E7B319" opacity=".12"/>
+  <path d="M120 510c175-34 284-36 416-34 112 2 214 25 311 72H120Z" fill="#220F11" opacity=".65"/>
+  <path d="M178 502h550c43 0 84 18 110 50H106c18-31 38-50 72-50Z" fill="url(#body)"/>
+  <path d="M255 442h232c33 0 61 13 81 36l38 48H207l23-43c8-23 19-41 25-41Z" fill="url(#body)"/>
+  <path d="M286 454h182c15 0 28 6 38 18l19 23H251l15-22c7-12 15-19 20-19Z" fill="#FFEDE6" opacity=".6"/>
+  <circle cx="293" cy="553" r="43" fill="#111"/><circle cx="293" cy="553" r="24" fill="#B7C0C7"/><circle cx="293" cy="553" r="8" fill="#1A1A1A"/>
+  <circle cx="643" cy="553" r="43" fill="#111"/><circle cx="643" cy="553" r="24" fill="#B7C0C7"/><circle cx="643" cy="553" r="8" fill="#1A1A1A"/>
+</svg>

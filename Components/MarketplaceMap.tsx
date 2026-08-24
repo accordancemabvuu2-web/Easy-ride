@@ -4,6 +4,40 @@ import type { Vehicle } from "@/Types/vehicle";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { useEffect, useRef, useState } from "react";
 
+type ClustererMap = NonNullable<
+  ConstructorParameters<typeof MarkerClusterer>[0]["map"]
+>;
+type ClustererMarker = NonNullable<
+  ConstructorParameters<typeof MarkerClusterer>[0]["markers"]
+>[number];
+
+interface GoogleMapInstance {
+  fitBounds: (bounds: unknown) => void;
+}
+
+interface GoogleInfoWindowInstance {
+  setContent: (content: string) => void;
+  open: (options: { anchor: GoogleMarkerInstance; map: GoogleMapInstance }) => void;
+}
+
+interface GoogleMarkerInstance {
+  addListener: (event: string, handler: () => void) => void;
+}
+
+interface GoogleMapsApi {
+  maps: {
+    Map: new (
+      element: HTMLElement,
+      options: Record<string, unknown>,
+    ) => GoogleMapInstance;
+    InfoWindow: new () => GoogleInfoWindowInstance;
+    Marker: new (options: Record<string, unknown>) => GoogleMarkerInstance;
+    LatLngBounds: new () => {
+      extend: (point: { lat: number; lng: number }) => void;
+    };
+  };
+}
+
 interface MarketplaceMapProps {
   vehicles: Vehicle[];
   onVehicleSelect?: (vehicle: Vehicle) => void;
@@ -11,7 +45,7 @@ interface MarketplaceMapProps {
 
 function loadGoogleMaps(apiKey: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.google?.maps) {
+    if ((window as Window & { google?: { maps?: unknown } }).google?.maps) {
       resolve();
       return;
     }
@@ -59,22 +93,25 @@ export default function MarketplaceMap({
       .then(() => {
         if (cancelled || !mapElement.current) return;
 
+        const googleMaps = (window as unknown as { google: GoogleMapsApi })
+          .google;
+
         const validVehicles = vehicles.filter(
           (vehicle) =>
             Number.isFinite(vehicle.location.latitude) &&
             Number.isFinite(vehicle.location.longitude),
         );
 
-        const map = new google.maps.Map(mapElement.current, {
+        const map = new googleMaps.maps.Map(mapElement.current, {
           center: { lat: -17.8252, lng: 31.0335 },
           zoom: 7,
           mapTypeControl: false,
           streetViewControl: false,
         });
 
-        const informationWindow = new google.maps.InfoWindow();
+        const informationWindow = new googleMaps.maps.InfoWindow();
         const markers = validVehicles.map((vehicle) => {
-          const marker = new google.maps.Marker({
+          const marker = new googleMaps.maps.Marker({
             position: {
               lat: vehicle.location.latitude,
               lng: vehicle.location.longitude,
@@ -98,10 +135,13 @@ export default function MarketplaceMap({
           return marker;
         });
 
-        clusterer = new MarkerClusterer({ map, markers });
+        clusterer = new MarkerClusterer({
+          map: map as unknown as ClustererMap,
+          markers: markers as unknown as ClustererMarker[],
+        });
 
         if (validVehicles.length > 0) {
-          const bounds = new google.maps.LatLngBounds();
+          const bounds = new googleMaps.maps.LatLngBounds();
           validVehicles.forEach((vehicle) => {
             bounds.extend({
               lat: vehicle.location.latitude,

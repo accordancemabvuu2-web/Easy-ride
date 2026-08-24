@@ -3,17 +3,22 @@
 import { db, firebaseReady, storage } from "@/lib/firebase";
 import type { Vehicle, ListingStatus } from "@/Types/vehicle";
 import {
+  DocumentSnapshot,
   collection,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
   setDoc,
+  startAfter,
   updateDoc,
   where,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { vehicles as seedVehicles } from "@/Data/vehicles";
 
 const STORAGE_KEY = "easy-ride:listings";
@@ -22,6 +27,11 @@ const MAX_LOCAL_LISTINGS = 25;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+export interface ListingPage {
+  listings: Vehicle[];
+  lastDocument: QueryDocumentSnapshot | null;
 }
 
 function isQuotaExceededError(error: unknown) {
@@ -109,7 +119,11 @@ async function fetchRemoteListings(): Promise<Vehicle[]> {
   if (!db) return readLocalListings().map(normalizeListing);
 
   const activeSnapshot = await getDocs(
-    query(collection(db, "listings"), where("status", "==", "active"))
+    query(
+      collection(db, "listings"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc")
+    )
   );
 
   return activeSnapshot.docs.map((snapshot) =>
@@ -117,7 +131,7 @@ async function fetchRemoteListings(): Promise<Vehicle[]> {
       id: snapshot.id,
       ...(snapshot.data() as Omit<Vehicle, "id">),
     })
-  ).sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+  );
 }
 
 async function fetchAllOwnedListings(ownerId: string): Promise<Vehicle[]> {
@@ -136,11 +150,62 @@ async function fetchAllOwnedListings(ownerId: string): Promise<Vehicle[]> {
       id: snapshot.id,
       ...(snapshot.data() as Omit<Vehicle, "id">),
     })
-  ).sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+  );
 }
 
 export async function getActiveListings(): Promise<Vehicle[]> {
   return fetchRemoteListings();
+}
+
+export async function getActiveListingPage(
+  lastDocument?: DocumentSnapshot
+): Promise<ListingPage> {
+  if (!db) {
+    const listings = readLocalListings()
+      .map(normalizeListing)
+      .filter((listing) => listing.status === "active")
+      .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
+
+    const startIndex = lastDocument
+      ? listings.findIndex((listing) => listing.id === lastDocument.id) + 1
+      : 0;
+    const pageListings = listings.slice(startIndex, startIndex + 20);
+
+    return {
+      listings: pageListings,
+      lastDocument:
+        pageListings.length > 0
+          ? ({ id: pageListings[pageListings.length - 1].id } as QueryDocumentSnapshot)
+          : null,
+    };
+  }
+
+  const listingQuery = lastDocument
+    ? query(
+        collection(db, "listings"),
+        where("status", "==", "active"),
+        orderBy("createdAt", "desc"),
+        startAfter(lastDocument),
+        limit(20)
+      )
+    : query(
+        collection(db, "listings"),
+        where("status", "==", "active"),
+        orderBy("createdAt", "desc"),
+        limit(20)
+      );
+
+  const snapshot = await getDocs(listingQuery);
+
+  return {
+    listings: snapshot.docs.map((listingDocument) =>
+      normalizeListing({
+        id: listingDocument.id,
+        ...(listingDocument.data() as Omit<Vehicle, "id">),
+      })
+    ),
+    lastDocument: snapshot.docs[snapshot.docs.length - 1] ?? null,
+  };
 }
 
 export async function getPendingListings(): Promise<Vehicle[]> {
@@ -159,7 +224,7 @@ export async function getPendingListings(): Promise<Vehicle[]> {
       id: snapshot.id,
       ...(snapshot.data() as Omit<Vehicle, "id">),
     })
-  ).sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+  );
 }
 
 export async function getMyListings(ownerId: string): Promise<Vehicle[]> {

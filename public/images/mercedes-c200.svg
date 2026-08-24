@@ -1,0 +1,20 @@
+<svg width="1000" height="700" viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mercedes C200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#101820"/>
+      <stop offset="100%" stop-color="#1A2633"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5F7FA"/>
+      <stop offset="100%" stop-color="#C8D0D8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="700" fill="url(#bg)"/>
+  <path d="M104 520c178-43 346-56 520-43 136 10 232 34 272 78H104Z" fill="#0B1218" opacity=".75"/>
+  <path d="M165 500h575c44 0 86 17 116 49H95c18-30 40-49 70-49Z" fill="url(#body)"/>
+  <path d="M236 436h278c34 0 64 13 84 36l42 49H192l25-44c7-22 12-41 19-41Z" fill="url(#body)"/>
+  <path d="M274 448h210c17 0 31 7 42 20l20 23H240l15-22c8-12 16-21 19-21Z" fill="#DFF2FF" opacity=".58"/>
+  <circle cx="288" cy="553" r="44" fill="#111"/><circle cx="288" cy="553" r="24" fill="#B7C0C7"/><circle cx="288" cy="553" r="8" fill="#1A1A1A"/>
+  <circle cx="658" cy="553" r="44" fill="#111"/><circle cx="658" cy="553" r="24" fill="#B7C0C7"/><circle cx="658" cy="553" r="8" fill="#1A1A1A"/>
+  <path d="M381 487h175" stroke="#EEF1F5" stroke-width="8" stroke-linecap="round" opacity=".6"/>
+</svg>

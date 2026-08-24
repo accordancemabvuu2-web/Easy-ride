@@ -10,7 +10,7 @@ import {
   updateListingStatus,
 } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
-import { Check, Eye, Loader2, Plus, Trash2 } from "lucide-react";
+import { Eye, Loader2, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -42,7 +42,11 @@ function DashboardContent() {
   }, [profile]);
 
   useEffect(() => {
-    void loadListings();
+    const timeoutId = window.setTimeout(() => {
+      void loadListings();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadListings]);
 
   const stats = useMemo(

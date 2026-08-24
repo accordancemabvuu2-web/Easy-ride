@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Firebase setup
+
+Easy Ride uses Firebase Authentication, Firestore, and Storage for shared marketplace data. Copy `.env.local.example` to `.env.local`, fill in the Firebase values, enable Email/Password or Google sign-in in Firebase Authentication, and deploy `firestore.rules`.
+
+Admin access is controlled by a Firebase custom claim, not only by the profile role stored in Firestore. Set `GOOGLE_APPLICATION_CREDENTIALS` to a Firebase service-account JSON path and `ADMIN_EMAIL` to an existing Firebase user, then run:
+
+```bash
+npm run set-admin
+```
+
+The user must sign out and sign in again after the claim is assigned. Buyer and seller payments are arranged directly between them; Easy Ride does not process those payments.
+
 ## Getting Started
 
 First, run the development server:

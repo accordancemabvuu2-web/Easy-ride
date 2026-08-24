@@ -2,202 +2,527 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/Components/NotificationBell";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import {
+  BadgeDollarSign,
   Bell,
+  CalendarDays,
+  ChevronDown,
   Heart,
   LayoutDashboard,
   LogIn,
   LogOut,
   Menu,
-  MessageSquare,
+  MessageCircle,
   Plus,
-  Shield,
+  ShieldCheck,
   UserPlus,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 export default function Navbar() {
-  const { profile, logout, loading } = useAuth();
-  const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { firebaseUser, profile, logout, loading } = useAuth();
+  const unreadMessages = useUnreadMessages();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  const links = useMemo(
+  const dashboardHref =
+    profile?.role === "admin"
+      ? "/admin"
+      : profile?.role === "dealer"
+        ? "/dealer/dashboard"
+        : "/dashboard";
+
+  const closeMenus = () => {
+    setMobileMenuOpen(false);
+    setAccountMenuOpen(false);
+  };
+
+  const mainLinks = useMemo(
     () => [
-      { label: "Buy", href: "/?type=buy" },
-      { label: "Rent", href: "/?type=rent" },
+      { label: "Buy Cars", href: "/?type=buy" },
+      { label: "Rent Cars", href: "/?type=rent" },
       { label: "Map", href: "/map" },
       { label: "About", href: "/about" },
     ],
-    []
+    [],
   );
 
-  const active = (href: string) =>
-    href.startsWith("/?") ? pathname === "/" : pathname === href;
-
-  const closeMenu = () => setMenuOpen(false);
-
-  const authLinks = profile
-    ? [
-        { label: "Favorites", href: "/favorites", icon: Heart },
-        { label: "Messages", href: "/messages", icon: MessageSquare },
-        profile.role === "admin"
-          ? { label: "Admin", href: "/admin", icon: Shield }
-          : { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      ]
-    : [
-        { label: "Login", href: "/login", icon: LogIn },
-        { label: "Register", href: "/register", icon: UserPlus },
-      ];
-
   return (
-    <header className="sticky top-0 z-50 border-b border-[#E5E7EB] bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0B5D3B] font-bold text-white">
-            ER
-          </div>
-
-          <div>
-            <p className="text-xl font-bold text-[#0B5D3B]">Easy Ride</p>
-            <p className="hidden text-xs text-gray-500 sm:block">
-              Drive with confidence
-            </p>
-          </div>
-        </Link>
-
-        <nav className="hidden items-center gap-6 md:flex">
-          {links.map((link) => (
-            <Link
-              key={link.label}
-              href={link.href}
-              className={`font-medium transition ${
-                active(link.href)
-                  ? "text-[#0B5D3B]"
-                  : "text-gray-700 hover:text-[#0B5D3B]"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-
-          {authLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="inline-flex items-center gap-2 font-medium text-gray-700 transition hover:text-[#0B5D3B]"
-              >
-                <Icon size={17} />
-                {link.label}
-              </Link>
-            );
-          })}
-
+    <header className="sticky top-0 z-50 w-full border-b border-[#E5E7EB] bg-white/95 shadow-sm backdrop-blur">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-[76px] w-full items-center justify-between gap-3 lg:gap-4">
           <Link
-            href="/create-listing"
-            className="inline-flex items-center gap-2 rounded-full bg-[#0B5D3B] px-5 py-3 font-semibold text-white transition hover:bg-[#084B30]"
+            href="/"
+            onClick={closeMenus}
+            className="flex shrink-0 items-center gap-3"
           >
-            <Plus size={18} />
-            Post Car
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0B5D3B] text-sm font-bold text-white shadow-sm">
+              ER
+            </div>
+
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-xl font-bold text-[#0B5D3B]">
+                Easy Ride
+              </p>
+              <p className="hidden text-xs text-gray-500 sm:block">
+                Drive with confidence
+              </p>
+            </div>
           </Link>
 
-          {profile && <NotificationBell />}
+          <nav className="hidden flex-1 items-center justify-center gap-1 xl:flex">
+            {mainLinks.map((link) => (
+              <NavLink key={link.label} href={link.href}>
+                {link.label}
+              </NavLink>
+            ))}
 
-          {!loading && profile && (
+            {firebaseUser && (
+              <>
+                <NavLink href="/favorites">
+                  <Heart size={17} />
+                  Favorites
+                </NavLink>
+
+                <NavLink href="/messages">
+                  <MessageCircle size={17} />
+                  Messages
+                  {unreadMessages > 0 && (
+                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
+                </NavLink>
+              </>
+            )}
+          </nav>
+
+          <div className="hidden shrink-0 items-center gap-2 lg:flex xl:hidden">
+            {!loading && !firebaseUser && (
+              <Link
+                href="/login"
+                className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"
+              >
+                <LogIn size={18} />
+                Log in
+              </Link>
+            )}
+
+            {firebaseUser && <NotificationBell />}
+
+            <Link
+              href="/create-listing"
+              className="flex items-center gap-2 whitespace-nowrap rounded-full bg-[#0B5D3B] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#084B30]"
+            >
+              <Plus size={18} />
+              Post Car
+            </Link>
+
+            {firebaseUser && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAccountMenuOpen((current) => !current)}
+                  className="flex items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-3 py-2.5 text-left transition hover:border-[#0B5D3B]/40 hover:bg-[#F8F9FA]"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B5D3B]/10 font-bold text-[#0B5D3B]">
+                    {profile?.name?.charAt(0).toUpperCase() ?? "U"}
+                  </div>
+
+                  <ChevronDown size={17} className="text-gray-500" />
+                </button>
+
+                {accountMenuOpen && (
+                  <div className="absolute right-0 top-[58px] w-64 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+                    <div className="border-b border-[#E5E7EB] px-5 py-4">
+                      <p className="font-bold">
+                        {profile?.name ?? "Easy Ride User"}
+                      </p>
+
+                      <p className="mt-1 truncate text-sm text-gray-500">
+                        {profile?.email}
+                      </p>
+                    </div>
+
+                    <div className="p-2">
+                      <Link
+                        href={dashboardHref}
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <LayoutDashboard size={18} />
+                        Dashboard
+                      </Link>
+
+                      <Link
+                        href="/bookings"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <CalendarDays size={18} />
+                        Bookings
+                      </Link>
+
+                      <Link
+                        href="/offers"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <BadgeDollarSign size={18} />
+                        Offers
+                      </Link>
+
+                      <Link
+                        href="/verification"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <ShieldCheck size={18} />
+                        Verification
+                      </Link>
+
+                      <Link
+                        href="/support"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <MessageCircle size={18} />
+                        Support
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await logout();
+                          closeMenus();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-medium text-red-600 hover:bg-red-50"
+                      >
+                        <LogOut size={18} />
+                        Log out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={logout}
-              className="inline-flex items-center gap-2 rounded-full border border-[#E5E7EB] px-5 py-3 font-medium text-gray-700 transition hover:border-[#0B5D3B] hover:text-[#0B5D3B]"
+              aria-label="Open navigation menu"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+              className="rounded-xl border border-[#E5E7EB] p-2.5 text-[#0B5D3B] xl:hidden"
             >
-              <LogOut size={17} />
-              Logout
+              {mobileMenuOpen ? <X /> : <Menu />}
             </button>
-          )}
-        </nav>
+          </div>
 
-        <button
-          type="button"
-          aria-label="Toggle navigation menu"
-          onClick={() => setMenuOpen((current) => !current)}
-          className="rounded-xl border border-[#E5E7EB] p-2 text-[#0B5D3B] md:hidden"
-        >
-          {menuOpen ? <X /> : <Menu />}
-        </button>
+          <div className="hidden shrink-0 items-center gap-3 xl:flex">
+            {!loading && !firebaseUser && (
+              <>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"
+                >
+                  <LogIn size={18} />
+                  Log in
+                </Link>
+
+                <Link
+                  href="/register"
+                  className="flex items-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-3 font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B]/5"
+                >
+                  <UserPlus size={18} />
+                  Register
+                </Link>
+              </>
+            )}
+
+            {firebaseUser && (
+              <>
+                <NotificationBell />
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAccountMenuOpen((current) => !current)}
+                    className="flex items-center gap-3 rounded-full border border-[#E5E7EB] bg-white px-4 py-2.5 text-left transition hover:border-[#0B5D3B]/40 hover:bg-[#F8F9FA]"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B5D3B]/10 font-bold text-[#0B5D3B]">
+                      {profile?.name?.charAt(0).toUpperCase() ?? "U"}
+                    </div>
+
+                    <div className="max-w-[150px]">
+                      <p className="truncate text-sm font-bold text-[#202124]">
+                        {profile?.name ?? "Easy Ride User"}
+                      </p>
+
+                      <p className="truncate text-xs capitalize text-gray-500">
+                        {profile?.role ?? "member"}
+                      </p>
+                    </div>
+
+                    <ChevronDown size={17} className="text-gray-500" />
+                  </button>
+
+                  {accountMenuOpen && (
+                    <div className="absolute right-0 top-[58px] w-64 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+                      <div className="border-b border-[#E5E7EB] px-5 py-4">
+                        <p className="font-bold">
+                          {profile?.name ?? "Easy Ride User"}
+                        </p>
+
+                        <p className="mt-1 truncate text-sm text-gray-500">
+                          {profile?.email}
+                        </p>
+                      </div>
+
+                    <div className="p-2">
+                      <Link
+                        href={dashboardHref}
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <LayoutDashboard size={18} />
+                        Dashboard
+                      </Link>
+
+                      <Link
+                        href="/bookings"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <CalendarDays size={18} />
+                        Bookings
+                      </Link>
+
+                      <Link
+                        href="/offers"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <BadgeDollarSign size={18} />
+                        Offers
+                      </Link>
+
+                      <Link
+                        href="/verification"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <ShieldCheck size={18} />
+                        Verification
+                      </Link>
+
+                      <Link
+                        href="/support"
+                        onClick={closeMenus}
+                        className="flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                      >
+                        <MessageCircle size={18} />
+                        Support
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await logout();
+                            closeMenus();
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-medium text-red-600 hover:bg-red-50"
+                        >
+                          <LogOut size={18} />
+                          Log out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <Link
+              href="/create-listing"
+              className="flex items-center gap-2 whitespace-nowrap rounded-full bg-[#0B5D3B] px-5 py-3 font-bold text-white shadow-sm transition hover:bg-[#084B30]"
+            >
+              <Plus size={18} />
+              Post Your Car
+            </Link>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Open navigation menu"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            className="rounded-xl border border-[#E5E7EB] p-2.5 text-[#0B5D3B] lg:hidden"
+          >
+            {mobileMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </div>
 
-      {menuOpen && (
-        <nav className="border-t border-[#E5E7EB] bg-white px-4 py-4 md:hidden">
-          <div className="flex flex-col gap-2">
-            {links.map((link) => (
+      {mobileMenuOpen && (
+        <div className="border-t border-[#E5E7EB] bg-white xl:hidden">
+          <nav className="max-h-[calc(100vh-4.75rem)] space-y-1 overflow-y-auto px-4 py-4 sm:px-6">
+            {mainLinks.map((link) => (
               <Link
                 key={link.label}
                 href={link.href}
-                onClick={closeMenu}
-                className={`rounded-xl px-4 py-3 font-medium transition ${
-                  active(link.href)
-                    ? "bg-[#F8F9FA] text-[#0B5D3B]"
-                    : "text-gray-700 hover:bg-[#F8F9FA]"
-                }`}
+                onClick={closeMenus}
+                className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
               >
                 {link.label}
               </Link>
             ))}
 
-            {authLinks.map((link) => {
-              const Icon = link.icon;
-              return (
+            {firebaseUser && (
+              <>
                 <Link
-                  key={link.label}
-                  href={link.href}
-                  onClick={closeMenu}
-                  className="inline-flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                  href={dashboardHref}
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
                 >
-                  <Icon size={17} />
-                  {link.label}
+                  <LayoutDashboard size={17} />
+                  Dashboard
                 </Link>
-              );
-            })}
+
+                <Link
+                  href="/bookings"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <CalendarDays size={17} />
+                  Bookings
+                </Link>
+
+                <Link
+                  href="/offers"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <BadgeDollarSign size={17} />
+                  Offers
+                </Link>
+
+                <Link
+                  href="/verification"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <ShieldCheck size={17} />
+                  Verification
+                </Link>
+
+                <Link
+                  href="/support"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <MessageCircle size={17} />
+                  Support
+                </Link>
+
+                <Link
+                  href="/favorites"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <Heart size={17} />
+                  Favorites
+                </Link>
+
+                <Link
+                  href="/messages"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <MessageCircle size={17} />
+                  Messages
+                  {unreadMessages > 0 && (
+                    <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
+                </Link>
+
+                <Link
+                  href="/notifications"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <Bell size={17} />
+                  Notifications
+                </Link>
+              </>
+            )}
+
+            {!loading && !firebaseUser && (
+              <>
+                <Link
+                  href="/login"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <LogIn size={17} />
+                  Log in
+                </Link>
+
+                <Link
+                  href="/register"
+                  onClick={closeMenus}
+                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
+                >
+                  <UserPlus size={17} />
+                  Register
+                </Link>
+              </>
+            )}
 
             <Link
               href="/create-listing"
-              onClick={closeMenu}
+              onClick={closeMenus}
               className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-[#0B5D3B] px-4 py-3 font-semibold text-white"
             >
               <Plus size={18} />
               Post Car
             </Link>
 
-            {profile && (
-              <Link
-                href="/notifications"
-                onClick={closeMenu}
-                className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] px-4 py-3 font-medium text-gray-700"
-              >
-                <Bell size={17} />
-                Alerts
-              </Link>
-            )}
-
-            {!loading && profile && (
+            {firebaseUser && (
               <button
                 type="button"
-                onClick={() => {
-                  closeMenu();
-                  void logout();
+                onClick={async () => {
+                  closeMenus();
+                  await logout();
                 }}
-                className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] px-4 py-3 font-medium text-gray-700"
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E5E7EB] px-4 py-3 font-medium text-gray-700"
               >
                 <LogOut size={17} />
-                Logout
+                Log out
               </button>
             )}
-          </div>
-        </nav>
+          </nav>
+        </div>
       )}
     </header>
+  );
+}
+
+function NavLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"
+    >
+      {children}
+    </Link>
   );
 }

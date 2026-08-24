@@ -1,0 +1,20 @@
+<svg width="1000" height="700" viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Honda Fit">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#152A2B"/>
+      <stop offset="100%" stop-color="#24404A"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F9F9F9"/>
+      <stop offset="100%" stop-color="#C7CED6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="700" fill="url(#bg)"/>
+  <path d="M140 515c132-36 260-48 405-48 131 0 211 20 314 74H140Z" fill="#0B1718" opacity=".75"/>
+  <path d="M180 500h560c42 0 82 17 109 49H110c18-30 39-49 70-49Z" fill="url(#body)"/>
+  <path d="M250 438h250c32 0 60 13 80 35l42 51H205l25-46c9-22 20-40 20-40Z" fill="url(#body)"/>
+  <path d="M285 449h192c16 0 29 6 40 18l20 24H252l15-23c7-11 17-19 18-19Z" fill="#D8F6FF" opacity=".6"/>
+  <circle cx="292" cy="553" r="43" fill="#111"/><circle cx="292" cy="553" r="23" fill="#B7C0C7"/><circle cx="292" cy="553" r="8" fill="#1A1A1A"/>
+  <circle cx="646" cy="553" r="43" fill="#111"/><circle cx="646" cy="553" r="23" fill="#B7C0C7"/><circle cx="646" cy="553" r="8" fill="#1A1A1A"/>
+  <rect x="260" y="508" width="285" height="9" rx="4.5" fill="#EEF1F5"/>
+</svg>

@@ -1,211 +1,175 @@
 "use client";
 
-import Footer from "@/Components/Footer";
-import Navbar from "@/Components/Navbar";
-import RequireAuth from "@/Components/RequireAuth";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  getPendingListings,
-  updateListingStatus,
-} from "@/services/listingService";
-import { createNotification } from "@/services/notificationService";
-import type { Vehicle } from "@/Types/vehicle";
-import {
-  Check,
-  Loader2,
-  ShieldAlert,
-  X,
-} from "lucide-react";
-import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import AdminMetricCard from "@/Components/AdminMetricCard";
+import AdminStatusBadge from "@/Components/AdminStatusBadge";
+import { getAdminListings, getAdminUsers } from "@/services/adminService";
+import { getAllBookings } from "@/services/bookingService";
+import { getAllPayments } from "@/services/paymentService";
+import { getAllOffers } from "@/services/offerService";
+import { getAuditLogs } from "@/services/auditService";
+import { getListingReports } from "@/services/reportService";
+import { getSupportTickets } from "@/services/supportService";
+import { getVerificationRequests } from "@/services/verificationService";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-export default function AdminPage() {
-  return (
-    <RequireAuth>
-      <AdminContent />
-    </RequireAuth>
-  );
-}
-
-function AdminContent() {
-  const { profile } = useAuth();
-  const [listings, setListings] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadPending = useCallback(async () => {
-    try {
-      setLoading(true);
-      setListings(await getPendingListings());
-    } catch {
-      toast.error("Pending listings could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function AdminOverviewPage() {
+  const [stats, setStats] = useState({
+    users: 0,
+    listings: 0,
+    bookings: 0,
+    offers: 0,
+    payments: 0,
+    supportTickets: 0,
+    reports: 0,
+    verificationRequests: 0,
+    auditLogs: 0,
+  });
+  const [recentLogs, setRecentLogs] = useState<
+    {
+      id: string;
+      description: string;
+      action: string;
+      targetType: string;
+      actorName: string;
+    }[]
+  >([]);
 
   useEffect(() => {
-    if (profile?.role === "admin") {
-      void loadPending();
-    } else {
-      setLoading(false);
-    }
-  }, [profile, loadPending]);
+    void (async () => {
+      const [
+        users,
+        listings,
+        bookings,
+        offers,
+        payments,
+        supportTickets,
+        reports,
+        verificationRequests,
+        auditLogs,
+      ] = await Promise.all([
+        getAdminUsers(),
+        getAdminListings(),
+        getAllBookings(),
+        getAllOffers(),
+        getAllPayments(),
+        getSupportTickets(),
+        getListingReports(),
+        getVerificationRequests(),
+        getAuditLogs(),
+      ]);
 
-  const approve = async (listingId: string) => {
-    try {
-      const listing = listings.find((item) => item.id === listingId);
-      await updateListingStatus(listingId, "active");
+      setStats({
+        users: users.length,
+        listings: listings.length,
+        bookings: bookings.length,
+        offers: offers.length,
+        payments: payments.length,
+        supportTickets: supportTickets.length,
+        reports: reports.length,
+        verificationRequests: verificationRequests.length,
+        auditLogs: auditLogs.length,
+      });
 
-      if (listing) {
-        await createNotification({
-          userId: listing.ownerId,
-          type: "listing_approved",
-          title: "Listing approved",
-          message: `${listing.make} ${listing.model} ${listing.year} is now live on Easy Ride.`,
-          link: `/vehicle/${listing.id}`,
-        });
-      }
+      setRecentLogs(
+        auditLogs
+          .slice(0, 5)
+          .map((log) => ({
+            id: log.id,
+            description: log.description,
+            action: log.action,
+            targetType: log.targetType,
+            actorName: log.actorName,
+          })),
+      );
+    })();
+  }, []);
 
-      toast.success("Listing approved.");
-      await loadPending();
-    } catch {
-      toast.error("Listing could not be approved.");
-    }
-  };
-
-  const reject = async (listingId: string) => {
-    const reason = window.prompt("Enter the reason for rejecting this listing:");
-
-    if (!reason?.trim()) {
-      return;
-    }
-
-    try {
-      const listing = listings.find((item) => item.id === listingId);
-      await updateListingStatus(listingId, "rejected", reason.trim());
-
-      if (listing) {
-        await createNotification({
-          userId: listing.ownerId,
-          type: "listing_rejected",
-          title: "Listing rejected",
-          message: `${listing.make} ${listing.model} ${listing.year} was rejected: ${reason.trim()}`,
-          link: `/dashboard`,
-        });
-      }
-
-      toast.success("Listing rejected.");
-      await loadPending();
-    } catch {
-      toast.error("Listing could not be rejected.");
-    }
-  };
+  const quickActions = useMemo(
+    () => [
+      { href: "/admin/listings", label: "Review listings", note: "Approve, suspend, or reject vehicles." },
+      { href: "/admin/reports", label: "Handle reports", note: "Work through suspicious listings quickly." },
+      { href: "/admin/verification", label: "Verify accounts", note: "Approve identity and dealer requests." },
+      { href: "/admin/support", label: "Support inbox", note: "Respond to customer issues faster." },
+    ],
+    [],
+  );
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
-      <Navbar />
-      {profile?.role !== "admin" ? (
-        <section className="mx-auto max-w-xl px-4 py-20 text-center">
-          <ShieldAlert className="mx-auto text-red-600" size={48} />
-          <h1 className="mt-5 text-3xl font-bold">Access denied</h1>
-          <p className="mt-3 text-gray-500">
-            Only Easy Ride administrators can access this page.
-          </p>
-        </section>
-      ) : (
-        <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+    <section className="min-h-screen px-4 py-8 sm:px-6 lg:px-8 lg:pl-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-            Moderation
+            Admin Portal
           </p>
-
-          <h1 className="mt-2 text-4xl font-bold">Pending listings</h1>
-          <p className="mt-3 text-gray-500">
-            Review vehicle information before publishing it.
+          <h1 className="mt-2 text-4xl font-bold text-[#121212]">Operations overview</h1>
+          <p className="mt-3 max-w-2xl text-gray-600">
+            Monitor the marketplace from one place: users, listings, bookings, offers, payments,
+            reports, support, verification, and audit activity.
           </p>
+        </div>
 
-          {loading ? (
-            <div className="flex min-h-80 items-center justify-center">
-              <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminMetricCard label="Users" value={stats.users} />
+          <AdminMetricCard label="Listings" value={stats.listings} />
+          <AdminMetricCard label="Bookings" value={stats.bookings} />
+          <AdminMetricCard label="Offers" value={stats.offers} />
+          <AdminMetricCard label="Payments" value={stats.payments} />
+          <AdminMetricCard label="Support tickets" value={stats.supportTickets} />
+          <AdminMetricCard label="Reports" value={stats.reports} />
+          <AdminMetricCard label="Verification requests" value={stats.verificationRequests} />
+          <AdminMetricCard label="Audit logs" value={stats.auditLogs} />
+        </div>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <section className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
+                  Quick actions
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-[#121212]">Jump into the right workflow</h2>
+              </div>
             </div>
-          ) : listings.length === 0 ? (
-            <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-12 text-center">
-              <h2 className="text-2xl font-bold">No listings are waiting</h2>
-              <p className="mt-2 text-gray-500">
-                Newly submitted vehicles will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-8 space-y-5">
-              {listings.map((listing) => (
-                <article
-                  key={listing.id}
-                  className="grid gap-5 rounded-3xl border border-[#E5E7EB] bg-white p-5 lg:grid-cols-[220px_1fr_auto]"
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="rounded-2xl border border-[#E5E7EB] p-4 transition hover:border-[#0B5D3B] hover:shadow-sm"
                 >
-                  <div className="relative h-44 overflow-hidden rounded-2xl">
-                    <Image
-                      src={listing.coverImage}
-                      alt={`${listing.make} ${listing.model}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-
-                  <div>
-                    <h2 className="text-2xl font-bold">
-                      {listing.make} {listing.model} {listing.year}
-                    </h2>
-
-                    <p className="mt-2 text-2xl font-bold text-[#0B5D3B]">
-                      {listing.currency} {listing.price.toLocaleString()}
-                    </p>
-
-                    <div className="mt-4 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
-                      <p>
-                        <b>Seller:</b> {listing.ownerName}
-                      </p>
-
-                      <p>
-                        <b>Contact:</b> {listing.ownerPhone}
-                      </p>
-
-                      <p>
-                        <b>Location:</b> {listing.location.address}
-                      </p>
-
-                      <p>
-                        <b>Type:</b>{" "}
-                        {listing.listingType === "buy" ? "For sale" : "For rent"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 lg:flex-col">
-                    <button
-                      type="button"
-                      onClick={() => void approve(listing.id)}
-                      className="flex items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-5 py-3 font-bold text-white"
-                    >
-                      <Check size={18} />
-                      Approve
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => void reject(listing.id)}
-                      className="flex items-center justify-center gap-2 rounded-full border border-red-200 px-5 py-3 font-bold text-red-600"
-                    >
-                      <X size={18} />
-                      Reject
-                    </button>
-                  </div>
-                </article>
+                  <p className="font-semibold text-[#121212]">{action.label}</p>
+                  <p className="mt-1 text-sm text-gray-500">{action.note}</p>
+                </Link>
               ))}
             </div>
-          )}
-        </section>
-      )}
-      <Footer />
-    </main>
+          </section>
+
+          <section className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
+              Recent activity
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-[#121212]">Latest admin events</h2>
+            <div className="mt-5 space-y-3">
+              {recentLogs.length === 0 ? (
+                <p className="text-sm text-gray-500">No recent activity yet.</p>
+              ) : (
+                recentLogs.map((log) => (
+                  <div key={log.id} className="rounded-2xl bg-[#F8F9FA] p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-[#121212]">{log.description}</p>
+                      <AdminStatusBadge status={log.action} />
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {log.actorName} · {log.targetType}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
   );
 }

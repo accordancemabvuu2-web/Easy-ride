@@ -1,21 +1,15 @@
 "use client";
 
+import ConversationList from "@/Components/ConversationList";
+import MessageThread from "@/Components/MessageThread";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getUserConversations,
-  markConversationRead,
-  sendMessage,
-  subscribeToMessages,
-} from "@/services/messageService";
-import type { Conversation, EasyRideMessage } from "@/Types/message";
-import { Loader2, MessageCircle, Send } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import toast from "react-hot-toast";
+import { markConversationRead, subscribeToUserConversations } from "@/services/messageService";
+import type { Conversation } from "@/Types/message";
+import { ArrowLeft, Loader2, MessageCircle } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function MessagesPage() {
   return (
@@ -26,243 +20,124 @@ export default function MessagesPage() {
 }
 
 function MessagesContent() {
-  const { profile } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
+  const { firebaseUser, profile } = useAuth();
   const searchParams = useSearchParams();
-
+  const requestedConversationId = searchParams.get("conversation");
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<EasyRideMessage[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(true);
-  const [draft, setDraft] = useState("");
-
-  const selectedConversationId = searchParams.get("conversation") ?? "";
-
-  const selectedConversation = useMemo(() => {
-    if (selectedConversationId) {
-      return conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
-    }
-
-    return conversations[0] ?? null;
-  }, [conversations, selectedConversationId]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
 
   useEffect(() => {
-    async function loadConversations() {
-      if (!profile) {
-        return;
-      }
-
-      try {
-        setLoadingConversations(true);
-        setConversations(await getUserConversations(profile.id));
-      } catch {
-        toast.error("Conversations could not be loaded.");
-      } finally {
-        setLoadingConversations(false);
-      }
-    }
-
-    void loadConversations();
-  }, [profile]);
-
-  useEffect(() => {
-    if (!profile || !selectedConversation) {
-      setMessages([]);
+    if (!firebaseUser) {
       return;
     }
 
-    setLoadingMessages(true);
-    const unsubscribe = subscribeToMessages(selectedConversation.id, setMessages);
-    void markConversationRead(selectedConversation.id, profile.id).finally(() =>
-      setLoadingMessages(false),
-    );
+    const unsubscribe = subscribeToUserConversations(firebaseUser.uid, (items) => {
+      setConversations(items);
+      setLoading(false);
 
-    if (!selectedConversationId) {
-      router.replace(`${pathname}?conversation=${selectedConversation.id}`);
-    }
+      if (requestedConversationId) {
+        const requested = items.find((item) => item.id === requestedConversationId);
+
+        if (requested) {
+          setSelectedConversation(requested);
+          setMobileThreadOpen(true);
+          return;
+        }
+      }
+
+      setSelectedConversation((current) => current ?? items[0] ?? null);
+    });
 
     return unsubscribe;
-  }, [pathname, profile, router, selectedConversation, selectedConversationId]);
+  }, [firebaseUser, requestedConversationId]);
 
-  const sendCurrentMessage = async () => {
-    if (!profile || !selectedConversation) {
+  useEffect(() => {
+    if (!firebaseUser || !selectedConversation) {
       return;
     }
 
-    if (!draft.trim()) {
-      return;
-    }
+    void markConversationRead(selectedConversation.id, firebaseUser.uid);
+  }, [firebaseUser, selectedConversation]);
 
-    try {
-      await sendMessage(
-        selectedConversation,
-        {
-          id: profile.id,
-          name: profile.name,
-        },
-        draft.trim(),
-      );
-      setDraft("");
-    } catch {
-      toast.error("The message could not be sent.");
+  const selectConversation = async (conversation: Conversation) => {
+    setSelectedConversation(conversation);
+    setMobileThreadOpen(true);
+
+    if (firebaseUser) {
+      await markConversationRead(conversation.id, firebaseUser.uid);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
+    <main className="min-h-screen bg-[#F8F9FA]">
       <Navbar />
 
-      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-        <div className="flex items-center gap-3">
-          <MessageCircle className="text-[#0B5D3B]" />
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-              Messages
-            </p>
-            <h1 className="text-4xl font-bold">Conversations</h1>
+      <section className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <MessageCircle className="text-[#0B5D3B]" />
+            <h1 className="text-3xl font-bold sm:text-4xl">Messages</h1>
           </div>
+          <p className="mt-2 text-gray-500">Chat securely with buyers and sellers.</p>
         </div>
 
-        {loadingConversations ? (
-          <div className="flex min-h-80 items-center justify-center">
-            <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
-          </div>
-        ) : conversations.length === 0 ? (
-          <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-14 text-center">
-            <MessageCircle className="mx-auto text-gray-400" size={40} />
-            <h2 className="mt-5 text-2xl font-bold">No conversations yet</h2>
-            <p className="mt-2 text-gray-500">
-              Send a message from any vehicle page to start a thread.
-            </p>
+        {loading ? (
+          <div className="flex min-h-[500px] items-center justify-center">
+            <Loader2 className="animate-spin text-[#0B5D3B]" size={34} />
           </div>
         ) : (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[320px_1fr]">
-            <aside className="rounded-3xl border border-[#E5E7EB] bg-white p-4">
-              <div className="space-y-3">
-                {conversations.map((conversation) => {
-                  const active = conversation.id === selectedConversation?.id;
+          <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm lg:grid lg:grid-cols-[360px_1fr]">
+            <aside className={`border-r border-[#E5E7EB] ${mobileThreadOpen ? "hidden lg:block" : "block"}`}>
+              <div className="border-b border-[#E5E7EB] px-5 py-4">
+                <h2 className="font-bold">Conversations</h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  {conversations.length} conversation{conversations.length !== 1 ? "s" : ""}
+                </p>
+              </div>
 
-                  return (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      onClick={() => router.push(`${pathname}?conversation=${conversation.id}`)}
-                      className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
-                        active ? "bg-[#0B5D3B]/8 ring-1 ring-[#0B5D3B]/20" : "hover:bg-[#F8F9FA]"
-                      }`}
-                    >
-                      <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-gray-100">
-                        <Image
-                          src={conversation.listingImage}
-                          alt={conversation.listingTitle}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">
-                          {conversation.listingTitle}
-                        </p>
-                        <p className="truncate text-sm text-gray-500">
-                          {conversation.lastMessage}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="max-h-[calc(100vh-270px)] overflow-y-auto">
+                <ConversationList
+                  conversations={conversations}
+                  currentUserId={firebaseUser?.uid ?? ""}
+                  selectedId={selectedConversation?.id ?? null}
+                  onSelect={(conversation) => void selectConversation(conversation)}
+                />
               </div>
             </aside>
 
-            <section className="min-h-[640px] rounded-3xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-              {!selectedConversation ? (
-                <div className="flex min-h-[560px] items-center justify-center text-center">
-                  <div>
-                    <MessageCircle className="mx-auto text-[#0B5D3B]" size={40} />
-                    <h2 className="mt-4 text-2xl font-bold">Select a conversation</h2>
-                    <p className="mt-2 text-gray-500">
-                      Choose a thread to continue the discussion.
-                    </p>
-                  </div>
-                </div>
+            <div className={`${mobileThreadOpen ? "block" : "hidden lg:block"}`}>
+              {mobileThreadOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setMobileThreadOpen(false)}
+                  className="flex w-full items-center gap-2 border-b border-[#E5E7EB] px-4 py-3 font-semibold text-[#0B5D3B] lg:hidden"
+                >
+                  <ArrowLeft size={18} />
+                  Conversations
+                </button>
+              ) : null}
+
+              {selectedConversation && firebaseUser && profile ? (
+                <MessageThread
+                  key={selectedConversation.id}
+                  conversation={selectedConversation}
+                  currentUser={{
+                    id: firebaseUser.uid,
+                    name: profile.name,
+                  }}
+                />
               ) : (
-                <div className="flex min-h-[560px] flex-col">
-                  <div className="flex items-center gap-3 border-b border-[#E5E7EB] pb-4">
-                    <div className="relative h-14 w-14 overflow-hidden rounded-2xl bg-gray-100">
-                      <Image
-                        src={selectedConversation.listingImage}
-                        alt={selectedConversation.listingTitle}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold">
-                        {selectedConversation.listingTitle}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        Chat with {selectedConversation.buyerId === profile?.id ? selectedConversation.sellerName : selectedConversation.buyerName}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 space-y-3 overflow-y-auto py-5">
-                    {loadingMessages ? (
-                      <div className="flex min-h-64 items-center justify-center">
-                        <Loader2 className="animate-spin text-[#0B5D3B]" size={28} />
-                      </div>
-                    ) : messages.length === 0 ? (
-                      <div className="flex min-h-64 items-center justify-center text-center">
-                        <p className="text-gray-500">No messages yet.</p>
-                      </div>
-                    ) : (
-                      messages.map((message) => {
-                        const mine = message.senderId === profile?.id;
-
-                        return (
-                          <div
-                            key={message.id}
-                            className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                          >
-                            <div
-                              className={`max-w-[80%] rounded-3xl px-4 py-3 ${
-                                mine ? "bg-[#0B5D3B] text-white" : "bg-[#F8F9FA] text-[#202124]"
-                              }`}
-                            >
-                              <p className="text-sm font-semibold opacity-80">
-                                {message.senderName}
-                              </p>
-                              <p className="mt-1 leading-7">{message.body}</p>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <div className="border-t border-[#E5E7EB] pt-4">
-                    <div className="flex gap-3">
-                      <input
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        placeholder="Write a message..."
-                        className="input"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => void sendCurrentMessage()}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white"
-                      >
-                        <Send size={18} />
-                        Send
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex min-h-[600px] flex-col items-center justify-center px-6 text-center">
+                  <MessageCircle className="text-gray-400" size={44} />
+                  <h2 className="mt-5 text-2xl font-bold">Select a conversation</h2>
+                  <p className="mt-2 max-w-md text-gray-500">
+                    Choose a conversation to view and send messages.
+                  </p>
                 </div>
               )}
-            </section>
+            </div>
           </div>
         )}
       </section>

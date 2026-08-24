@@ -15,6 +15,8 @@ export interface Conversation {
 
   participants: string[];
   unreadBy: string[];
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface EasyRideMessage {

@@ -1,0 +1,23 @@
+<svg width="1000" height="700" viewBox="0 0 1000 700" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Toyota Axio">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F332B"/>
+      <stop offset="100%" stop-color="#173C35"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#B8C2CA"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="700" fill="url(#bg)"/>
+  <circle cx="840" cy="120" r="110" fill="#E7B319" opacity=".16"/>
+  <circle cx="180" cy="580" r="220" fill="#0A5B41" opacity=".35"/>
+  <path d="M120 500C290 470 432 420 612 418c130-1 201 35 243 96H120Z" fill="#0B1B16" opacity=".65"/>
+  <path d="M190 492h530c38 0 77 19 100 52H120c21-31 41-52 70-52Z" fill="url(#body)"/>
+  <path d="M245 432h245c34 0 66 14 88 39l35 42H200l23-40c7-24 21-41 22-41Z" fill="url(#body)"/>
+  <path d="M278 444h186c18 0 34 7 46 20l20 24H241l17-24c8-12 20-20 20-20Z" fill="#D6F0FF" opacity=".65"/>
+  <circle cx="290" cy="552" r="44" fill="#151515"/><circle cx="290" cy="552" r="24" fill="#A7B0B7"/><circle cx="290" cy="552" r="8" fill="#1A1A1A"/>
+  <circle cx="650" cy="552" r="44" fill="#151515"/><circle cx="650" cy="552" r="24" fill="#A7B0B7"/><circle cx="650" cy="552" r="8" fill="#1A1A1A"/>
+  <rect x="256" y="505" width="290" height="10" rx="5" fill="#EDEFF2"/>
+  <rect x="190" y="512" width="490" height="18" rx="9" fill="#7C8791" opacity=".25"/>
+</svg>
