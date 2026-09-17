@@ -4,25 +4,13 @@ import type { Vehicle } from "@/Types/vehicle";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { useEffect, useRef, useState } from "react";
 
-type ClustererMap = NonNullable<
-  ConstructorParameters<typeof MarkerClusterer>[0]["map"]
+type GoogleMapInstance = NonNullable<ConstructorParameters<typeof MarkerClusterer>[0]["map"]>;
+type GoogleMarkerInstance = NonNullable<
+  NonNullable<ConstructorParameters<typeof MarkerClusterer>[0]["markers"]>[number]
 >;
-type ClustererMarker = NonNullable<
-  ConstructorParameters<typeof MarkerClusterer>[0]["markers"]
->[number];
-
-interface GoogleMapInstance {
-  fitBounds: (bounds: unknown) => void;
-}
-
-interface GoogleInfoWindowInstance {
-  setContent: (content: string) => void;
-  open: (options: { anchor: GoogleMarkerInstance; map: GoogleMapInstance }) => void;
-}
-
-interface GoogleMarkerInstance {
-  addListener: (event: string, handler: () => void) => void;
-}
+type GoogleBoundsInstance = {
+  extend: (point: { lat: number; lng: number }) => void;
+};
 
 interface GoogleMapsApi {
   maps: {
@@ -30,11 +18,15 @@ interface GoogleMapsApi {
       element: HTMLElement,
       options: Record<string, unknown>,
     ) => GoogleMapInstance;
-    InfoWindow: new () => GoogleInfoWindowInstance;
-    Marker: new (options: Record<string, unknown>) => GoogleMarkerInstance;
-    LatLngBounds: new () => {
-      extend: (point: { lat: number; lng: number }) => void;
+    InfoWindow: new () => {
+      setContent: (content: string) => void;
+      open: (options: { anchor: GoogleMarkerInstance; map: GoogleMapInstance }) => void;
     };
+    Marker: new (options: {
+      position: { lat: number; lng: number };
+      title: string;
+    }) => GoogleMarkerInstance;
+    LatLngBounds: new () => GoogleBoundsInstance;
   };
 }
 
@@ -71,23 +63,36 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   });
 }
 
+type GoogleWindow = Window & {
+  gm_authFailure?: () => void;
+};
+
 export default function MarketplaceMap({
   vehicles,
   onVehicleSelect,
 }: MarketplaceMapProps) {
   const mapElement = useRef<HTMLDivElement | null>(null);
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
     if (!apiKey || !mapElement.current) {
-      setError("Google Maps API key is unavailable.");
+      setError("Google Maps key unavailable. Showing the OpenStreetMap fallback.");
       return;
     }
 
     let cancelled = false;
     let clusterer: MarkerClusterer | null = null;
+    const googleWindow = window as GoogleWindow;
+    const previousAuthFailure = googleWindow.gm_authFailure;
+
+    const authFailureHandler = () => {
+      previousAuthFailure?.();
+      if (!cancelled) {
+        setError("Google Maps billing or API restrictions blocked the map. Showing the OpenStreetMap fallback.");
+      }
+    };
+    googleWindow.gm_authFailure = authFailureHandler;
 
     loadGoogleMaps(apiKey)
       .then(() => {
@@ -135,10 +140,7 @@ export default function MarketplaceMap({
           return marker;
         });
 
-        clusterer = new MarkerClusterer({
-          map: map as unknown as ClustererMap,
-          markers: markers as unknown as ClustererMarker[],
-        });
+        clusterer = new MarkerClusterer({ map, markers });
 
         if (validVehicles.length > 0) {
           const bounds = new googleMaps.maps.LatLngBounds();
@@ -148,7 +150,7 @@ export default function MarketplaceMap({
               lng: vehicle.location.longitude,
             });
           });
-          map.fitBounds(bounds);
+          map.fitBounds(bounds as Parameters<GoogleMapInstance["fitBounds"]>[0]);
         }
       })
       .catch(() => {
@@ -158,17 +160,33 @@ export default function MarketplaceMap({
     return () => {
       cancelled = true;
       clusterer?.clearMarkers();
+      if (googleWindow.gm_authFailure === authFailureHandler) {
+        delete googleWindow.gm_authFailure;
+      }
     };
-  }, [vehicles, onVehicleSelect]);
+  }, [apiKey, onVehicleSelect, vehicles]);
+
+  const showFallback = !apiKey || Boolean(error);
 
   return (
     <div>
-      <div
-        ref={mapElement}
-        className="h-[620px] overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-gray-100"
-      />
+      {showFallback ? (
+        <div className="overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-gray-100">
+          <iframe
+            title="Easy Ride vehicle map"
+            src="https://www.openstreetmap.org/export/embed.html?bbox=30.7%2C-18.1%2C31.4%2C-17.5&layer=mapnik&marker=-17.8252%2C31.0335"
+            className="h-[620px] w-full border-0"
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div
+          ref={mapElement}
+          className="h-[620px] overflow-hidden rounded-[28px] border border-[#E5E7EB] bg-gray-100"
+        />
+      )}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-gray-500">{error}</p>}
     </div>
   );
 }

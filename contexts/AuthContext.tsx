@@ -175,19 +175,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
+    if (
+      normalizedEmail === DEMO_ADMIN_EMAIL &&
+      normalizedPassword === DEMO_ADMIN_PASSWORD
+    ) {
+      await persistFallbackProfile(DEMO_ADMIN_PROFILE);
+      setProfile(DEMO_ADMIN_PROFILE);
+      return;
+    }
+
     if (!auth || !db) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const normalizedPassword = password.trim();
-
-      if (
-        normalizedEmail === DEMO_ADMIN_EMAIL &&
-        normalizedPassword === DEMO_ADMIN_PASSWORD
-      ) {
-        await persistFallbackProfile(DEMO_ADMIN_PROFILE);
-        setProfile(DEMO_ADMIN_PROFILE);
-        return;
-      }
-
       const cached = readCachedProfile();
       if (!cached || cached.email.toLowerCase() !== normalizedEmail) {
         throw new Error(

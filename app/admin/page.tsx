@@ -10,10 +10,12 @@ import { getAuditLogs } from "@/services/auditService";
 import { getListingReports } from "@/services/reportService";
 import { getSupportTickets } from "@/services/supportService";
 import { getVerificationRequests } from "@/services/verificationService";
+import type { Vehicle } from "@/Types/vehicle";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 export default function AdminOverviewPage() {
+  const [listings, setListings] = useState<Vehicle[]>([]);
   const [stats, setStats] = useState({
     users: 0,
     listings: 0,
@@ -39,7 +41,7 @@ export default function AdminOverviewPage() {
     void (async () => {
       const [
         users,
-        listings,
+        allListings,
         bookings,
         offers,
         payments,
@@ -59,9 +61,10 @@ export default function AdminOverviewPage() {
         getAuditLogs(),
       ]);
 
+      setListings(allListings);
       setStats({
         users: users.length,
-        listings: listings.length,
+        listings: allListings.length,
         bookings: bookings.length,
         offers: offers.length,
         payments: payments.length,
@@ -84,6 +87,11 @@ export default function AdminOverviewPage() {
       );
     })();
   }, []);
+
+  const pendingListings = useMemo(
+    () => listings.filter((listing) => listing.status === "pending"),
+    [listings],
+  );
 
   const quickActions = useMemo(
     () => [
@@ -112,6 +120,7 @@ export default function AdminOverviewPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AdminMetricCard label="Users" value={stats.users} />
           <AdminMetricCard label="Listings" value={stats.listings} />
+          <AdminMetricCard label="Pending approvals" value={pendingListings.length} />
           <AdminMetricCard label="Bookings" value={stats.bookings} />
           <AdminMetricCard label="Offers" value={stats.offers} />
           <AdminMetricCard label="Payments" value={stats.payments} />
@@ -119,6 +128,56 @@ export default function AdminOverviewPage() {
           <AdminMetricCard label="Reports" value={stats.reports} />
           <AdminMetricCard label="Verification requests" value={stats.verificationRequests} />
           <AdminMetricCard label="Audit logs" value={stats.auditLogs} />
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
+                Review queue
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-[#121212]">Cars waiting for approval</h2>
+            </div>
+            <Link href="/admin/listings" className="font-semibold text-[#0B5D3B]">
+              Review all
+            </Link>
+          </div>
+
+          {pendingListings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#D1D5DB] bg-[#F8F9FA] p-10 text-center">
+              <p className="text-lg font-semibold text-gray-700">No cars pending approval.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingListings.map((listing) => (
+                <div
+                  key={listing.id}
+                  className="rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] p-4"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-xl font-bold text-[#121212]">
+                          {listing.make} {listing.model} {listing.year}
+                        </h3>
+                        <AdminStatusBadge status={listing.status} />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-600">
+                        {listing.ownerName} • {listing.location.city} • {listing.listingType === "buy" ? "For sale" : "For rent"}
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/admin/listings"
+                      className="inline-flex items-center justify-center rounded-full bg-[#0B5D3B] px-5 py-3 font-bold text-white"
+                    >
+                      Review listing
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">

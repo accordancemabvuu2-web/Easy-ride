@@ -21,8 +21,9 @@ export default function LoginPage() {
     try {
       setSubmitting(true);
       await login(email, password);
+
       toast.success("Welcome back.");
-      router.push("/");
+      router.replace("/dashboard");
     } catch {
       toast.error("Incorrect email address or password.");
     } finally {
@@ -34,7 +35,7 @@ export default function LoginPage() {
     try {
       await loginWithGoogle();
       toast.success("Welcome back.");
-      router.push("/");
+      router.replace("/dashboard");
     } catch {
       toast.error("Google login failed.");
     }

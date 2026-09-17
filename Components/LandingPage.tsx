@@ -1,26 +1,24 @@
 "use client";
 
-import { landingVehicles } from "@/Data/landingVehicles";
+import { getActiveListings } from "@/services/listingService";
+import FavoriteButton from "@/Components/FavoriteButton";
+import Footer from "@/Components/Footer";
+import type { Vehicle } from "@/Types/vehicle";
 import {
-  BadgeCheck,
-  Bell,
   ChevronDown,
   CircleDollarSign,
   Headphones,
-  Heart,
-  LogIn,
   MapPin,
   Menu,
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Star,
   UserRound,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
 
@@ -33,24 +31,77 @@ export default function LandingPage() {
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("Current Location");
   const [priceRange, setPriceRange] = useState("$1,000 - $50,000+");
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getActiveListings()
+      .then((listings) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setVehicles(listings.filter((listing) => listing.status === "active"));
+      })
+      .catch((error) => {
+        console.error("Could not load approved listings for landing page:", error);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingVehicles(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredVehicles = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
-    return landingVehicles.filter((vehicle) => {
+    return vehicles.filter((vehicle) => {
       const matchesMode = vehicle.listingType === mode;
+      const vehicleCategory = (vehicle.bodyType ?? "").trim();
       const matchesCategory =
-        category === "All Cars" || vehicle.category === category;
+        category === "All Cars" ||
+        vehicleCategory.toLowerCase() === category.toLowerCase();
+
+      const searchableText = [
+        vehicle.make,
+        vehicle.model,
+        vehicle.bodyType ?? "",
+        vehicle.listingType,
+        vehicle.transmission,
+        vehicle.fuelType,
+        vehicle.location?.city ?? "",
+        vehicle.location?.country ?? "",
+        String(vehicle.price),
+        String(vehicle.year),
+      ]
+        .join(" ")
+        .toLowerCase();
 
       const matchesSearch =
-        normalizedSearch === "" ||
-        vehicle.name.toLowerCase().includes(normalizedSearch) ||
-        vehicle.category.toLowerCase().includes(normalizedSearch) ||
-        vehicle.fuel.toLowerCase().includes(normalizedSearch);
+        normalizedSearch === "" || searchableText.includes(normalizedSearch);
 
-      return matchesMode && matchesCategory && matchesSearch;
+      const numericPrice = vehicle.price;
+      const matchesPrice =
+        priceRange === "$1,000 - $50,000+" ||
+        (priceRange === "$1,000 - $5,000" && numericPrice <= 5000) ||
+        (priceRange === "$5,000 - $10,000" && numericPrice > 5000 && numericPrice <= 10000) ||
+        (priceRange === "$10,000 - $25,000" && numericPrice > 10000 && numericPrice <= 25000) ||
+        (priceRange === "$25,000+" && numericPrice > 25000);
+
+      const matchesLocation =
+        location === "Current Location" ||
+        vehicle.location?.city?.toLowerCase() === location.toLowerCase();
+
+      return matchesMode && matchesCategory && matchesSearch && matchesPrice && matchesLocation;
     });
-  }, [category, mode, search]);
+  }, [category, location, mode, priceRange, search, vehicles]);
 
   const runSearch = () => {
     document.getElementById("nearby-vehicles")?.scrollIntoView({ behavior: "smooth" });
@@ -76,8 +127,14 @@ export default function LandingPage() {
         <header className="relative z-30 w-full">
           <div className="flex h-[72px] w-full items-center justify-between px-5 sm:px-8 lg:px-10 xl:px-14">
             <Link href="/" className="flex shrink-0 items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#E7B319] font-black text-[#06382A]">
-                ER
+              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-white">
+                <Image
+                  src="/images/Easy_Ride_automotive_logo_design_202609071232.jpeg"
+                  alt="Easy Ride logo"
+                  fill
+                  className="object-contain p-0.5"
+                  sizes="44px"
+                />
               </div>
 
               <span className="text-xl font-black tracking-tight">
@@ -111,32 +168,14 @@ export default function LandingPage() {
             <div className="hidden items-center gap-4 lg:flex">
               <Link
                 href="/login"
-                className="flex items-center gap-2 text-sm font-semibold transition hover:text-[#E7B319]"
+                className="text-sm font-semibold transition hover:text-[#E7B319]"
               >
-                <LogIn size={18} />
                 Log in
               </Link>
               <Link
-                href="/favorites"
-                aria-label="Favorites"
-                className="transition hover:text-[#E7B319]"
-              >
-                <Heart size={21} />
-              </Link>
-              <Link
-                href="/notifications"
-                aria-label="Notifications"
-                className="transition hover:text-[#E7B319]"
-              >
-                <Bell size={21} />
-              </Link>
-              <Link
                 href="/create-listing"
-                className="flex items-center gap-2 rounded-full border border-[#E7B319] px-4 py-2 text-xs font-bold transition hover:bg-[#E7B319] hover:text-[#102018]"
+                className="rounded-full border border-[#E7B319] bg-[#E7B319] px-5 py-3 text-xs font-bold text-[#102018] transition hover:bg-[#F4C83D]"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
-                  <UserRound size={15} />
-                </span>
                 Post Your Car
               </Link>
             </div>
@@ -229,26 +268,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="absolute right-5 top-32 z-20 hidden w-36 rounded-2xl border border-white/20 bg-white/95 p-4 text-[#17201D] shadow-2xl backdrop-blur sm:right-8 sm:block lg:right-14">
-          <p className="text-xs font-semibold text-gray-500">Excellent</p>
-          <p className="mt-1 text-lg font-black">4.8 out of 5</p>
-          <div className="mt-2 flex gap-0.5 text-[#E7B319]" aria-label="Rated 4.8 out of 5">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star key={star} size={13} fill="currentColor" />
-            ))}
-          </div>
-          <p className="mt-2 text-[10px] text-gray-500">Based on 2,458 reviews</p>
-          <div className="mt-3 flex -space-x-2">
-            {["#0B5D3B", "#E7B319", "#7D8B83", "#24352F"].map((color) => (
-              <span
-                key={color}
-                className="h-6 w-6 rounded-full border-2 border-white"
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-10 xl:px-14">
           <div className="rounded-2xl bg-white p-5 text-[#17201D] shadow-[0_22px_65px_rgba(0,0,0,0.38)]">
             <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr_auto] lg:items-end">
@@ -256,7 +275,12 @@ export default function LandingPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search make, model or type"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      runSearch();
+                    }
+                  }}
+                  placeholder="Search make, model, year, price, type..."
                   className="w-full bg-transparent outline-none"
                 />
               </SearchControl>
@@ -292,35 +316,13 @@ export default function LandingPage() {
               <button
                 type="button"
                 onClick={runSearch}
-                className="h-14 rounded-xl bg-[#08784D] px-8 font-bold text-white transition hover:bg-[#05643F]"
+                className="h-14 rounded-xl bg-[#E7B319] px-8 font-bold text-[#102018] transition hover:bg-[#F4C83D]"
               >
                 Search
               </button>
             </div>
           </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <TrustItem
-              icon={<BadgeCheck size={20} />}
-              title="Verified Sellers"
-              subtitle="Trusted & verified"
-            />
-            <TrustItem
-              icon={<CircleDollarSign size={20} />}
-              title="Fair Prices"
-              subtitle="Market price insights"
-            />
-            <TrustItem
-              icon={<ShieldCheck size={20} />}
-              title="Secure Payments"
-              subtitle="Safe & secure"
-            />
-            <TrustItem
-              icon={<Headphones size={20} />}
-              title="24/7 Support"
-              subtitle="We're here to help"
-            />
-          </div>
         </div>
       </section>
 
@@ -355,8 +357,8 @@ export default function LandingPage() {
                 onClick={() => setCategory(item)}
                 className={`shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold transition ${
                   active
-                    ? "bg-[#08784D] text-white"
-                    : "border border-[#E2E7E4] bg-white text-gray-600 hover:border-[#08784D]"
+                    ? "bg-[#063F2C] text-white shadow-[0_4px_12px_rgba(6,63,44,0.22)]"
+                    : "border border-[#D1DAD5] bg-white text-gray-600 hover:border-[#08784D] hover:text-[#063F2C]"
                 }`}
               >
                 {item}
@@ -365,56 +367,72 @@ export default function LandingPage() {
           })}
         </div>
 
-        <div className="mt-5 flex gap-4 overflow-x-auto pb-6">
-          {filteredVehicles.map((vehicle) => (
-            <article
-              key={vehicle.id}
-              className="group min-w-[255px] max-w-[255px] overflow-hidden rounded-2xl border border-[#E5E9E7] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-            >
-              <div className="relative h-44 overflow-hidden bg-[#EEF4F0]">
-                <Image
-                  src={vehicle.image}
-                  alt={vehicle.name}
-                  fill
-                  className="object-cover transition duration-500 group-hover:scale-105"
-                  sizes="255px"
-                />
+        <div className="mt-5 grid gap-5 pb-6 sm:grid-cols-2 xl:grid-cols-4">
+          {filteredVehicles.map((vehicle) => {
+            const imageSource = vehicle.coverImage || vehicle.images?.[0] || getVehicleFallbackImage(vehicle);
+            const vehicleName = `${vehicle.make} ${vehicle.model}`;
 
-                <button
-                  type="button"
-                  aria-label={`Save ${vehicle.name}`}
-                  className="absolute right-3 top-3 rounded-full bg-white/85 p-2 text-[#0B5D3B] shadow backdrop-blur"
-                >
-                  <Heart size={18} />
-                </button>
+            return (
+              <article
+                key={vehicle.id}
+                className="group relative overflow-hidden rounded-2xl border border-[#D6E0DB] bg-[#FCFEFD] shadow-[0_8px_24px_rgba(0,45,39,0.08)] transition hover:-translate-y-1 hover:shadow-lg"
+              >
+                <div className="absolute right-3 top-3 z-10">
+                  <FavoriteButton listingId={vehicle.id} compact />
+                </div>
 
-                {vehicle.featured && (
-                  <span className="absolute bottom-3 left-3 rounded-full bg-[#168C58] px-3 py-1 text-[11px] font-bold text-white">
-                    Great Deal
-                  </span>
-                )}
-              </div>
+                <a href={`/vehicle/${vehicle.id}`} className="block">
+                  <div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]">
+                    <Image
+                      src={imageSource}
+                      alt={vehicleName}
+                      fill
+                      className="cursor-pointer object-cover transition duration-500 group-hover:scale-105"
+                      sizes="255px"
+                    />
 
-              <div className="p-4 text-[#121816]">
-                <h3 className="font-bold">{vehicle.name}</h3>
-
-                <p className="mt-2 text-sm text-gray-500">
-                  {vehicle.transmission} • {vehicle.fuel}
-                </p>
-
-                <p className="mt-4 text-xl font-black">
-                  ${vehicle.price.toLocaleString()}
-                  {vehicle.listingType === "rent" && (
-                    <span className="ml-1 text-xs font-semibold text-gray-500">/ day</span>
+                  {vehicle.featured && (
+                    <span className="absolute bottom-3 left-3 rounded-full bg-[#168C58] px-3 py-1 text-[11px] font-bold text-white">
+                      Great Deal
+                    </span>
                   )}
-                </p>
 
-                <p className="mt-2 text-sm text-gray-500">{vehicle.distance} km away</p>
-              </div>
-            </article>
-          ))}
+                  {vehicle.verified && (
+                    <span className="absolute bottom-3 right-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-[#063F2C] shadow-sm">
+                      Verified Seller
+                    </span>
+                  )}
+                </div>
 
-          {filteredVehicles.length === 0 && (
+                  <div className="p-4 text-[#121816]">
+                    <h3 className="font-bold group-hover:text-[#08784D]">{vehicleName}</h3>
+
+                  <p className="mt-2 text-sm text-gray-500">
+                    {vehicle.year} · {vehicle.mileage.toLocaleString()} km · {vehicle.condition}
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    {vehicle.transmission} · {vehicle.fuelType}
+                  </p>
+
+                  <p className="mt-4 text-xl font-black">
+                    ${vehicle.price.toLocaleString()}
+                    {vehicle.listingType === "rent" && (
+                      <span className="ml-1 text-xs font-semibold text-gray-500">
+                        {vehicle.priceLabel ? `/${vehicle.priceLabel}` : "/ day"}
+                      </span>
+                    )}
+                  </p>
+
+                    <p className="mt-2 text-sm text-gray-500">{vehicle.location?.city ?? "Local"}</p>
+                    <p className="mt-4 text-sm font-bold text-[#08784D]">View details</p>
+                  </div>
+                </a>
+              </article>
+            );
+          })}
+
+          {!loadingVehicles && filteredVehicles.length === 0 && (
             <div className="flex min-h-64 min-w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-center text-[#121816]">
               <SlidersHorizontal size={34} className="text-gray-400" />
               <h3 className="mt-4 text-xl font-bold">
@@ -432,6 +450,8 @@ export default function LandingPage() {
           <Statistic icon={<Headphones size={22} />} value="24/7" label="Support" />
         </div>
       </section>
+
+      <Footer />
     </main>
   );
 }
@@ -449,7 +469,7 @@ function SearchControl({
     <label>
       <span className="mb-2 block text-xs font-medium text-gray-500">{label}</span>
 
-      <div className="flex h-14 items-center gap-3 rounded-xl border border-[#E1E5E3] px-4">
+      <div className="flex h-14 items-center gap-3 rounded-xl border border-[#D6E0DB] bg-[#F8FBF9] px-4 transition focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/15">
         <span className="text-gray-500">{icon}</span>
         <div className="min-w-0 flex-1">{children}</div>
       </div>
@@ -457,27 +477,30 @@ function SearchControl({
   );
 }
 
-function TrustItem({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#08784D] text-white">
-        {icon}
-      </div>
+function getVehicleFallbackImage(vehicle: Vehicle) {
+  const make = vehicle.make.toLowerCase();
 
-      <div>
-        <p className="text-sm font-bold text-white">{title}</p>
-        <p className="mt-1 text-xs text-white/65">{subtitle}</p>
-      </div>
-    </div>
-  );
+  if (make.includes("toyota")) {
+    return "/images/toyota-axio.svg";
+  }
+
+  if (make.includes("honda")) {
+    return "/images/honda-fit.svg";
+  }
+
+  if (make.includes("mazda")) {
+    return "/images/mazda-demio.svg";
+  }
+
+  if (make.includes("mercedes")) {
+    return "/images/mercedes-c200.svg";
+  }
+
+  if (make.includes("hilux")) {
+    return "/images/toyota-hilux.svg";
+  }
+
+  return "/images/easy-ride-hero.svg";
 }
 
 function Statistic({

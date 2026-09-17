@@ -53,7 +53,15 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (!firebaseUser || !profile) {
+            toast.error("Log in to make an offer.");
+            router.push("/login");
+            return;
+          }
+
+          setOpen(true);
+        }}
         className="flex w-full items-center justify-center gap-2 rounded-full border border-[#C9A227] bg-[#C9A227]/10 px-6 py-4 font-bold text-[#7A620F] transition hover:bg-[#C9A227]/20"
       >
         <BadgeDollarSign size={20} />

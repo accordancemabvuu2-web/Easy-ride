@@ -9,6 +9,11 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   const { firebaseUser, profile, loading, firebaseEnabled } = useAuth();
   const [claimUserId, setClaimUserId] = useState<string | null>(null);
   const [hasAdminClaim, setHasAdminClaim] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +39,11 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   }, [firebaseEnabled, firebaseUser]);
 
   const claimLoading = firebaseEnabled && Boolean(firebaseUser) && claimUserId !== firebaseUser?.uid;
+
+  // During hydration, render children to match server. Auth checks happen after.
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   if (loading || claimLoading) {
     return (

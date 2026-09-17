@@ -156,7 +156,7 @@ export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
       <button
         type="button"
         onClick={submitBooking}
-        disabled={submitting || totalDays < 1}
+        disabled={submitting || (!!profile && totalDays < 1)}
         className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting && <Loader2 className="animate-spin" size={19} />}

@@ -3,6 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { UserRole } from "@/Types/user";
 
@@ -14,6 +15,16 @@ interface RoleGuardProps {
 
 export default function RoleGuard({ children, allowedRoles, label }: RoleGuardProps) {
   const { profile, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // During hydration, render children. Auth checks happen after.
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   if (loading || !profile) {
     return (

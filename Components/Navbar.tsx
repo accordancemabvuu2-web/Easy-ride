@@ -28,12 +28,20 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  const dashboardHref =
-    profile?.role === "admin"
-      ? "/admin"
-      : profile?.role === "dealer"
-        ? "/dealer/dashboard"
-        : "/dashboard";
+  const dashboardHref = useMemo(() => {
+    switch (profile?.role) {
+      case "admin":
+        return "/admin";
+      case "dealer":
+        return "/dealer/dashboard";
+      case "seller":
+        return "/dashboard/seller";
+      case "buyer":
+        return "/dashboard/buyer";
+      default:
+        return "/dashboard";
+    }
+  }, [profile?.role]);
 
   const closeMenus = () => {
     setMobileMenuOpen(false);

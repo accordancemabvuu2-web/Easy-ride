@@ -105,13 +105,20 @@ export default function HomeMarketplace() {
         vehicle.model,
         vehicle.location.city,
         vehicle.location.address,
+        vehicle.location.country,
         vehicle.ownerName,
         vehicle.ownerEmail,
+        vehicle.ownerPhone,
         vehicle.sellerType,
         vehicle.fuelType,
         vehicle.transmission,
         vehicle.bodyType ?? "",
         vehicle.color ?? "",
+        vehicle.id,
+        String(vehicle.year),
+        String(vehicle.price),
+        String(vehicle.mileage),
+        vehicle.listingType,
       ]
         .join(" ")
         .toLowerCase();
