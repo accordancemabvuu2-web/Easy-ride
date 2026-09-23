@@ -1,19 +1,22 @@
-"use client";
+﻿"use client";
 
-import { getActiveListings } from "@/services/listingService";
 import FavoriteButton from "@/Components/FavoriteButton";
 import Footer from "@/Components/Footer";
 import type { Vehicle } from "@/Types/vehicle";
 import {
+  ArrowRight,
+  CarFront,
   ChevronDown,
-  CircleDollarSign,
+  Fuel,
+  Gauge,
   Headphones,
   MapPin,
   Menu,
+  MessageSquareMore,
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  UserRound,
+  Sparkles,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -22,518 +25,201 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
 
-const categories = ["All Cars", "SUV", "Sedan", "Hatchback", "Truck", "Van", "Coupe"];
+const locations = ["Harare", "Bulawayo", "Mutare", "Gweru", "Masvingo"];
+
+const featureCards = [
+  {
+    title: "24-hour car delivery",
+    description: "Get your new ride brought to you, wherever you are.",
+    icon: Gauge,
+    tone: "bg-emerald-50 text-emerald-700",
+  },
+  {
+    title: "24/7 technical support",
+    description: "Our friendly team is here whenever you need a hand.",
+    icon: Headphones,
+    tone: "bg-violet-50 text-violet-700",
+  },
+  {
+    title: "All models have a premium package",
+    description: "Every listing gets the care and detail it deserves.",
+    icon: Sparkles,
+    tone: "bg-blue-50 text-blue-700",
+  },
+  {
+    title: "Absolute confidentiality",
+    description: "Your personal details stay safe at every step.",
+    icon: ShieldCheck,
+    tone: "bg-amber-50 text-amber-700",
+  },
+];
+
+const steps = [
+  { title: "Search & Explore", description: "Browse our wide selection and find what suits your needs.", icon: Search },
+  { title: "Contact Seller", description: "Ask questions and arrange a viewing or test drive.", icon: MessageSquareMore },
+  { title: "Make It Official", description: "Complete your purchase or rental securely through our platform.", icon: ShieldCheck },
+  { title: "Hit the Road", description: "Get your keys and enjoy your new ride.", icon: CarFront },
+];
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mode, setMode] = useState<ListingMode>("buy");
-  const [category, setCategory] = useState("All Cars");
-  const [search, setSearch] = useState("");
-  const [location, setLocation] = useState("Current Location");
-  const [priceRange, setPriceRange] = useState("$1,000 - $50,000+");
+  const [location, setLocation] = useState("Harare");
+  const [make, setMake] = useState("Any Make");
+  const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-
-    getActiveListings()
+    let active = true;
+    import("@/services/listingService")
+      .then(({ getActiveListings }) => getActiveListings())
       .then((listings) => {
-        if (!isMounted) {
-          return;
-        }
-
-        setVehicles(listings.filter((listing) => listing.status === "active"));
+        if (active) setVehicles(listings.filter((listing) => listing.status === "active"));
       })
-      .catch((error) => {
-        console.error("Could not load approved listings for landing page:", error);
-      })
+      .catch((error) => console.error("Could not load approved listings:", error))
       .finally(() => {
-        if (isMounted) {
-          setLoadingVehicles(false);
-        }
+        if (active) setLoadingVehicles(false);
       });
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { active = false; };
   }, []);
 
-  const filteredVehicles = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  const makes = useMemo(() => ["Any Make", ...new Set(vehicles.map((vehicle) => vehicle.make).sort())], [vehicles]);
+  const models = useMemo(() => ["Any Model", ...new Set(vehicles.filter((vehicle) => make === "Any Make" || vehicle.make === make).map((vehicle) => vehicle.model).sort())], [make, vehicles]);
+  const featuredVehicles = useMemo(
+    () => vehicles.filter((vehicle) => vehicle.listingType === mode).slice(0, 4),
+    [mode, vehicles],
+  );
 
-    return vehicles.filter((vehicle) => {
-      const matchesMode = vehicle.listingType === mode;
-      const vehicleCategory = (vehicle.bodyType ?? "").trim();
-      const matchesCategory =
-        category === "All Cars" ||
-        vehicleCategory.toLowerCase() === category.toLowerCase();
-
-      const searchableText = [
-        vehicle.make,
-        vehicle.model,
-        vehicle.bodyType ?? "",
-        vehicle.listingType,
-        vehicle.transmission,
-        vehicle.fuelType,
-        vehicle.location?.city ?? "",
-        vehicle.location?.country ?? "",
-        String(vehicle.price),
-        String(vehicle.year),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch =
-        normalizedSearch === "" || searchableText.includes(normalizedSearch);
-
-      const numericPrice = vehicle.price;
-      const matchesPrice =
-        priceRange === "$1,000 - $50,000+" ||
-        (priceRange === "$1,000 - $5,000" && numericPrice <= 5000) ||
-        (priceRange === "$5,000 - $10,000" && numericPrice > 5000 && numericPrice <= 10000) ||
-        (priceRange === "$10,000 - $25,000" && numericPrice > 10000 && numericPrice <= 25000) ||
-        (priceRange === "$25,000+" && numericPrice > 25000);
-
-      const matchesLocation =
-        location === "Current Location" ||
-        vehicle.location?.city?.toLowerCase() === location.toLowerCase();
-
-      return matchesMode && matchesCategory && matchesSearch && matchesPrice && matchesLocation;
-    });
-  }, [category, location, mode, priceRange, search, vehicles]);
-
-  const runSearch = () => {
-    document.getElementById("nearby-vehicles")?.scrollIntoView({ behavior: "smooth" });
+  const browseVehicles = () => {
+    const query = new URLSearchParams({ type: mode === "buy" ? "buy" : "rent" });
+    const term = [make !== "Any Make" ? make : "", model !== "Any Model" ? model : "", location !== "All Locations" ? location : ""].filter(Boolean).join(" ");
+    if (term) query.set("q", term);
+    window.location.href = `/marketplace?${query.toString()}#vehicles`;
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#071612] text-white">
-      <section className="relative min-h-[760px] overflow-hidden bg-[#021C17] text-white">
-        <div className="absolute inset-0">
-          <Image
-            src="/images/pexels-tengiz-nichbeli-357823024-19281437.jpg"
-            alt="Front view of a premium BMW vehicle"
-            fill
-            priority
-            className="object-cover object-[74%_55%]"
-            sizes="100vw"
-          />
-        </div>
-
-        <div className="absolute inset-0 bg-gradient-to-r from-[#001B17] via-[#001B17]/90 to-[#001B17]/22" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#001B17] via-transparent to-[#001B17]/45" />
-
-        <header className="relative z-30 w-full">
-          <div className="flex h-[72px] w-full items-center justify-between px-5 sm:px-8 lg:px-10 xl:px-14">
-            <Link href="/" className="flex shrink-0 items-center gap-3">
-              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-white">
-                <Image
-                  src="/images/Easy_Ride_automotive_logo_design_202609071232.jpeg"
-                  alt="Easy Ride logo"
-                  fill
-                  className="object-contain p-0.5"
-                  sizes="44px"
-                />
-              </div>
-
-              <span className="text-xl font-black tracking-tight">
-                EASY
-                <span className="text-[#E7B319]">RIDE</span>
-              </span>
-            </Link>
-
-            <nav className="hidden items-center gap-7 text-sm font-semibold lg:flex">
-              <a href="#nearby-vehicles" className="hover:text-[#E7B319]">
-                Buy
-              </a>
-              <Link href="/marketplace?type=rent" className="hover:text-[#E7B319]">
-                Rent
-              </Link>
-              <Link href="/create-listing" className="hover:text-[#E7B319]">
-                Sell
-              </Link>
-              <Link href="/support" className="hover:text-[#E7B319]">
-                Services
-              </Link>
-              <button className="flex items-center gap-1 hover:text-[#E7B319]">
-                Resources
-                <ChevronDown size={15} />
-              </button>
-              <Link href="/about" className="hover:text-[#E7B319]">
-                About
-              </Link>
-            </nav>
-
-            <div className="hidden items-center gap-4 lg:flex">
-              <Link
-                href="/login"
-                className="text-sm font-semibold transition hover:text-[#E7B319]"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/create-listing"
-                className="rounded-full border border-[#E7B319] bg-[#E7B319] px-5 py-3 text-xs font-bold text-[#102018] transition hover:bg-[#F4C83D]"
-              >
-                Post Your Car
-              </Link>
-            </div>
-
-            <button
-              type="button"
-              aria-label="Toggle mobile navigation"
-              onClick={() => setMobileMenuOpen((current) => !current)}
-              className="rounded-xl border border-white/20 p-2.5 lg:hidden"
-            >
-              {mobileMenuOpen ? <X /> : <Menu />}
-            </button>
-          </div>
-
-          {mobileMenuOpen && (
-            <nav className="absolute left-4 right-4 top-[68px] rounded-2xl border border-white/10 bg-[#03231D]/95 p-4 shadow-2xl backdrop-blur lg:hidden">
-              {[
-                ["Buy", "#nearby-vehicles"],
-                ["Rent", "/marketplace?type=rent"],
-                ["Sell", "/create-listing"],
-                ["Services", "/support"],
-                ["About", "/about"],
-                ["Log in", "/login"],
-                ["Favorites", "/favorites"],
-                ["Notifications", "/notifications"],
-              ].map(([label, href]) => (
-                <Link
-                  key={label}
-                  href={href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block rounded-xl px-4 py-3 font-semibold hover:bg-white/10"
-                >
-                  {label}
-                </Link>
-              ))}
-
-              <Link
-                href="/create-listing"
-                onClick={() => setMobileMenuOpen(false)}
-                className="mt-3 block rounded-xl bg-[#E7B319] px-5 py-3 text-center font-bold text-[#11241D]"
-              >
-                Post Your Car
-              </Link>
-            </nav>
-          )}
-        </header>
-
-        <div className="relative z-20 flex min-h-[688px] flex-col justify-center px-5 pb-44 pt-10 sm:px-8 lg:px-10 xl:px-14">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#1E9A64]/30 bg-[#063F2C]/50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#6FD5A0] backdrop-blur">
-              <ShieldCheck size={16} />
-              Trusted by thousands
-            </div>
-
-            <h1 className="mt-5 text-4xl font-black leading-[1.02] tracking-[-0.04em] sm:text-5xl lg:text-[64px]">
-              Find Your Next Car
-              <br />
-              With <span className="text-[#E7B319]">Confidence.</span>
-            </h1>
-
-            <p className="mt-5 max-w-md text-sm leading-6 text-white/75 sm:text-base">
-              Buy, sell or rent cars with trusted sellers and real data to make the right decision.
-            </p>
-
-            <div className="mt-8 inline-flex rounded-full border border-white/15 bg-black/25 p-1 backdrop-blur">
-              <button
-                type="button"
-                onClick={() => setMode("buy")}
-                className={`min-w-28 rounded-full px-7 py-3 text-sm font-bold transition ${
-                  mode === "buy"
-                    ? "bg-[#08784D] text-white"
-                    : "text-white/75 hover:text-white"
-                }`}
-              >
-                Buy
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode("rent")}
-                className={`min-w-28 rounded-full px-7 py-3 text-sm font-bold transition ${
-                  mode === "rent"
-                    ? "bg-[#08784D] text-white"
-                    : "text-white/75 hover:text-white"
-                }`}
-              >
-                Rent
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-10 xl:px-14">
-          <div className="rounded-2xl bg-white p-5 text-[#17201D] shadow-[0_22px_65px_rgba(0,0,0,0.38)]">
-            <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr_auto] lg:items-end">
-              <SearchControl label="What are you looking for?" icon={<Search size={18} />}>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      runSearch();
-                    }
-                  }}
-                  placeholder="Search make, model, year, price, type..."
-                  className="w-full bg-transparent outline-none"
-                />
-              </SearchControl>
-
-              <SearchControl label="Location" icon={<MapPin size={18} />}>
-                <select
-                  value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  className="w-full bg-transparent outline-none"
-                >
-                  <option>Current Location</option>
-                  <option>Harare</option>
-                  <option>Bulawayo</option>
-                  <option>Mutare</option>
-                  <option>Gweru</option>
-                </select>
-              </SearchControl>
-
-              <SearchControl label="Price Range" icon={<CircleDollarSign size={18} />}>
-                <select
-                  value={priceRange}
-                  onChange={(event) => setPriceRange(event.target.value)}
-                  className="w-full bg-transparent outline-none"
-                >
-                  <option>$1,000 - $50,000+</option>
-                  <option>$1,000 - $5,000</option>
-                  <option>$5,000 - $10,000</option>
-                  <option>$10,000 - $25,000</option>
-                  <option>$25,000+</option>
-                </select>
-              </SearchControl>
-
-              <button
-                type="button"
-                onClick={runSearch}
-                className="h-14 rounded-xl bg-[#E7B319] px-8 font-bold text-[#102018] transition hover:bg-[#F4C83D]"
-              >
-                Search
-              </button>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <section id="nearby-vehicles" className="w-full px-4 py-16 sm:px-6 lg:px-10 xl:px-14">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-              Browse
-            </p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-              {mode === "buy" ? "Cars For Sale Near You" : "Cars For Rent Near You"}
-            </h2>
-            <p className="mt-2 text-gray-500">
-              Discover great cars {mode === "buy" ? "to buy" : "to rent"} in your area
-            </p>
-          </div>
-
-          <Link href="/map" className="flex items-center gap-2 text-sm font-bold text-[#08784D]">
-            View on Map
-            <MapPin size={18} />
+    <main className="min-h-screen overflow-x-hidden bg-white text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
+          <Link href="/" className="flex items-center gap-3" aria-label="Easy Ride home">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm"><CarFront size={27} strokeWidth={2.5} /></span>
+            <span className="text-[21px] font-bold tracking-tight text-slate-900">Easy Ride</span>
           </Link>
+          <nav className="hidden h-full items-center gap-8 lg:flex">
+            <a href="#home" className="flex h-full items-center border-b-2 border-blue-600 px-1 text-sm font-semibold text-blue-600">Home</a>
+            <Link href="/marketplace" className="text-sm font-medium text-slate-700 hover:text-blue-600">Marketplace</Link>
+            <Link href="/map" className="text-sm font-medium text-slate-700 hover:text-blue-600">Map</Link>
+            <Link href="/create-listing" className="text-sm font-medium text-slate-700 hover:text-blue-600">Sell / Rent</Link>
+            <Link href="/about" className="text-sm font-medium text-slate-700 hover:text-blue-600">About</Link>
+            <Link href="/support" className="text-sm font-medium text-slate-700 hover:text-blue-600">Contact</Link>
+          </nav>
+          <div className="hidden items-center gap-3 sm:flex">
+            <Link href="/login" className="rounded-lg px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Login</Link>
+            <Link href="/register" className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700">Sign Up</Link>
+          </div>
+          <button type="button" aria-label="Toggle navigation" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg border border-slate-200 p-2 lg:hidden">
+            {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
+          </button>
         </div>
+        {mobileMenuOpen && <nav className="absolute left-0 right-0 top-[72px] grid gap-1 border-b border-slate-100 bg-white p-4 shadow-lg lg:hidden">
+          {[["Home", "/"], ["Marketplace", "/marketplace"], ["Map", "/map"], ["Sell / Rent", "/create-listing"], ["About", "/about"], ["Contact", "/support"], ["Login", "/login"], ["Sign Up", "/register"]].map(([label, href]) => <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-blue-50">{label}</Link>)}
+        </nav>}
+      </header>
 
-        <div className="mt-7 flex gap-3 overflow-x-auto pb-3">
-          {categories.map((item) => {
-            const active = category === item;
-
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setCategory(item)}
-                className={`shrink-0 rounded-full px-6 py-2.5 text-sm font-semibold transition ${
-                  active
-                    ? "bg-[#063F2C] text-white shadow-[0_4px_12px_rgba(6,63,44,0.22)]"
-                    : "border border-[#D1DAD5] bg-white text-gray-600 hover:border-[#08784D] hover:text-[#063F2C]"
-                }`}
-              >
-                {item}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 grid gap-5 pb-6 sm:grid-cols-2 xl:grid-cols-4">
-          {filteredVehicles.map((vehicle) => {
-            const imageSource = vehicle.coverImage || vehicle.images?.[0] || getVehicleFallbackImage(vehicle);
-            const vehicleName = `${vehicle.make} ${vehicle.model}`;
-
-            return (
-              <article
-                key={vehicle.id}
-                className="group relative overflow-hidden rounded-2xl border border-[#D6E0DB] bg-[#FCFEFD] shadow-[0_8px_24px_rgba(0,45,39,0.08)] transition hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="absolute right-3 top-3 z-10">
-                  <FavoriteButton listingId={vehicle.id} compact />
-                </div>
-
-                <a href={`/vehicle/${vehicle.id}`} className="block">
-                  <div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]">
-                    <Image
-                      src={imageSource}
-                      alt={vehicleName}
-                      fill
-                      className="cursor-pointer object-cover transition duration-500 group-hover:scale-105"
-                      sizes="255px"
-                    />
-
-                  {vehicle.featured && (
-                    <span className="absolute bottom-3 left-3 rounded-full bg-[#168C58] px-3 py-1 text-[11px] font-bold text-white">
-                      Great Deal
-                    </span>
-                  )}
-
-                  {vehicle.verified && (
-                    <span className="absolute bottom-3 right-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-[#063F2C] shadow-sm">
-                      Verified Seller
-                    </span>
-                  )}
-                </div>
-
-                  <div className="p-4 text-[#121816]">
-                    <h3 className="font-bold group-hover:text-[#08784D]">{vehicleName}</h3>
-
-                  <p className="mt-2 text-sm text-gray-500">
-                    {vehicle.year} · {vehicle.mileage.toLocaleString()} km · {vehicle.condition}
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    {vehicle.transmission} · {vehicle.fuelType}
-                  </p>
-
-                  <p className="mt-4 text-xl font-black">
-                    ${vehicle.price.toLocaleString()}
-                    {vehicle.listingType === "rent" && (
-                      <span className="ml-1 text-xs font-semibold text-gray-500">
-                        {vehicle.priceLabel ? `/${vehicle.priceLabel}` : "/ day"}
-                      </span>
-                    )}
-                  </p>
-
-                    <p className="mt-2 text-sm text-gray-500">{vehicle.location?.city ?? "Local"}</p>
-                    <p className="mt-4 text-sm font-bold text-[#08784D]">View details</p>
-                  </div>
-                </a>
-              </article>
-            );
-          })}
-
-          {!loadingVehicles && filteredVehicles.length === 0 && (
-            <div className="flex min-h-64 min-w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-center text-[#121816]">
-              <SlidersHorizontal size={34} className="text-gray-400" />
-              <h3 className="mt-4 text-xl font-bold">
-                No cars available {mode === "buy" ? "for sale" : "for rent"}
-              </h3>
-              <p className="mt-2 text-gray-500">Change your category or search term.</p>
+      <section id="home" className="relative isolate min-h-[540px] overflow-hidden bg-[#edf4fb] sm:min-h-[560px]">
+        <Image src="/images/pexels-tengiz-nichbeli-357823024-19281437.jpg" alt="Vehicle ready for your next trip" fill priority sizes="100vw" className="-z-20 object-cover object-[68%_58%]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#f7faff] via-[#f7faff]/95 to-[#f7faff]/30" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#eaf2fc]/45 via-transparent to-white/10" />
+        <div className="mx-auto grid min-h-[540px] max-w-[1440px] items-center gap-8 px-5 pb-36 pt-14 sm:min-h-[560px] sm:px-8 sm:pb-32 lg:grid-cols-[1fr_0.92fr] lg:px-12">
+          <div className="max-w-[610px]">
+            <p className="mb-4 text-sm font-semibold tracking-wide text-blue-600">Buy <span className="px-1 text-blue-300">â€¢</span> Sell <span className="px-1 text-blue-300"></span> Rent</p>
+            <h1 className="text-[42px] font-extrabold leading-[1.08] tracking-[-0.045em] text-slate-900 sm:text-[54px] lg:text-[60px]">Your Next Ride<br />Is Just a Click Away</h1>
+            <p className="mt-5 max-w-[450px] text-[15px] leading-6 text-slate-600 sm:text-base">Discover quality vehicles, connect with trusted sellers, and find the perfect ride â€” whether youâ€™re buying, selling or renting.</p>
+            <div className="mt-7 inline-flex rounded-full bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/80">
+              {(["buy", "rent"] as const).map((item) => <button key={item} type="button" onClick={() => setMode(item)} className={`rounded-full px-7 py-2.5 text-sm font-bold capitalize transition ${mode === item ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-blue-600"}`}>{item}</button>)}
             </div>
-          )}
+          </div>
+          <div className="hidden lg:block" aria-hidden="true" />
         </div>
-
-        <div className="mt-4 grid overflow-hidden rounded-2xl bg-gradient-to-r from-[#003D32] to-[#002D27] text-white sm:grid-cols-2 xl:grid-cols-4">
-          <Statistic icon={<CarIcon />} value="12,458+" label="Cars Listed" />
-          <Statistic icon={<UserRound size={22} />} value="8,256+" label="Happy Customers" />
-          <Statistic icon={<MapPin size={22} />} value="342+" label="Verified Dealers" />
-          <Statistic icon={<Headphones size={22} />} value="24/7" label="Support" />
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-6 sm:px-8 lg:px-12">
+          <div className="mx-auto grid max-w-[1296px] gap-2 rounded-xl border border-slate-200/90 bg-white p-2 shadow-[0_14px_45px_rgba(15,42,74,0.13)] sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+            <SearchSelect label="Location" icon={<MapPin size={18} />} value={location} onChange={setLocation} options={["All Locations", ...locations]} />
+            <SearchSelect label="Make" icon={<CarFront size={18} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} />
+            <SearchSelect label="Model" icon={<CarFront size={18} />} value={model} onChange={setModel} options={models} />
+            <button type="button" onClick={browseVehicles} className="flex min-h-[58px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-7 text-sm font-bold text-white transition hover:bg-blue-700"><Search size={17} /> Search Vehicles</button>
+          </div>
         </div>
       </section>
 
+      <section aria-label="Why choose Easy Ride" className="border-b border-slate-100 bg-white">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-2 divide-x divide-slate-100 px-5 py-5 sm:px-8 lg:grid-cols-4 lg:px-12 lg:py-7">
+          <TrustItem icon={<ShieldCheck />} title="Trusted Sellers" text="Verified dealers & private sellers" />
+          <TrustItem icon={<ShieldCheck />} title="Secure Transactions" text="Safe and reliable payments" />
+          <TrustItem icon={<MapPin />} title="Wide Selection" text="Cars, bikes, trucks and more" />
+          <TrustItem icon={<Headphones />} title="24/7 Support" text="Weâ€™re here to help" />
+        </div>
+      </section>
+
+      <section id="featured-vehicles" className="mx-auto w-full max-w-[1440px] px-5 py-12 sm:px-8 sm:py-14 lg:px-12">
+        <div className="mb-7 flex items-end justify-between gap-4">
+          <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Featured vehicles</p><h2 className="mt-1.5 text-[28px] font-bold tracking-tight text-slate-900 sm:text-[32px]">Popular Listings</h2></div>
+          <Link href="/marketplace" className="mb-1 hidden items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 sm:flex">View All Vehicles <ArrowRight size={16} /></Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {featuredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
+          {loadingVehicles && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-[310px] animate-pulse rounded-xl border border-slate-200 bg-slate-50" />)}
+          {!loadingVehicles && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href="/marketplace" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-blue-600">Browse marketplace <ArrowRight size={16} /></Link></div>}
+        </div>
+        <Link href="/marketplace" className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-blue-600 py-3 text-sm font-bold text-blue-600 sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>
+      </section>
+
+      <section className="bg-[#f5f8fc]">
+        <div className="mx-auto max-w-[1440px] px-5 py-12 sm:px-8 sm:py-14 lg:px-12">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">How it works</p><h2 className="mt-1.5 text-[28px] font-bold tracking-tight text-slate-900 sm:text-[32px]">Getting Started is Easy</h2>
+          <div className="mt-8 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map(({ title, description, icon: Icon }, index) => <div key={title} className="relative border-l border-blue-200 pl-5 first:border-transparent sm:first:border-blue-200"><div className="mb-4 flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">{index + 1}</span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600"><Icon size={20} /></span></div><h3 className="font-bold text-slate-900">{title}</h3><p className="mt-1.5 max-w-[245px] text-sm leading-5 text-slate-500">{description}</p></div>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-[1440px] px-5 py-12 sm:px-8 sm:py-14 lg:px-12">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Taking care of every client</p>
+        <h2 className="mt-1.5 text-[28px] font-bold tracking-tight text-slate-900 sm:text-[32px]">Key Features</h2>
+        <p className="mt-3 max-w-2xl text-[15px] leading-6 text-slate-600">We are all about our clientâ€™s comfort and safety. Thatâ€™s why we provide the best service you can imagine.</p>
+        <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {featureCards.map(({ title, description, icon: Icon, tone }) => <article key={title} className="flex min-h-[150px] flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60"><span className={`flex h-11 w-11 items-center justify-center rounded-full ${tone}`}><Icon size={20} strokeWidth={1.8} /></span><h3 className="mt-auto pt-7 text-base font-semibold leading-5 text-slate-900">{title}</h3><p className="mt-2 text-sm leading-5 text-slate-500">{description}</p></article>)}
+        </div>
+      </section>
+
+      <section className="relative isolate overflow-hidden bg-slate-950">
+        <Image src="/images/pexels-cripsdog-24018795.jpg" alt="Open road ready for your next drive" fill sizes="100vw" className="-z-20 object-cover object-center" />
+        <div className="absolute inset-0 -z-10 bg-slate-950/75" />
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-5 py-9 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
+          <div><h2 className="text-2xl font-bold text-white sm:text-[26px]">Ready to Find Your Perfect Ride?</h2><p className="mt-1.5 text-sm text-slate-200">Join drivers finding their next ride with Easy Ride.</p></div>
+          <div className="flex flex-wrap gap-3"><Link href="/marketplace" className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">Browse Vehicles</Link><Link href="/create-listing" className="rounded-lg border border-white/70 bg-white/5 px-5 py-3 text-sm font-bold text-white hover:bg-white hover:text-slate-900">Sell or Rent Your Vehicle</Link></div>
+        </div>
+      </section>
       <Footer />
     </main>
   );
 }
 
-function SearchControl({
-  label,
-  icon,
-  children,
-}: {
-  label: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <label>
-      <span className="mb-2 block text-xs font-medium text-gray-500">{label}</span>
-
-      <div className="flex h-14 items-center gap-3 rounded-xl border border-[#D6E0DB] bg-[#F8FBF9] px-4 transition focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/15">
-        <span className="text-gray-500">{icon}</span>
-        <div className="min-w-0 flex-1">{children}</div>
-      </div>
-    </label>
-  );
+function SearchSelect({ label, icon, value, onChange, options }: { label: string; icon: ReactNode; value: string; onChange: (value: string) => void; options: string[] }) {
+  return <label className="flex min-w-0 items-center gap-3 rounded-lg px-4 py-2.5 transition hover:bg-slate-50"><span className="shrink-0 text-slate-700">{icon}</span><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium text-slate-400">{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="mt-0.5 w-full appearance-none bg-transparent text-sm font-semibold text-slate-700 outline-none"><option value={label === "Location" ? "All Locations" : label === "Make" ? "Any Make" : "Any Model"}>{label === "Location" ? "Any Location" : label === "Make" ? "Any Make" : "Any Model"}</option>{options.filter((option) => option !== "All Locations" && option !== "Any Make" && option !== "Any Model").map((option) => <option key={option}>{option}</option>)}</select></span><ChevronDown size={15} className="shrink-0 text-slate-400" /></label>;
 }
 
-function getVehicleFallbackImage(vehicle: Vehicle) {
-  const make = vehicle.make.toLowerCase();
-
-  if (make.includes("toyota")) {
-    return "/images/toyota-axio.svg";
-  }
-
-  if (make.includes("honda")) {
-    return "/images/honda-fit.svg";
-  }
-
-  if (make.includes("mazda")) {
-    return "/images/mazda-demio.svg";
-  }
-
-  if (make.includes("mercedes")) {
-    return "/images/mercedes-c200.svg";
-  }
-
-  if (make.includes("hilux")) {
-    return "/images/toyota-hilux.svg";
-  }
-
-  return "/images/easy-ride-hero.svg";
+function TrustItem({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return <div className="flex items-center gap-3 px-3 py-3 first:pl-0 last:pr-0 sm:px-5 lg:px-7"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">{icon}</span><span><span className="block text-xs font-bold text-slate-900 sm:text-sm">{title}</span><span className="mt-0.5 hidden text-xs text-slate-500 sm:block">{text}</span></span></div>;
 }
 
-function Statistic({
-  icon,
-  value,
-  label,
-}: {
-  icon: ReactNode;
-  value: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center justify-center gap-4 border-white/10 px-6 py-7 xl:border-r xl:last:border-r-0">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#08784D] text-[#E7B319]">
-        {icon}
-      </div>
-
-      <div>
-        <p className="text-xl font-black">{value}</p>
-        <p className="mt-1 text-sm text-white/70">{label}</p>
-      </div>
-    </div>
-  );
+function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+  const image = vehicle.coverImage || vehicle.images?.[0] || "/images/easy-ride-hero.svg";
+  return <article className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
+    <div className="relative h-[155px] overflow-hidden bg-slate-100"><Link href={`/vehicle/${vehicle.id}`} aria-label={`View ${vehicle.make} ${vehicle.model}`}><Image src={image} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-105" /></Link><span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-bold text-white ${vehicle.listingType === "rent" ? "bg-blue-600" : "bg-emerald-600"}`}>For {vehicle.listingType === "rent" ? "Rent" : "Sale"}</span><span className="absolute right-3 top-3"><FavoriteButton listingId={vehicle.id} compact /></span></div>
+    <div className="p-3.5"><Link href={`/vehicle/${vehicle.id}`} className="font-semibold text-slate-900 hover:text-blue-600">{vehicle.make} {vehicle.model} <span className="font-normal text-slate-500">{vehicle.year}</span></Link><p className="mt-1 text-lg font-bold text-slate-900">{vehicle.currency === "USD" ? "$" : `${vehicle.currency} `}{vehicle.price.toLocaleString()}{vehicle.listingType === "rent" && <span className="text-xs font-medium text-slate-500"> / {vehicle.priceLabel || "day"}</span>}</p><p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500"><MapPin size={13} />{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p><div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-500"><span className="flex items-center gap-1"><Gauge size={13} />{vehicle.transmission}</span><span className="flex items-center gap-1"><Fuel size={13} />{vehicle.fuelType}</span><span className="flex items-center gap-1"><CarFront size={14} />{vehicle.bodyType || "Vehicle"}</span></div><Link href={`/vehicle/${vehicle.id}`} className="mt-3 block rounded-lg border border-blue-600 py-2 text-center text-xs font-bold text-blue-600 transition hover:bg-blue-600 hover:text-white">View Details</Link></div>
+  </article>;
 }
 
-function CarIcon() {
-  return (
-    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M5 17h14" />
-      <path d="M6 17l1-6h10l1 6" />
-      <path d="M8 11l1-3h6l1 3" />
-      <circle cx="7" cy="17" r="2" />
-      <circle cx="17" cy="17" r="2" />
-    </svg>
-  );
-}
+
+
