@@ -22,13 +22,15 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
       }`}
     >
       <div className={`relative overflow-hidden ${isList ? "h-60 md:h-full" : "h-56"}`}>
-        <Image
-          src={vehicle.coverImage}
-          alt={`${vehicle.make} ${vehicle.model}`}
-          fill
-          className="object-cover transition duration-500 group-hover:scale-105"
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
+        <Link href={`/vehicle/${vehicle.id}`} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
+          <Image
+            src={vehicle.coverImage}
+            alt={`${vehicle.make} ${vehicle.model}`}
+            fill
+            className="object-cover transition duration-500 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, 33vw"
+          />
+        </Link>
 
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-[#0B5D3B] px-3 py-1 text-xs font-bold text-white">
@@ -51,7 +53,9 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-xl font-bold text-[#121212]">
+              <Link href={`/vehicle/${vehicle.id}`} className="hover:text-[#0B5D3B]">
               {vehicle.make} {vehicle.model} {vehicle.year}
+              </Link>
             </h3>
             <p className="mt-1 flex items-center gap-2 text-sm text-gray-500">
               <MapPin size={16} />

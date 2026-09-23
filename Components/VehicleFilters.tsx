@@ -1,177 +1,85 @@
 "use client";
 
-import { Grid2x2, LayoutList, Map, Search, SlidersHorizontal } from "lucide-react";
-import Link from "next/link";
+import { SlidersHorizontal } from "lucide-react";
 
-type FilterType = "buy" | "rent" | "all";
-type ViewMode = "grid" | "list";
-type SortType = "featured" | "price-asc" | "price-desc" | "year-desc";
+type FilterValue = string | number;
 
 interface VehicleFiltersProps {
-  search: string;
-  setSearch: (value: string) => void;
-  listingType: FilterType;
-  setListingType: (value: FilterType) => void;
-  location: string;
-  setLocation: (value: string) => void;
-  fuelType: string;
-  setFuelType: (value: string) => void;
-  transmission: string;
-  setTransmission: (value: string) => void;
-  sortBy: SortType;
-  setSortBy: (value: SortType) => void;
-  viewMode: ViewMode;
-  setViewMode: (value: ViewMode) => void;
   locations: string[];
+  makes: string[];
+  models: string[];
+  bodyTypes: string[];
+  years: number[];
+  location: string;
+  make: string;
+  model: string;
+  priceMin: number | "";
+  priceMax: number | "";
+  yearMin: number | "";
+  yearMax: number | "";
+  mileageMax: number | "";
+  bodyType: string;
+  transmission: string;
+  fuelType: string;
+  condition: string;
+  onChange: (key: string, value: FilterValue) => void;
   hasFilters: boolean;
   clearFilters: () => void;
 }
 
 export default function VehicleFilters({
-  search,
-  setSearch,
-  listingType,
-  setListingType,
-  location,
-  setLocation,
-  fuelType,
-  setFuelType,
-  transmission,
-  setTransmission,
-  sortBy,
-  setSortBy,
-  viewMode,
-  setViewMode,
-  locations,
-  hasFilters,
-  clearFilters,
+  locations, makes, models, bodyTypes, years,
+  location, make, model, priceMin, priceMax, yearMin, yearMax, mileageMax,
+  bodyType, transmission, fuelType, condition, onChange, hasFilters, clearFilters,
 }: VehicleFiltersProps) {
   return (
-    <div className="rounded-[32px] border border-[#E5E7EB] bg-white p-5 shadow-sm">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        <label className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-4 sm:col-span-2 lg:col-span-2">
-          <Search size={18} className="text-[#0B5D3B]" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full bg-transparent outline-none"
-            placeholder="Search brand, model, location, dealer..."
-            aria-label="Search vehicles"
-          />
-        </label>
-
-        <select
-          value={listingType}
-          onChange={(event) => setListingType(event.target.value as FilterType)}
-          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-          aria-label="Listing type"
-        >
-          <option value="all">All listings</option>
-          <option value="buy">For sale</option>
-          <option value="rent">For rent</option>
-        </select>
-
-        <select
-          value={location}
-          onChange={(event) => setLocation(event.target.value)}
-          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-          aria-label="Location filter"
-        >
-          <option value="all">All locations</option>
-          {locations.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={fuelType}
-          onChange={(event) => setFuelType(event.target.value)}
-          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-          aria-label="Fuel type filter"
-        >
-          <option value="all">All fuel types</option>
-          <option value="Petrol">Petrol</option>
-          <option value="Diesel">Diesel</option>
-          <option value="Hybrid">Hybrid</option>
-          <option value="Electric">Electric</option>
-        </select>
-
-        <select
-          value={transmission}
-          onChange={(event) => setTransmission(event.target.value)}
-          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-          aria-label="Transmission filter"
-        >
-          <option value="all">All transmissions</option>
-          <option value="Automatic">Automatic</option>
-          <option value="Manual">Manual</option>
-        </select>
-
-        <select
-          value={sortBy}
-          onChange={(event) => setSortBy(event.target.value as SortType)}
-          className="min-h-[56px] rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none focus:border-[#0B5D3B]"
-          aria-label="Sort vehicles"
-        >
-          <option value="featured">Sort by featured</option>
-          <option value="year-desc">Newest first</option>
-          <option value="price-asc">Price: low to high</option>
-          <option value="price-desc">Price: high to low</option>
-        </select>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="mr-1 flex items-center gap-2 text-sm font-medium text-gray-500">
-          <SlidersHorizontal size={17} />
-          View:
+    <details open className="group h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-24 lg:open">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 marker:hidden lg:cursor-default">
+        <span className="flex items-center gap-2 font-bold text-slate-900"><SlidersHorizontal size={18} className="text-[#0B5D3B]" />Filters</span>
+        {hasFilters && <button type="button" onClick={(event) => { event.preventDefault(); clearFilters(); }} className="ml-auto text-xs font-semibold text-[#0B5D3B] hover:underline">Clear all</button>}
+      </summary>
+      <div className="grid gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-1">
+        <FilterSelect label="Location" value={location} param="location" options={locations} onChange={onChange} />
+        <FilterSelect label="Make" value={make} param="make" options={makes} onChange={(key, value) => { onChange(key, value); onChange("model", "all"); }} />
+        <FilterSelect label="Model" value={model} param="model" options={models} onChange={onChange} />
+        <div className="grid grid-cols-2 gap-2">
+          <FilterSelect label="Min price" value={priceMin} param="priceMin" options={priceOptions} onChange={onChange} anyLabel="No minimum" />
+          <FilterSelect label="Max price" value={priceMax} param="priceMax" options={priceOptions} onChange={onChange} anyLabel="No maximum" />
         </div>
-
-        <button
-          type="button"
-          onClick={() => setViewMode("grid")}
-          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition sm:w-auto ${
-            viewMode === "grid"
-              ? "bg-[#0B5D3B] text-white"
-              : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
-          }`}
-        >
-          <Grid2x2 size={16} />
-          Grid
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setViewMode("list")}
-          className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition sm:w-auto ${
-            viewMode === "list"
-              ? "bg-[#0B5D3B] text-white"
-              : "border border-[#E5E7EB] bg-white text-gray-700 hover:border-[#0B5D3B]"
-          }`}
-        >
-          <LayoutList size={16} />
-          List
-        </button>
-
-        <Link
-          href="/map"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-2.5 text-sm font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B] hover:text-white sm:w-auto"
-        >
-          <Map size={16} />
-          Map View
-        </Link>
-
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-sm font-semibold text-[#0B5D3B] sm:ml-auto"
-          >
-            Clear filters
-          </button>
-        )}
+        <div className="grid grid-cols-2 gap-2">
+          <FilterSelect label="Year from" value={yearMin} param="yearMin" options={years} onChange={onChange} anyLabel="Any year" />
+          <FilterSelect label="Year to" value={yearMax} param="yearMax" options={years} onChange={onChange} anyLabel="Any year" />
+        </div>
+        <FilterSelect label="Max mileage" value={mileageMax} param="mileageMax" options={mileageOptions} onChange={onChange} anyLabel="Any mileage" />
+        <FilterSelect label="Vehicle type" value={bodyType} param="bodyType" options={bodyTypes} onChange={onChange} anyLabel="Any type" />
+        <FilterSelect label="Transmission" value={transmission} param="transmission" options={["Automatic", "Manual"]} onChange={onChange} anyLabel="Any transmission" />
+        <FilterSelect label="Fuel" value={fuelType} param="fuelType" options={["Petrol", "Diesel", "Hybrid", "Electric"]} onChange={onChange} anyLabel="Any fuel" />
+        <FilterSelect label="Condition" value={condition} param="condition" options={["New", "Excellent", "Good", "Fair"]} onChange={onChange} anyLabel="Any condition" />
       </div>
-    </div>
+    </details>
+  );
+}
+
+const priceOptions = [1000, 2500, 5000, 10000, 15000, 25000, 50000, 100000];
+const mileageOptions = [25000, 50000, 75000, 100000, 150000, 200000, 300000];
+
+function FilterSelect({
+  label, value, param, options, onChange, anyLabel = "Any",
+}: {
+  label: string;
+  value: FilterValue;
+  param: string;
+  options: Array<string | number>;
+  onChange: (key: string, value: FilterValue) => void;
+  anyLabel?: string;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}</span>
+      <select value={value} onChange={(event) => onChange(param, event.target.value)} className="min-h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-[#0B5D3B] focus:ring-2 focus:ring-emerald-100">
+        <option value={param === "priceMin" || param === "priceMax" || param === "yearMin" || param === "yearMax" || param === "mileageMax" ? "" : "all"}>{anyLabel}</option>
+        {options.map((option) => <option key={option} value={option}>{typeof option === "number" && (param === "priceMin" || param === "priceMax") ? `$${option.toLocaleString()}` : typeof option === "number" && param === "mileageMax" ? `${option.toLocaleString()} km` : option}</option>)}
+      </select>
+    </label>
   );
 }

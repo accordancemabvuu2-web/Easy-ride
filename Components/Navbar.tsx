@@ -50,9 +50,10 @@ export default function Navbar() {
 
   const mainLinks = useMemo(
     () => [
-      { label: "Buy Cars", href: "/?type=buy" },
-      { label: "Rent Cars", href: "/?type=rent" },
+      { label: "Home", href: "/" },
+      { label: "Marketplace", href: "/marketplace" },
       { label: "Map", href: "/map" },
+      { label: "Sell / Rent", href: "/create-listing" },
       { label: "About", href: "/about" },
     ],
     [],

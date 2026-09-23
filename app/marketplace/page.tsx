@@ -1,5 +1,4 @@
 import Navbar from "@/Components/Navbar";
-import Hero from "@/Components/Hero";
 import HomeMarketplace from "@/Components/HomeMarketplace";
 import Footer from "@/Components/Footer";
 import { Suspense } from "react";
@@ -8,7 +7,6 @@ export default function MarketplacePage() {
   return (
     <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
       <Navbar />
-      <Hero />
       <Suspense
         fallback={
           <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
