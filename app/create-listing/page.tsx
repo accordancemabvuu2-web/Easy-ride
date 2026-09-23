@@ -6,7 +6,7 @@ import { createListing, uploadVehicleImages } from "@/services/listingService";
 import { ArrowLeft, ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 
@@ -48,6 +48,12 @@ function CreateListingForm() {
     color: "",
     description: "",
   });
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("type") === "rent") {
+      setForm((current) => ({ ...current, type: "rent" }));
+    }
+  }, []);
 
   const update = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));

@@ -25,7 +25,7 @@ export default function HomeMarketplace() {
 
   const search = searchParams.get("q") ?? "";
   const requestedType = searchParams.get("type");
-  const listingType: FilterType = requestedType === "buy" || requestedType === "rent" ? requestedType : "all";
+  const listingType: FilterType = requestedType === "rent" ? "rent" : requestedType === "all" ? "all" : "buy";
   const location = searchParams.get("location") ?? "all";
   const make = searchParams.get("make") ?? "all";
   const model = searchParams.get("model") ?? "all";
@@ -60,7 +60,7 @@ export default function HomeMarketplace() {
   const updateFilter = (key: string, value: string | number) => {
     const params = new URLSearchParams(searchParams.toString());
     const normalized = String(value);
-    const defaultValue = key === "sort" ? "newest" : key === "type" ? "all" : "";
+    const defaultValue = key === "sort" ? "newest" : key === "type" ? "buy" : "";
     if (!normalized || normalized === defaultValue) params.delete(key);
     else params.set(key, normalized);
     const query = params.toString();
@@ -121,7 +121,7 @@ export default function HomeMarketplace() {
       <section className="bg-gradient-to-br from-[#eff6ff] via-white to-[#f4f8ff]">
         <div className="w-full px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:px-12">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0B5D3B]">Easy Ride Marketplace</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">Find Your Next Ride</h1>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">{listingType === "rent" ? "Rent a Vehicle" : listingType === "buy" ? "Buy a Vehicle" : "Find Your Next Ride"}</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">Browse vehicles from trusted sellers and dealers. Search the whole marketplace and narrow your results to find the right vehicle.</p>
           <label className="mt-7 flex min-h-14 max-w-3xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-[#0B5D3B] focus-within:ring-4 focus-within:ring-emerald-100">
             <Search size={20} className="shrink-0 text-[#0B5D3B]" />

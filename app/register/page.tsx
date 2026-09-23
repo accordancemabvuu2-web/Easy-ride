@@ -17,7 +17,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function RegisterPage() {
@@ -33,6 +33,13 @@ export default function RegisterPage() {
     password: "",
     role: "buyer" as "buyer" | "seller",
   });
+
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next?.startsWith("/create-listing")) {
+      setForm((current) => ({ ...current, role: "seller" }));
+    }
+  }, []);
 
   const update = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
@@ -53,7 +60,7 @@ export default function RegisterPage() {
       setSubmitting(true);
       await register(form);
       toast.success("Your Easy Ride account has been created.");
-      router.push("/");
+      router.push(getNextPath());
     } catch (error) {
       const message = error instanceof Error ? error.message : "Registration failed.";
       toast.error(message);
@@ -66,12 +73,17 @@ export default function RegisterPage() {
     try {
       await loginWithGoogle();
       toast.success("Welcome to Easy Ride.");
-      router.push("/");
+      router.push(getNextPath());
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Google registration failed."
       );
     }
+  };
+
+  const getNextPath = () => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next?.startsWith("/") && !next.startsWith("//") ? next : "/";
   };
 
   return (
@@ -311,6 +323,7 @@ export default function RegisterPage() {
                   Already registered?{" "}
                   <Link
                     href="/login"
+                    onClick={(event) => { const next = new URLSearchParams(window.location.search).get("next"); if (next) { event.preventDefault(); router.push(`/login?next=${encodeURIComponent(next)}`); } }}
                     className="font-bold text-[#0B5D3B] underline-offset-4 hover:underline"
                   >
                     Log in

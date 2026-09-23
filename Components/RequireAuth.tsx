@@ -21,7 +21,8 @@ export default function RequireAuth({ children }: RequireAuthProps) {
 
   useEffect(() => {
     if (!loading && !profile) {
-      router.replace("/login");
+      const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
     }
   }, [loading, profile, router]);
 

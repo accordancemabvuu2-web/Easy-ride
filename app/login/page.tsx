@@ -23,7 +23,7 @@ export default function LoginPage() {
       await login(email, password);
 
       toast.success("Welcome back.");
-      router.replace("/dashboard");
+      router.replace(getNextPath());
     } catch {
       toast.error("Incorrect email address or password.");
     } finally {
@@ -35,10 +35,15 @@ export default function LoginPage() {
     try {
       await loginWithGoogle();
       toast.success("Welcome back.");
-      router.replace("/dashboard");
+      router.replace(getNextPath());
     } catch {
       toast.error("Google login failed.");
     }
+  };
+
+  const getNextPath = () => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
   };
 
   return (
@@ -112,7 +117,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-gray-500">
             New to Easy Ride?{" "}
-            <Link href="/register" className="font-bold text-[#0B5D3B]">
+            <Link href="/register" onClick={(event) => { const next = new URLSearchParams(window.location.search).get("next"); if (next) { event.preventDefault(); router.push(`/register?next=${encodeURIComponent(next)}`); } }} className="font-bold text-[#0B5D3B]">
               Create an account
             </Link>
           </p>

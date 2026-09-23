@@ -90,6 +90,7 @@ export default function LandingPage() {
     () => vehicles.filter((vehicle) => vehicle.listingType === mode).slice(0, 4),
     [mode, vehicles],
   );
+  const marketplaceHref = mode === "buy" ? "/marketplace?type=buy" : "/marketplace?type=rent";
 
   const browseVehicles = () => {
     const query = new URLSearchParams({ type: mode === "buy" ? "buy" : "rent" });
@@ -109,9 +110,10 @@ export default function LandingPage() {
           </Link>
           <nav className="hidden h-full items-center gap-8 lg:flex">
             <a href="#home" className="flex h-full items-center border-b-2 border-[#0B5D3B] px-1 text-sm font-semibold text-[#0B5D3B]">Home</a>
-            <Link href="/marketplace" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Marketplace</Link>
+            <Link href="/marketplace?type=buy" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Buy</Link>
             <Link href="/map" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Map</Link>
-            <Link href="/create-listing" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Sell / Rent</Link>
+            <Link href="/create-listing" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Sell</Link>
+            <Link href="/marketplace?type=rent" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Rent</Link>
             <Link href="/about" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">About</Link>
             <Link href="/support" className="text-sm font-medium text-slate-700 hover:text-[#0B5D3B]">Contact</Link>
           </nav>
@@ -124,7 +126,7 @@ export default function LandingPage() {
           </button>
         </div>
         {mobileMenuOpen && <nav className="absolute left-0 right-0 top-[72px] grid gap-1 border-b border-slate-100 bg-white p-4 shadow-lg lg:hidden">
-          {[["Home", "/"], ["Marketplace", "/marketplace"], ["Map", "/map"], ["Sell / Rent", "/create-listing"], ["About", "/about"], ["Contact", "/support"], ["Login", "/login"], ["Sign Up", "/register"]].map(([label, href]) => <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">{label}</Link>)}
+          {[["Home", "/"], ["Buy", "/marketplace?type=buy"], ["Rent", "/marketplace?type=rent"], ["Map", "/map"], ["Sell", "/create-listing"], ["About", "/about"], ["Contact", "/support"], ["Login", "/login"], ["Sign Up", "/register"]].map(([label, href]) => <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">{label}</Link>)}
         </nav>}
       </header>
 
@@ -140,6 +142,7 @@ export default function LandingPage() {
             <div className="mt-6 inline-flex rounded-full bg-white/85 p-1 shadow-sm ring-1 ring-slate-200/80 sm:mt-7">
               {(["buy", "rent"] as const).map((item) => <button key={item} type="button" onClick={() => setMode(item)} className={`rounded-full px-7 py-2.5 text-sm font-bold capitalize transition ${mode === item ? "bg-[#0B5D3B] text-white shadow-sm" : "text-slate-600 hover:text-[#0B5D3B]"}`}>{item}</button>)}
             </div>
+            <Link href="/create-listing" className="ml-3 inline-flex items-center justify-center rounded-full border border-[#0B5D3B]/30 bg-white/80 px-5 py-3 text-sm font-bold text-[#0B5D3B] transition hover:bg-white">Sell Your Vehicle</Link>
           </div>
           <div className="hidden lg:block" aria-hidden="true" />
         </div>
@@ -165,14 +168,14 @@ export default function LandingPage() {
       <section id="featured-vehicles" className="mx-auto w-full max-w-[1440px] px-5 py-12 sm:px-8 sm:py-14 lg:px-12">
         <div className="mb-7 flex items-end justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#0B5D3B]">Featured vehicles</p><h2 className="mt-1.5 text-[28px] font-bold tracking-tight text-slate-900 sm:text-[32px]">Popular Listings</h2></div>
-          <Link href="/marketplace" className="mb-1 hidden items-center gap-1.5 text-sm font-semibold text-[#0B5D3B] hover:text-[#063F2C] sm:flex">View All Vehicles <ArrowRight size={16} /></Link>
+          <Link href={marketplaceHref} className="mb-1 hidden items-center gap-1.5 text-sm font-semibold text-[#0B5D3B] hover:text-[#063F2C] sm:flex">View All Vehicles <ArrowRight size={16} /></Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {featuredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
           {loadingVehicles && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-[310px] animate-pulse rounded-xl border border-slate-200 bg-slate-50" />)}
-          {!loadingVehicles && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href="/marketplace" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
+          {!loadingVehicles && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href={marketplaceHref} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
         </div>
-        <Link href="/marketplace" className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>
+        <Link href={marketplaceHref} className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>
       </section>
 
       <section className="bg-[#f5f8fc]">
@@ -198,7 +201,7 @@ export default function LandingPage() {
         <div className="absolute inset-0 -z-10 bg-slate-950/75" />
         <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-5 py-9 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
           <div><h2 className="text-2xl font-bold text-white sm:text-[26px]">Ready to Find Your Perfect Ride?</h2><p className="mt-1.5 text-sm text-slate-200">Join drivers finding their next ride with Easy Ride.</p></div>
-          <div className="flex flex-wrap gap-3"><Link href="/marketplace" className="rounded-lg bg-[#0B5D3B] px-5 py-3 text-sm font-bold text-white hover:bg-[#084B30]">Browse Vehicles</Link><Link href="/create-listing" className="rounded-lg border border-white/70 bg-white/5 px-5 py-3 text-sm font-bold text-white hover:bg-white hover:text-slate-900">Sell or Rent Your Vehicle</Link></div>
+          <div className="flex flex-wrap gap-3"><Link href="/marketplace?type=buy" className="rounded-lg bg-[#0B5D3B] px-5 py-3 text-sm font-bold text-white hover:bg-[#084B30]">Buy a Vehicle</Link><Link href="/marketplace?type=rent" className="rounded-lg border border-white/70 bg-white/5 px-5 py-3 text-sm font-bold text-white hover:bg-white hover:text-slate-900">Rent a Vehicle</Link><Link href="/create-listing" className="rounded-lg border border-white/70 bg-white/5 px-5 py-3 text-sm font-bold text-white hover:bg-white hover:text-slate-900">Sell a Vehicle</Link></div>
         </div>
       </section>
       <Footer />
@@ -221,4 +224,3 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
     <div className="p-3.5"><Link href={`/vehicle/${vehicle.id}`} className="font-semibold text-slate-900 hover:text-[#0B5D3B]">{vehicle.make} {vehicle.model} <span className="font-normal text-slate-500">{vehicle.year}</span></Link><p className="mt-1 text-lg font-bold text-slate-900">{vehicle.currency === "USD" ? "$" : `${vehicle.currency} `}{vehicle.price.toLocaleString()}{vehicle.listingType === "rent" && <span className="text-xs font-medium text-slate-500"> / {vehicle.priceLabel || "day"}</span>}</p><p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500"><MapPin size={13} />{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p><div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-500"><span className="flex items-center gap-1"><Gauge size={13} />{vehicle.transmission}</span><span className="flex items-center gap-1"><Fuel size={13} />{vehicle.fuelType}</span><span className="flex items-center gap-1"><CarFront size={14} />{vehicle.bodyType || "Vehicle"}</span></div><Link href={`/vehicle/${vehicle.id}`} className="mt-3 block rounded-lg border border-[#0B5D3B] py-2 text-center text-xs font-bold text-[#0B5D3B] transition hover:bg-[#0B5D3B] hover:text-white">View Details</Link></div>
   </article>;
 }
-
