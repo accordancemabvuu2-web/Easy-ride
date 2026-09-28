@@ -139,26 +139,27 @@ export default function LandingPage() {
         </nav>}
       </header>
 
-      <section id="home" className="relative isolate overflow-hidden bg-[#06110f] text-white">
+      <section id="home" className="relative isolate w-full overflow-hidden bg-[#06110f] text-white">
         <Image src="/images/pexels-dilrubasaricimen-7534335.jpg" alt="Vehicle on an open mountain road" fill priority sizes="100vw" className="-z-20 object-cover object-[62%_58%]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
-        <div className="mx-auto flex min-h-[min(650px,calc(100svh-72px))] max-w-[1440px] flex-col justify-center gap-8 px-5 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
+        <div className="mx-auto flex min-h-[min(650px,calc(100svh-72px))] w-full max-w-[1440px] flex-col justify-center gap-8 px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
           <div className="max-w-[610px]">
             <p className="mb-4 text-sm font-semibold tracking-[0.2em] text-emerald-400">BUY <span className="px-1">•</span> SELL <span className="px-1">•</span> RENT</p>
             <h1 className="text-[clamp(2.5rem,7vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.045em] text-white">Your Next Ride<br /><span className="text-emerald-400">Is Just a Click Away.</span></h1>
             <p className="mt-5 max-w-[450px] text-[15px] leading-6 text-slate-200 sm:text-base">Discover quality vehicles, connect with trusted sellers, and find the perfect ride — whether you’re buying, selling or renting.</p>
           </div>
-          <div className="max-w-[760px]">
-            <div className="grid max-w-[720px] grid-cols-1 gap-1 rounded-xl border border-white/80 bg-white p-2 shadow-[0_14px_45px_rgba(0,0,0,0.28)] min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-4 lg:gap-1">
-              <SearchSelect label="Location" icon={<MapPin size={18} />} value={location} onChange={setLocation} options={locations} />
-              <SearchSelect label="Make" icon={<CarFront size={18} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} />
-              <SearchSelect label="Model" icon={<CarFront size={18} />} value={model} onChange={setModel} options={models} />
-              <button type="button" onClick={browseVehicles} className="flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-lg bg-[#0B8F5A] px-4 text-sm font-bold text-white transition hover:bg-[#08784D] min-[480px]:col-span-2 lg:col-span-1 lg:px-3"><Search size={17} className="shrink-0" /> Search Vehicles</button>
+          <div className="w-full max-w-[920px]">
+            <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/15 bg-[#06151a]/80 p-2 shadow-[0_14px_45px_rgba(0,0,0,0.35)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-full lg:p-2">
+              <SearchSelect label="Location" icon={<MapPin size={17} />} value={location} onChange={setLocation} options={locations} dark />
+              <SearchSelect label="Make" icon={<CarFront size={17} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} dark />
+              <SearchSelect label="Model" icon={<CarFront size={17} />} value={model} onChange={setModel} options={models} dark />
+              <button type="button" onClick={browseVehicles} className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-[#032117] transition hover:bg-emerald-400 min-[480px]:col-span-2 lg:col-span-1 lg:min-w-40 lg:rounded-full"><Search size={17} className="shrink-0" /> Search Vehicles <ArrowRight size={15} className="shrink-0" /></button>
             </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              {(["buy", "rent"] as const).map((item) => <button key={item} type="button" onClick={() => setMode(item)} className={`min-w-28 rounded-lg border px-6 py-2.5 text-sm font-bold capitalize transition ${mode === item ? "border-emerald-500 bg-emerald-500 text-white" : "border-white/80 bg-slate-950/20 text-white hover:bg-white/10"}`}>{item}</button>)}
-              <Link href="/create-listing" className="inline-flex items-center gap-1 rounded-lg px-2 py-2.5 text-sm font-semibold text-emerald-300 transition hover:text-emerald-200">Sell Your Vehicle <ArrowRight size={15} /></Link>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {(["buy", "rent"] as const).map((item) => <button key={item} type="button" onClick={() => setMode(item)} className={`inline-flex min-h-10 min-w-24 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-bold capitalize transition ${mode === item ? "border-emerald-500 bg-emerald-500 text-[#032117] shadow-lg shadow-emerald-950/20" : "border-white/25 bg-[#06151a]/50 text-white hover:bg-white/10"}`}><CarFront size={15} />{item}</button>)}
+              <span className="mx-1 hidden h-6 border-l border-white/25 sm:block" />
+              <Link href="/create-listing" className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-white/90 transition hover:text-emerald-300">Sell Your Vehicle <ArrowRight size={14} /></Link>
             </div>
           </div>
         </div>
@@ -216,8 +217,8 @@ export default function LandingPage() {
   );
 }
 
-function SearchSelect({ label, icon, value, onChange, options }: { label: string; icon: ReactNode; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label className="flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 transition hover:bg-slate-50 sm:gap-3 sm:px-3 lg:px-2.5 xl:px-3"><span className="shrink-0 text-slate-700">{icon}</span><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium text-slate-400">{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="mt-0.5 block w-full min-w-0 appearance-none truncate bg-transparent text-sm font-semibold text-slate-700 outline-none"><option value={label === "Location" ? "All Locations" : label === "Make" ? "Any Make" : "Any Model"}>{label === "Location" ? "Any Location" : label === "Make" ? "Any Make" : "Any Model"}</option>{options.filter((option) => option !== "All Locations" && option !== "Any Make" && option !== "Any Model").map((option) => <option key={option}>{option}</option>)}</select></span><ChevronDown size={15} className="shrink-0 text-slate-400" /></label>;
+function SearchSelect({ label, icon, value, onChange, options, dark = false }: { label: string; icon: ReactNode; value: string; onChange: (value: string) => void; options: string[]; dark?: boolean }) {
+  return <label className={`flex min-h-12 min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 transition sm:gap-3 lg:px-4 ${dark ? "text-white hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"}`}><span className={`shrink-0 ${dark ? "text-slate-200" : "text-slate-700"}`}>{icon}</span><span className="min-w-0 flex-1"><span className={`block text-[10px] font-medium ${dark ? "text-slate-400" : "text-slate-400"}`}>{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className={`mt-0.5 block w-full min-w-0 appearance-none truncate bg-transparent text-xs font-semibold outline-none ${dark ? "text-white" : "text-slate-700"}`}><option className="text-slate-900" value={label === "Location" ? "All Locations" : label === "Make" ? "Any Make" : "Any Model"}>{label === "Location" ? "Harare" : label === "Make" ? "Any Make" : "Any Model"}</option>{options.filter((option) => option !== "All Locations" && option !== "Any Make" && option !== "Any Model").map((option) => <option className="text-slate-900" key={option}>{option}</option>)}</select></span><ChevronDown size={14} className={`shrink-0 ${dark ? "text-slate-400" : "text-slate-400"}`} /></label>;
 }
 
 function TrustItem({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
