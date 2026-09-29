@@ -6,6 +6,7 @@ import CarCard from "@/Components/CarCard";
 import Footer from "@/Components/Footer";
 import FavoriteButton from "@/Components/FavoriteButton";
 import MessageSellerModal from "@/Components/MessageSellerModal";
+import LoginPromptModal from "@/Components/LoginPromptModal";
 import Navbar from "@/Components/Navbar";
 import OfferForm from "@/Components/OfferForm";
 import ReportListingModal from "@/Components/ReportListingModal";
@@ -18,6 +19,7 @@ import {
   BadgeCheck,
   Fuel,
   Gauge,
+  Heart,
   Loader2,
   MapPin,
   MessageCircle,
@@ -31,12 +33,17 @@ import { useEffect, useState } from "react";
 
 export default function VehiclePage() {
   const { id } = useParams<{ id: string }>();
-  const { profile, firebaseUser } = useAuth();
+  const { profile, firebaseUser, loading: authLoading } = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [similarVehicles, setSimilarVehicles] = useState<Vehicle[]>([]);
   const [activePhoto, setActivePhoto] = useState("");
   const [showPhone, setShowPhone] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading && !profile) setShowPhone(false);
+  }, [authLoading, profile]);
 
   useEffect(() => {
     async function loadVehicle() {
@@ -132,7 +139,17 @@ export default function VehiclePage() {
 
   const formattedPrice = new Intl.NumberFormat("en-US").format(vehicle.price);
 
+  const requireLogin = () => {
+    if (authLoading) return false;
+    if (profile) return true;
+
+    setShowLogin(true);
+    return false;
+  };
+
   const contactSellerOnWhatsApp = async () => {
+    if (!requireLogin()) return;
+
     await recordContactClick(
       vehicle.id,
       vehicle.ownerId,
@@ -263,28 +280,52 @@ export default function VehiclePage() {
             </div>
 
             <div className="mt-4 flex justify-end">
-              <FavoriteButton listingId={vehicle.id} />
+              {authLoading ? (
+                <span className="h-11 w-24 animate-pulse rounded-full bg-gray-100" />
+              ) : profile ? (
+                <FavoriteButton listingId={vehicle.id} />
+              ) : (
+                <button type="button" onClick={() => setShowLogin(true)} aria-label="Log in to save vehicle" className="flex items-center justify-center gap-2 rounded-full border border-[#E5E7EB] px-5 py-3 font-semibold transition hover:bg-gray-50">
+                  <Heart size={19} className="text-gray-600" /> Save
+                </button>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => void contactSellerOnWhatsApp()}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white hover:bg-[#084B30]"
-            >
-              <MessageCircle size={20} />
-              Contact on WhatsApp
-            </button>
+            {authLoading ? (
+              <div className="mt-6 h-14 animate-pulse rounded-full bg-gray-100" />
+            ) : profile ? (
+              <button
+                type="button"
+                onClick={() => void contactSellerOnWhatsApp()}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white hover:bg-[#084B30]"
+              >
+                <MessageCircle size={20} />
+                Contact on WhatsApp
+              </button>
+            ) : (
+              <button type="button" onClick={() => requireLogin()} disabled={authLoading} className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white hover:bg-[#084B30] disabled:opacity-60">
+                <MessageCircle size={20} /> Contact on WhatsApp
+              </button>
+            )}
 
             <div className="mt-3 grid gap-3">
-              <MessageSellerModal vehicle={vehicle} />
+              {authLoading ? (
+                <div className="h-14 animate-pulse rounded-full bg-gray-100" />
+              ) : profile ? <MessageSellerModal vehicle={vehicle} /> : (
+                <button type="button" onClick={() => setShowLogin(true)} className="flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-6 py-4 font-bold text-[#0B5D3B]">
+                  <MessageCircle size={20} /> Message Seller
+                </button>
+              )}
 
-              {showPhone ? (
+              {authLoading ? (
+                <div className="h-14 animate-pulse rounded-full bg-gray-100" />
+              ) : profile && showPhone ? (
                 <a href={`tel:${vehicle.ownerPhone}`} className="flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-6 py-4 font-bold text-[#0B5D3B]">
                   <Phone size={20} />
                   {vehicle.ownerPhone}
                 </a>
               ) : (
-                <button type="button" onClick={() => setShowPhone(true)} className="flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-6 py-4 font-bold text-[#0B5D3B]">
+                <button type="button" onClick={() => { if (requireLogin()) setShowPhone(true); }} disabled={authLoading} className="flex w-full items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-6 py-4 font-bold text-[#0B5D3B] disabled:opacity-60">
                   <Phone size={20} />
                   Show phone number
                 </button>
@@ -330,6 +371,7 @@ export default function VehiclePage() {
       </section>
 
       <Footer />
+      <LoginPromptModal open={showLogin} onClose={() => setShowLogin(false)} />
     </main>
   );
 }

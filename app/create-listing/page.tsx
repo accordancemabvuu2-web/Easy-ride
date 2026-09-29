@@ -1,10 +1,10 @@
 "use client";
 
-import RequireAuth from "@/Components/RequireAuth";
+import LandingNavbar from "@/Components/LandingNavbar";
+import LoginPromptModal from "@/Components/LoginPromptModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { createListing, uploadVehicleImages } from "@/services/listingService";
-import { ArrowLeft, ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
-import Link from "next/link";
+import { ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -13,17 +13,14 @@ import toast from "react-hot-toast";
 const steps = ["Type", "Car Info", "Details", "Price", "Location", "Photos", "Contact", "Review"];
 
 export default function CreateListingPage() {
-  return (
-    <RequireAuth>
-      <CreateListingForm />
-    </RequireAuth>
-  );
+  return <CreateListingForm />;
 }
 
 function CreateListingForm() {
   const { profile } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
@@ -103,7 +100,7 @@ function CreateListingForm() {
 
   const submit = async () => {
     if (!profile) {
-      toast.error("Please log in to post a vehicle.");
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -165,16 +162,13 @@ function CreateListingForm() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
-      <header className="sticky top-0 z-50 border-b border-[#E5E7EB] bg-white">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-[#0B5D3B]">
-            <ArrowLeft size={18} /> Back
-          </Link>
-          <h1 className="font-bold text-[#0B5D3B]">Post Your Car</h1>
-        </div>
-      </header>
-
+    <main className="min-h-screen bg-[#F8F9FA] pt-[72px] text-[#202124]">
+      <LandingNavbar transparentOnTop={false} />
+      <LoginPromptModal
+        open={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        description="Log in to submit and manage your vehicle listing."
+      />
       <section className="mx-auto max-w-2xl px-4 py-8">
         <p className="text-sm text-gray-500">
           Step {step + 1} of {steps.length}: {steps[step]}

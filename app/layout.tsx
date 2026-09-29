@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { ViewTransition } from "react";
 import Providers from "@/Components/Providers";
 import "./globals.css";
 
@@ -25,7 +26,15 @@ export default function RootLayout({
         className={`${inter.variable} min-h-screen bg-[#F8F9FA] text-[#202124] antialiased`}
         suppressHydrationWarning
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <ViewTransition
+            enter={{ "nav-forward": "nav-forward", default: "none" }}
+            exit={{ "nav-forward": "nav-forward", default: "none" }}
+            default="none"
+          >
+            {children}
+          </ViewTransition>
+        </Providers>
       </body>
     </html>
   );

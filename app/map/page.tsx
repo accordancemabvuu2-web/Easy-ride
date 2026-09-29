@@ -1,7 +1,7 @@
 "use client";
 
 import MarketplaceMap from "@/Components/MarketplaceMap";
-import Navbar from "@/Components/Navbar";
+import LandingNavbar from "@/Components/LandingNavbar";
 import { getActiveListings } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, MapPin } from "lucide-react";
@@ -31,9 +31,9 @@ export default function MapPage() {
 
   return (
     <main className="min-h-screen bg-[#F8F9FA]">
-      <Navbar />
+      <LandingNavbar transparentOnTop={false} />
 
-      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+      <section className="mx-auto max-w-7xl px-4 pb-10 pt-24 lg:px-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
             Location discovery

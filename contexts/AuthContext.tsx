@@ -43,6 +43,7 @@ interface AuthContextValue {
 }
 
 const AUTH_CACHE_KEY = "easy-ride:auth-profile";
+const AUTH_SESSION_KEY = "easy-ride:auth-session";
 const DEMO_ADMIN_EMAIL = "admin@easyride.local";
 const DEMO_ADMIN_PASSWORD = "admin123";
 const DEMO_ADMIN_PROFILE: EasyRideUser = {
@@ -80,6 +81,26 @@ function writeCachedProfile(profile: EasyRideUser | null) {
   window.localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(profile));
 }
 
+function readSessionProfile(): EasyRideUser | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(AUTH_SESSION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as EasyRideUser;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionProfile(profile: EasyRideUser | null) {
+  if (typeof window === "undefined") return;
+  if (!profile) {
+    window.sessionStorage.removeItem(AUTH_SESSION_KEY);
+    return;
+  }
+  window.sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(profile));
+}
+
 async function loadProfile(user: User): Promise<EasyRideUser | null> {
   if (!db) {
     return readCachedProfile();
@@ -99,13 +120,14 @@ async function loadProfile(user: User): Promise<EasyRideUser | null> {
 
 async function persistFallbackProfile(profile: EasyRideUser) {
   writeCachedProfile(profile);
+  writeSessionProfile(profile);
   return profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<EasyRideUser | null>(() =>
-    auth ? null : readCachedProfile(),
+    auth ? null : readSessionProfile(),
   );
   const [loading, setLoading] = useState(() => Boolean(auth));
 
@@ -195,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
+      writeSessionProfile(cached);
       setProfile(cached);
       return;
     }
@@ -245,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     if (!auth) {
-      writeCachedProfile(null);
+      writeSessionProfile(null);
       setProfile(null);
       return;
     }
@@ -257,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (!auth || !auth.currentUser) {
-      setProfile(readCachedProfile());
+      setProfile(readSessionProfile());
       return;
     }
 

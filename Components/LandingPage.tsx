@@ -26,7 +26,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
 
-const locations = ["All Locations", "Harare", "Bulawayo", "Mutare", "Gweru", "Masvingo"];
+const locations = ["All Locations", "Harare", "Bulawayo", "Mutare", "Gweru", "Masvingo","Others"];
 
 const featureCards = [
   {
@@ -64,12 +64,20 @@ const steps = [
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [mode, setMode] = useState<ListingMode>("buy");
   const [location, setLocation] = useState("All Locations");
   const [make, setMake] = useState("Any Make");
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+
+  useEffect(() => {
+    const updateScrolled = () => setScrolled(window.scrollY > 24);
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -111,7 +119,7 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-white text-slate-900">
-      <header className="absolute inset-x-0 top-0 z-50 border-b border-white/15 bg-transparent text-white">
+      <header className={`fixed inset-x-0 top-0 z-50 border-b text-white transition-[background-color,border-color,backdrop-filter,box-shadow] duration-300 ${scrolled ? "border-white/10 bg-[#06110f]/80 shadow-lg shadow-black/10 backdrop-blur-md" : "border-transparent bg-transparent"}`}>
         <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
           <Link href="/" className="flex items-center gap-3" aria-label="Easy Ride home">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0B5D3B] text-white shadow-sm"><CarFront size={27} strokeWidth={2.5} /></span>
@@ -119,16 +127,16 @@ export default function LandingPage() {
           </Link>
           <nav className="hidden h-full items-center gap-8 lg:flex">
             <a href="#home" className="flex h-full items-center border-b-2 border-emerald-400 px-1 text-sm font-semibold text-emerald-300">Home</a>
-            <Link href="/marketplace?type=buy" className="text-sm font-medium text-white/90 hover:text-emerald-300">Buy</Link>
-            <Link href="/map" className="text-sm font-medium text-white/90 hover:text-emerald-300">Map</Link>
-            <Link href="/create-listing" className="text-sm font-medium text-white/90 hover:text-emerald-300">Sell</Link>
-            <Link href="/marketplace?type=rent" className="text-sm font-medium text-white/90 hover:text-emerald-300">Rent</Link>
-            <Link href="/about" className="text-sm font-medium text-white/90 hover:text-emerald-300">About</Link>
-            <Link href="/support" className="text-sm font-medium text-white/90 hover:text-emerald-300">Contact</Link>
+            <Link href="/marketplace?type=buy" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Buy</Link>
+            <Link href="/map" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Map</Link>
+            <Link href="/create-listing" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Sell</Link>
+            <Link href="/marketplace?type=rent" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Rent</Link>
+            <Link href="/about" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">About Us</Link>
+            <Link href="/support" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Contact Us</Link>
           </nav>
           <div className="hidden items-center gap-3 sm:flex">
-            <Link href="/login" className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">Login</Link>
-            <Link href="/register" className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600">Sign Up</Link>
+            <Link href="/login" prefetch transitionTypes={["nav-forward"]} className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">Login</Link>
+            <Link href="/register" prefetch transitionTypes={["nav-forward"]} className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600">Sign Up</Link>
           </div>
           <button type="button" aria-label="Toggle navigation" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg border border-white/40 p-2 text-white lg:hidden">
             {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
