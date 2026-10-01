@@ -1,7 +1,7 @@
 "use client";
 
 import { auth, db, firebaseReady } from "@/lib/firebase";
-import type { EasyRideUser, UserRole } from "@/Types/user";
+import type { EasyRideUser, UserCapability, UserRole } from "@/Types/user";
 import {
   GoogleAuthProvider,
   User,
@@ -52,10 +52,30 @@ const DEMO_ADMIN_PROFILE: EasyRideUser = {
   email: DEMO_ADMIN_EMAIL,
   phone: "",
   role: "admin",
+  roles: ["admin"],
+  capabilities: ["buy", "rent", "sell", "dealer"],
   photoURL: "",
   createdAt: new Date().toISOString(),
 };
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function capabilitiesForRole(role: UserRole): UserCapability[] {
+  if (role === "admin" || role === "dealer") {
+    return ["buy", "rent", "sell", "dealer"];
+  }
+
+  return role === "seller" ? ["buy", "rent", "sell"] : ["buy", "rent"];
+}
+
+function normalizeProfile(profile: EasyRideUser): EasyRideUser {
+  return {
+    ...profile,
+    roles: profile.roles?.length ? profile.roles : [profile.role],
+    capabilities: profile.capabilities?.length
+      ? profile.capabilities
+      : capabilitiesForRole(profile.role),
+  };
+}
 
 function readCachedProfile(): EasyRideUser | null {
   if (typeof window === "undefined") return null;
@@ -112,10 +132,10 @@ async function loadProfile(user: User): Promise<EasyRideUser | null> {
     return null;
   }
 
-  return {
+  return normalizeProfile({
     id: snapshot.id,
     ...(snapshot.data() as Omit<EasyRideUser, "id">),
-  };
+  });
 }
 
 async function persistFallbackProfile(profile: EasyRideUser) {
@@ -164,6 +184,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         phone,
         role,
+        roles: [role],
+        capabilities: capabilitiesForRole(role),
         photoURL: "",
         createdAt: new Date().toISOString(),
       };
@@ -184,6 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       phone,
       role,
+      roles: [role],
+      capabilities: capabilitiesForRole(role),
       photoURL: credential.user.photoURL ?? "",
       createdAt: Timestamp.now().toDate().toISOString(),
     };
@@ -192,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile({
       id: credential.user.uid,
-      ...userProfile,
+        ...userProfile,
     });
   };
 
@@ -237,6 +261,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: "guest@easyride.local",
         phone: "",
         role: "buyer",
+        roles: ["buyer"],
+        capabilities: capabilitiesForRole("buyer"),
         photoURL: "",
         createdAt: new Date().toISOString(),
       };
@@ -258,6 +284,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: credential.user.email ?? "",
         phone: "",
         role: "buyer" as UserRole,
+        roles: ["buyer"] as UserRole[],
+        capabilities: capabilitiesForRole("buyer"),
         photoURL: credential.user.photoURL ?? "",
         createdAt: Timestamp.now().toDate().toISOString(),
       });
@@ -268,14 +296,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     if (!auth) {
+      writeCachedProfile(null);
       writeSessionProfile(null);
       setProfile(null);
+      window.location.replace("/");
       return;
     }
 
     await signOut(auth);
     writeCachedProfile(null);
     setProfile(null);
+    window.location.replace("/");
   };
 
   const refreshProfile = async () => {

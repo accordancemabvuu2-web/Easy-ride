@@ -65,7 +65,13 @@ function CreateListingForm() {
   );
 
   const onFilesChange = async (fileList: FileList | null) => {
-    const nextFiles = fileList ? Array.from(fileList) : [];
+    const selectedFiles = fileList ? Array.from(fileList) : [];
+    const nextFiles = selectedFiles.slice(0, 10);
+
+    if (selectedFiles.length > 10) {
+      toast.error("You can upload up to 10 vehicle photos.");
+    }
+
     setPhotos(nextFiles);
 
     if (!profile || nextFiles.length === 0) {
@@ -279,7 +285,7 @@ function CreateListingForm() {
               <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[#E5E7EB] p-10 text-center">
                 <Upload className="text-[#0B5D3B]" />
                 <p className="mt-3 font-semibold">Click to upload photos</p>
-                <p className="text-sm text-gray-500">Front, back, interior, engine</p>
+                <p className="text-sm text-gray-500">Front, back, interior, engine (up to 10 photos)</p>
                 <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => void onFilesChange(e.target.files)} />
               </label>
               <p className="mt-4 text-sm text-gray-500">

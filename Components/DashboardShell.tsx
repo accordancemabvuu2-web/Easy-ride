@@ -24,7 +24,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-type DashboardRole = "buyer" | "seller";
+type DashboardRole = "personal" | "buyer" | "seller";
 
 interface DashboardShellProps {
   role: DashboardRole;
@@ -53,13 +53,22 @@ const sellerLinks = [
   { label: "Promotions", href: "/promote", icon: Store },
 ];
 
+const personalLinks = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Marketplace", href: "/", icon: Search },
+  { label: "Favorites", href: "/favorites", icon: Heart },
+  { label: "Offers", href: "/offers", icon: BadgeDollarSign },
+  { label: "Bookings", href: "/bookings", icon: CalendarDays },
+  { label: "Messages", href: "/messages", icon: MessageCircle },
+  { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Support", href: "/support", icon: ShieldCheck },
+];
+
 export default function DashboardShell({ role, children }: DashboardShellProps) {
   const { profile, logout } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const links = role === "buyer" ? buyerLinks : sellerLinks;
-  const otherRole = role === "buyer" ? "seller" : "buyer";
-  const otherHref = otherRole === "buyer" ? "/dashboard/buyer" : "/dashboard/seller";
+  const links = role === "personal" ? personalLinks : role === "buyer" ? buyerLinks : sellerLinks;
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -88,7 +97,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
             <div>
               <p className="font-black tracking-tight">EASY<span className="text-[#E7B319]">RIDE</span></p>
-              <p className="text-xs text-white/60">{role === "buyer" ? "Marketplace" : "Seller studio"}</p>
+              <p className="text-xs text-white/60">{role === "personal" ? "Personal account" : role === "buyer" ? "Marketplace" : "Seller studio"}</p>
             </div>
           </div>
 
@@ -96,12 +105,10 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A8E6C3]">Current mode</p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-bold">
-                {role === "buyer" ? <Search size={16} /> : <Store size={16} />}
-                {role === "buyer" ? "Buyer" : "Seller"}
+                {role === "personal" ? <UserRound size={16} /> : role === "buyer" ? <Search size={16} /> : <Store size={16} />}
+                {role === "personal" ? "Personal" : role === "buyer" ? "Buyer" : "Seller"}
               </span>
-              <Link href={otherHref} onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">
-                Switch
-              </Link>
+              {role === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">Become a Dealer</Link> : null}
             </div>
           </div>
 
@@ -141,7 +148,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           <div className="mx-auto max-w-7xl">
             <div className="mb-8 hidden items-center justify-between lg:flex">
               <div>
-                <p className="text-sm font-semibold text-[#08784D]">{role === "buyer" ? "Buyer workspace" : "Seller workspace"}</p>
+                <p className="text-sm font-semibold text-[#08784D]">{role === "personal" ? "Personal dashboard" : role === "buyer" ? "Buyer workspace" : "Seller workspace"}</p>
                 <p className="mt-1 text-sm text-gray-500">{profile?.email}</p>
               </div>
               <Link href="/" className="rounded-full border border-[#C9D6CE] bg-white px-4 py-2 text-sm font-bold text-[#063F2C] hover:border-[#08784D]">

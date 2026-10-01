@@ -1,7 +1,7 @@
 "use client";
 
 import { db, firebaseReady, storage } from "@/lib/firebase";
-import type { Vehicle, ListingStatus } from "@/Types/vehicle";
+import type { ListingStatus, ListingType, Vehicle } from "@/Types/vehicle";
 import {
   DocumentSnapshot,
   collection,
@@ -17,12 +17,13 @@ import {
   updateDoc,
   where,
   QueryDocumentSnapshot,
+  QueryConstraint,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { vehicles as seedVehicles } from "@/Data/vehicles";
 
 const STORAGE_KEY = "easy-ride:listings";
-const MAX_LOCAL_IMAGES = 2;
+const MAX_VEHICLE_IMAGES = 10;
 const MAX_LOCAL_LISTINGS = 25;
 
 function nowIso() {
@@ -32,6 +33,23 @@ function nowIso() {
 export interface ListingPage {
   listings: Vehicle[];
   lastDocument: QueryDocumentSnapshot | null;
+  hasMore: boolean;
+}
+
+export interface ListingPageFilters {
+  listingType?: ListingType | "all";
+  location?: string;
+  make?: string;
+  model?: string;
+  bodyType?: string;
+  transmission?: string;
+  fuelType?: string;
+  condition?: string;
+  priceMin?: number;
+  priceMax?: number;
+  yearMin?: number;
+  yearMax?: number;
+  mileageMax?: number;
 }
 
 function isQuotaExceededError(error: unknown) {
@@ -46,7 +64,7 @@ function compactLocalListing(listing: Vehicle): Vehicle {
   const coverImage = listing.coverImage || listing.images?.[0] || "";
   const images = (listing.images?.length ? listing.images : [coverImage])
     .filter(Boolean)
-    .slice(0, MAX_LOCAL_IMAGES);
+    .slice(0, MAX_VEHICLE_IMAGES);
 
   return {
     ...listing,
@@ -158,12 +176,14 @@ export async function getActiveListings(): Promise<Vehicle[]> {
 }
 
 export async function getActiveListingPage(
-  lastDocument?: DocumentSnapshot
+  filters: ListingPageFilters = {},
+  lastDocument?: DocumentSnapshot,
 ): Promise<ListingPage> {
   if (!db) {
     const listings = readLocalListings()
       .map(normalizeListing)
       .filter((listing) => listing.status === "active")
+      .filter((listing) => matchesListingFilters(listing, filters))
       .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
 
     const startIndex = lastDocument
@@ -177,23 +197,38 @@ export async function getActiveListingPage(
         pageListings.length > 0
           ? ({ id: pageListings[pageListings.length - 1].id } as QueryDocumentSnapshot)
           : null,
+      hasMore: startIndex + pageListings.length < listings.length,
     };
   }
 
-  const listingQuery = lastDocument
-    ? query(
-        collection(db, "listings"),
-        where("status", "==", "active"),
-        orderBy("createdAt", "desc"),
-        startAfter(lastDocument),
-        limit(20)
-      )
-    : query(
-        collection(db, "listings"),
-        where("status", "==", "active"),
-        orderBy("createdAt", "desc"),
-        limit(20)
-      );
+  const constraints: QueryConstraint[] = [where("status", "==", "active")];
+  const equalityFilters = [
+    ["listingType", filters.listingType],
+    ["location.city", filters.location],
+    ["make", filters.make],
+    ["model", filters.model],
+    ["bodyType", filters.bodyType],
+    ["transmission", filters.transmission],
+    ["fuelType", filters.fuelType],
+    ["condition", filters.condition],
+  ] as const;
+
+  equalityFilters.forEach(([field, value]) => {
+    if (value && value !== "all") {
+      constraints.push(where(field, "==", value));
+    }
+  });
+
+  if (filters.priceMin !== undefined) constraints.push(where("price", ">=", filters.priceMin));
+  if (filters.priceMax !== undefined) constraints.push(where("price", "<=", filters.priceMax));
+  if (filters.yearMin !== undefined) constraints.push(where("year", ">=", filters.yearMin));
+  if (filters.yearMax !== undefined) constraints.push(where("year", "<=", filters.yearMax));
+  if (filters.mileageMax !== undefined) constraints.push(where("mileage", "<=", filters.mileageMax));
+  constraints.push(orderBy("createdAt", "desc"));
+  if (lastDocument) constraints.push(startAfter(lastDocument));
+  constraints.push(limit(20));
+
+  const listingQuery = query(collection(db, "listings"), ...constraints);
 
   const snapshot = await getDocs(listingQuery);
 
@@ -205,7 +240,26 @@ export async function getActiveListingPage(
       })
     ),
     lastDocument: snapshot.docs[snapshot.docs.length - 1] ?? null,
+    hasMore: snapshot.docs.length === 20,
   };
+}
+
+function matchesListingFilters(listing: Vehicle, filters: ListingPageFilters) {
+  return (
+    (!filters.listingType || filters.listingType === "all" || listing.listingType === filters.listingType)
+    && (!filters.location || filters.location === "all" || listing.location.city.toLowerCase() === filters.location.toLowerCase())
+    && (!filters.make || filters.make === "all" || listing.make.toLowerCase() === filters.make.toLowerCase())
+    && (!filters.model || filters.model === "all" || listing.model.toLowerCase() === filters.model.toLowerCase())
+    && (!filters.bodyType || filters.bodyType === "all" || listing.bodyType?.toLowerCase() === filters.bodyType.toLowerCase())
+    && (!filters.transmission || filters.transmission === "all" || listing.transmission === filters.transmission)
+    && (!filters.fuelType || filters.fuelType === "all" || listing.fuelType === filters.fuelType)
+    && (!filters.condition || filters.condition === "all" || listing.condition === filters.condition)
+    && (filters.priceMin === undefined || listing.price >= filters.priceMin)
+    && (filters.priceMax === undefined || listing.price <= filters.priceMax)
+    && (filters.yearMin === undefined || listing.year >= filters.yearMin)
+    && (filters.yearMax === undefined || listing.year <= filters.yearMax)
+    && (filters.mileageMax === undefined || listing.mileage <= filters.mileageMax)
+  );
 }
 
 export async function getPendingListings(): Promise<Vehicle[]> {
@@ -314,23 +368,27 @@ export async function uploadVehicleImages(userId: string, files: File[]) {
 
   if (!firebaseReady || !activeStorage) {
     const result = await Promise.all(
-      files.map(async (file) => {
+      files.slice(0, MAX_VEHICLE_IMAGES).map(async (file) => {
         const source = await createImagePreview(file);
         return source;
       })
     );
 
-    return result.slice(0, MAX_LOCAL_IMAGES);
+    return result.slice(0, MAX_VEHICLE_IMAGES);
   }
 
   const urls = await Promise.all(
-    files.map(async (file) => {
+    files.slice(0, MAX_VEHICLE_IMAGES).map(async (file) => {
       const fileName = `${Date.now()}-${file.name}`;
+      const optimizedFile = await optimizeImage(file);
       const storageRef = ref(
         activeStorage,
         `vehicle-images/${userId}/${fileName}`
       );
-      await uploadBytes(storageRef, file);
+      await uploadBytes(storageRef, optimizedFile, {
+        cacheControl: "public,max-age=31536000,immutable",
+        contentType: "image/jpeg",
+      });
       return getDownloadURL(storageRef);
     })
   );
@@ -339,7 +397,19 @@ export async function uploadVehicleImages(userId: string, files: File[]) {
 }
 
 async function createImagePreview(file: File) {
-  const bitmap = await createImageBitmap(file);
+  const optimizedFile = await optimizeImage(file);
+  return await readBlobAsDataUrl(optimizedFile);
+}
+
+async function optimizeImage(file: File): Promise<Blob> {
+  let bitmap: ImageBitmap;
+
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
   const maxDimension = 1280;
   const scale = Math.min(
     1,
@@ -354,20 +424,25 @@ async function createImagePreview(file: File) {
 
   const context = canvas.getContext("2d");
   if (!context) {
-    return await readFileAsDataUrl(file);
+    bitmap.close();
+    return file;
   }
 
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
 
-  return canvas.toDataURL("image/jpeg", 0.78);
+  const optimized = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.78);
+  });
+
+  return optimized ?? file;
 }
 
-function readFileAsDataUrl(file: File) {
+function readBlobAsDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new Error("Image upload failed."));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
 }

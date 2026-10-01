@@ -2,7 +2,7 @@
 
 import { db, firebaseReady } from "@/lib/firebase";
 import type { UserRole } from "@/Types/user";
-import { doc, updateDoc } from "firebase/firestore";
+import { arrayUnion, doc, updateDoc } from "firebase/firestore";
 
 const AUTH_CACHE_KEY = "easy-ride:auth-profile";
 
@@ -17,11 +17,16 @@ export async function updateUserRole(
       const raw = window.localStorage.getItem(AUTH_CACHE_KEY);
       if (raw) {
         try {
-          const profile = JSON.parse(raw) as { id: string; role: UserRole };
+          const profile = JSON.parse(raw) as { id: string; role: UserRole; roles?: UserRole[]; capabilities?: string[] };
           if (profile.id === userId) {
             window.localStorage.setItem(
               AUTH_CACHE_KEY,
-              JSON.stringify({ ...profile, role }),
+              JSON.stringify({
+                ...profile,
+                role,
+                roles: Array.from(new Set([...(profile.roles ?? [profile.role]), role])),
+                capabilities: ["buy", "rent", "sell", "dealer"],
+              }),
             );
           }
         } catch {
@@ -35,5 +40,7 @@ export async function updateUserRole(
 
   await updateDoc(doc(firestore, "users", userId), {
     role,
+    roles: arrayUnion(role),
+    capabilities: arrayUnion("buy", "rent", "sell", "dealer"),
   });
 }

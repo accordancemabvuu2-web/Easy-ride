@@ -28,7 +28,9 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (signedIn()
           && userId == request.auth.uid
-          && request.resource.data.role == resource.data.role);
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["name", "phone", "photoURL"]));
 
       allow delete: if isAdmin();
     }
@@ -126,12 +128,41 @@ service cloud.firestore {
           || isAdmin()
         );
 
-      allow update: if signedIn()
-        && (
-          resource.data.renterId == request.auth.uid
-          || resource.data.ownerId == request.auth.uid
-          || isAdmin()
-        );
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.ownerId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              "status",
+              "paymentStatus",
+              "ownerResponse",
+              "rejectionReason",
+              "cancellationReason",
+              "updatedAt"
+            ])
+          && request.resource.data.status in [
+            "awaiting_payment",
+            "rejected",
+            "cancelled",
+            "active",
+            "completed"
+          ])
+        || (signedIn()
+          && resource.data.renterId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              "status",
+              "paymentStatus",
+              "paymentId",
+              "cancellationReason",
+              "updatedAt"
+            ])
+          && request.resource.data.status in [
+            "confirmed",
+            "cancelled",
+            "active",
+            "completed"
+          ]);
 
       allow delete: if isAdmin();
     }
@@ -182,11 +213,16 @@ service cloud.firestore {
         || (signedIn()
           && resource.data.sellerId == request.auth.uid
           && request.resource.data.buyerId == resource.data.buyerId
-          && request.resource.data.sellerId == resource.data.sellerId)
+          && request.resource.data.sellerId == resource.data.sellerId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "counterPrice", "sellerMessage", "updatedAt"])
+          && request.resource.data.status in ["accepted", "rejected", "countered", "completed"])
         || (signedIn()
           && resource.data.buyerId == request.auth.uid
           && request.resource.data.buyerId == resource.data.buyerId
           && request.resource.data.sellerId == resource.data.sellerId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "updatedAt"])
           && request.resource.data.status in ["withdrawn"]);
 
       allow delete: if isAdmin();

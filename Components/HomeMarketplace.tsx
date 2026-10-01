@@ -2,7 +2,7 @@
 
 import CarCard from "@/Components/CarCard";
 import VehicleFilters from "@/Components/VehicleFilters";
-import { getActiveListings } from "@/services/listingService";
+import { getActiveListingPage, type ListingPage, type ListingPageFilters } from "@/services/listingService";
 import type { ListingType, Vehicle } from "@/Types/vehicle";
 import { Grid2X2, List, Loader2, Map, Search } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +19,10 @@ export default function HomeMarketplace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [lastDocument, setLastDocument] = useState<ListingPage["lastDocument"]>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
@@ -40,12 +43,36 @@ export default function HomeMarketplace() {
   const condition = searchParams.get("condition") ?? "all";
   const requestedSort = searchParams.get("sort");
   const sortBy: SortType = requestedSort === "price-asc" || requestedSort === "price-desc" || requestedSort === "year-desc" || requestedSort === "year-asc" || requestedSort === "views-desc" ? requestedSort : "newest";
+  const listingFilters = useMemo<ListingPageFilters>(() => ({
+    listingType,
+    location,
+    make,
+    model,
+    bodyType,
+    transmission,
+    fuelType,
+    condition,
+    priceMin: priceMin === "" ? undefined : priceMin,
+    priceMax: priceMax === "" ? undefined : priceMax,
+    yearMin: yearMin === "" ? undefined : yearMin,
+    yearMax: yearMax === "" ? undefined : yearMax,
+    mileageMax: mileageMax === "" ? undefined : mileageMax,
+  }), [bodyType, condition, fuelType, listingType, location, make, mileageMax, model, priceMax, priceMin, transmission, yearMax, yearMin]);
 
   useEffect(() => {
     let active = true;
-    getActiveListings()
-      .then((listings) => {
-        if (active) setVehicles(listings.filter((listing) => listing.status === "active"));
+    setLoadingVehicles(true);
+    setLoadError(false);
+    setVehicles([]);
+    setLastDocument(null);
+    setHasMore(false);
+    getActiveListingPage(listingFilters)
+      .then((page) => {
+        if (active) {
+          setVehicles(page.listings);
+          setLastDocument(page.lastDocument);
+          setHasMore(page.hasMore);
+        }
       })
       .catch((error) => {
         console.error("Could not load marketplace listings:", error);
@@ -55,7 +82,24 @@ export default function HomeMarketplace() {
         if (active) setLoadingVehicles(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [listingFilters]);
+
+  const loadMore = async () => {
+    if (!lastDocument || !hasMore || loadingMore) return;
+
+    try {
+      setLoadingMore(true);
+      const page = await getActiveListingPage(listingFilters, lastDocument);
+      setVehicles((current) => [...current, ...page.listings]);
+      setLastDocument(page.lastDocument);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.error("Could not load more marketplace listings:", error);
+      setLoadError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const updateFilter = (key: string, value: string | number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -160,6 +204,14 @@ export default function HomeMarketplace() {
               : loadError ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-800">Marketplace listings could not be loaded. Please try again later.</div>
               : filteredVehicles.length ? <div className={`grid min-w-0 gap-5 ${viewMode === "grid" ? "sm:grid-cols-2 2xl:grid-cols-3" : "grid-cols-1"}`}>{filteredVehicles.map((vehicle) => <CarCard key={vehicle.id} vehicle={vehicle} layout={viewMode} />)}</div>
               : <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-[#0B5D3B]"><Search /></div><h3 className="mt-5 text-xl font-bold text-slate-900">No vehicles found</h3><p className="mx-auto mt-2 max-w-md text-slate-500">Try a broader search or clear some filters to see more listings.</p><button type="button" onClick={clearFilters} className="mt-6 rounded-lg bg-[#0B5D3B] px-5 py-3 font-semibold text-white hover:bg-[#084B30]">Clear filters</button></div>}
+
+            {!loadingVehicles && !loadError && hasMore && (
+              <div className="mt-8 flex justify-center">
+                <button type="button" onClick={() => void loadMore()} disabled={loadingMore} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#0B5D3B] px-6 py-3 text-sm font-bold text-[#0B5D3B] transition hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60">
+                  {loadingMore ? "Loading more vehicles..." : "Load more vehicles"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>

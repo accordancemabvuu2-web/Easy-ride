@@ -14,6 +14,12 @@ const links = [
   ["Contact", "/support"],
 ];
 
+function navigationTypes(pathname: string, href: string) {
+  const currentIndex = links.findIndex(([, linkHref]) => pathname === linkHref || (linkHref !== "/" && pathname.startsWith(`${linkHref}/`)));
+  const targetIndex = links.findIndex(([, linkHref]) => href === linkHref);
+  return [targetIndex >= currentIndex ? "nav-forward" : "nav-back"];
+}
+
 export default function LandingNavbar({ transparentOnTop = true }: { transparentOnTop?: boolean }) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
@@ -36,7 +42,7 @@ export default function LandingNavbar({ transparentOnTop = true }: { transparent
         <nav className="hidden h-full items-center gap-8 lg:flex" aria-label="Main navigation">
           {links.map(([label, href]) => {
             const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-            return <Link key={href} href={href} prefetch transitionTypes={["nav-forward"]} aria-current={active ? "page" : undefined} className={`flex h-full items-center border-b-2 px-1 text-sm font-medium transition hover:text-emerald-300 ${active ? "border-emerald-400 font-semibold text-emerald-300" : "border-transparent text-white/90"}`}>
+            return <Link key={href} href={href} prefetch transitionTypes={navigationTypes(pathname, href)} aria-current={active ? "page" : undefined} className={`flex h-full items-center border-b-2 px-1 text-sm font-medium transition hover:text-emerald-300 ${active ? "border-emerald-400 font-semibold text-emerald-300" : "border-transparent text-white/90"}`}>
               {label}
             </Link>;
           })}
@@ -53,7 +59,7 @@ export default function LandingNavbar({ transparentOnTop = true }: { transparent
         <nav className="absolute left-0 right-0 top-[72px] grid gap-1 border-b border-slate-200 bg-white p-4 shadow-lg lg:hidden" aria-label="Mobile navigation">
           {links.map(([label, href]) => {
             const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-            return <Link key={href} href={href} prefetch transitionTypes={["nav-forward"]} aria-current={active ? "page" : undefined} onClick={() => setMobileMenuOpen(false)} className={`rounded-lg px-4 py-3 text-sm font-semibold ${active ? "bg-emerald-50 text-[#0B5D3B]" : "text-slate-700 hover:bg-emerald-50"}`}>{label}</Link>;
+            return <Link key={href} href={href} prefetch transitionTypes={navigationTypes(pathname, href)} aria-current={active ? "page" : undefined} onClick={() => setMobileMenuOpen(false)} className={`rounded-lg px-4 py-3 text-sm font-semibold ${active ? "bg-emerald-50 text-[#0B5D3B]" : "text-slate-700 hover:bg-emerald-50"}`}>{label}</Link>;
           })}
           <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">Login</Link>
           <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-bold text-white">Sign Up</Link>
