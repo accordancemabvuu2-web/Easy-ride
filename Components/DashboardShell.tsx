@@ -36,7 +36,7 @@ const buyerLinks = [
   { label: "Browse Cars", href: "/", icon: Search },
   { label: "Favorites", href: "/favorites", icon: Heart },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
-  { label: "Bookings", href: "/bookings", icon: CalendarDays },
+  { label: "Rental Management", href: "/bookings?mode=rent", icon: CalendarDays },
   { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Support", href: "/support", icon: ShieldCheck },
@@ -55,7 +55,8 @@ const sellerLinks = [
 
 const personalLinks = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Marketplace", href: "/", icon: Search },
+  { label: "Buy vehicles", href: "/marketplace?mode=buy", icon: Search },
+  { label: "Rent vehicles", href: "/marketplace?mode=rent", icon: CalendarDays },
   { label: "Favorites", href: "/favorites", icon: Heart },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },

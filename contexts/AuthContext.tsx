@@ -10,6 +10,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  sendEmailVerification,
   updateProfile,
 } from "firebase/auth";
 import { Timestamp, doc, getDoc, setDoc } from "firebase/firestore";
@@ -19,6 +20,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useCallback,
   type ReactNode,
 } from "react";
 
@@ -40,6 +42,9 @@ interface AuthContextValue {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateAccountRole: (role: "buyer" | "seller", phone?: string) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
+  checkEmailVerification: () => Promise<boolean>;
 }
 
 const AUTH_CACHE_KEY = "easy-ride:auth-profile";
@@ -200,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await updateProfile(credential.user, {
       displayName: name,
     });
+    await sendEmailVerification(credential.user);
 
     const userProfile: Omit<EasyRideUser, "id"> = {
       name,
@@ -318,6 +324,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(await loadProfile(auth.currentUser));
   };
 
+  const updateAccountRole = useCallback(
+    async (role: "buyer" | "seller", phone?: string) => {
+      if (!profile) {
+        throw new Error("Your account profile is not ready yet.");
+      }
+
+      const updatedProfile: EasyRideUser = normalizeProfile({
+        ...profile,
+        ...(phone === undefined ? {} : { phone }),
+        role,
+        roles: [role],
+        capabilities: capabilitiesForRole(role),
+      });
+
+      if (db && auth?.currentUser) {
+        await setDoc(
+          doc(db, "users", auth.currentUser.uid),
+          {
+            role,
+            roles: [role],
+            capabilities: capabilitiesForRole(role),
+            ...(phone === undefined ? {} : { phone }),
+          },
+          { merge: true },
+        );
+      }
+
+      await persistFallbackProfile(updatedProfile);
+      setProfile(updatedProfile);
+    },
+    [profile],
+  );
+
+  const sendVerificationEmail = async () => {
+    if (auth?.currentUser && !auth.currentUser.emailVerified) {
+      await sendEmailVerification(auth.currentUser);
+    }
+  };
+
+  const checkEmailVerification = async () => {
+    if (!auth?.currentUser) return true;
+    await auth.currentUser.reload();
+    return auth.currentUser.emailVerified;
+  };
+
   const value = useMemo(
     () => ({
       firebaseUser,
@@ -329,8 +380,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle,
       logout,
       refreshProfile,
+      updateAccountRole,
+      sendVerificationEmail,
+      checkEmailVerification,
     }),
-    [firebaseUser, profile, loading]
+    [firebaseUser, profile, loading, updateAccountRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

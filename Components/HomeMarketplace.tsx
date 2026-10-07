@@ -27,7 +27,7 @@ export default function HomeMarketplace() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const search = searchParams.get("q") ?? "";
-  const requestedType = searchParams.get("type");
+  const requestedType = searchParams.get("mode") ?? searchParams.get("type");
   const listingType: FilterType = requestedType === "rent" ? "rent" : requestedType === "all" ? "all" : "buy";
   const location = searchParams.get("location") ?? "all";
   const make = searchParams.get("make") ?? "all";
@@ -104,9 +104,15 @@ export default function HomeMarketplace() {
   const updateFilter = (key: string, value: string | number) => {
     const params = new URLSearchParams(searchParams.toString());
     const normalized = String(value);
-    const defaultValue = key === "sort" ? "newest" : key === "type" ? "buy" : "";
-    if (!normalized || normalized === defaultValue) params.delete(key);
-    else params.set(key, normalized);
+    const defaultValue = key === "sort" ? "newest" : key === "type" || key === "mode" ? "buy" : "";
+    if (!normalized || normalized === defaultValue) {
+      params.delete(key);
+      if (key === "mode" || key === "type") params.delete(key === "mode" ? "type" : "mode");
+    } else {
+      const queryKey = key === "type" ? "mode" : key;
+      params.delete(queryKey === "mode" ? "type" : "mode");
+      params.set(queryKey, normalized);
+    }
     const query = params.toString();
     router.replace(query ? `/marketplace?${query}` : "/marketplace", { scroll: false });
   };
@@ -166,13 +172,13 @@ export default function HomeMarketplace() {
         <div className="w-full px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:px-12">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0B5D3B]">Easy Ride Marketplace</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">{listingType === "rent" ? "Rent a Vehicle" : listingType === "buy" ? "Buy a Vehicle" : "Find Your Next Ride"}</h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">Browse vehicles from trusted sellers and dealers. Search the whole marketplace and narrow your results to find the right vehicle.</p>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">{listingType === "rent" ? "Find available rental vehicles, compare daily rates and choose dates before requesting a booking." : "Browse vehicles from trusted sellers and dealers. Search the whole marketplace and narrow your results to find the right vehicle."}</p>
           <label className="mt-7 flex min-h-14 max-w-3xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-[#0B5D3B] focus-within:ring-4 focus-within:ring-emerald-100">
             <Search size={20} className="shrink-0 text-[#0B5D3B]" />
             <input value={search} onChange={(event) => updateFilter("q", event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search make, model, keyword..." aria-label="Search vehicles" />
           </label>
           <div className="mt-5 inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm" aria-label="Listing type">
-            {(["all", "buy", "rent"] as const).map((type) => <button key={type} type="button" onClick={() => updateFilter("type", type)} aria-pressed={selectedType === type} className={`rounded-full px-5 py-2.5 text-sm font-semibold capitalize transition ${selectedType === type ? "bg-[#0B5D3B] text-white shadow-sm" : "text-slate-600 hover:text-[#0B5D3B]"}`}>{type === "all" ? "All vehicles" : type === "buy" ? "Buy" : "Rent"}</button>)}
+            {(["all", "buy", "rent"] as const).map((type) => <button key={type} type="button" onClick={() => updateFilter("mode", type)} aria-pressed={selectedType === type} className={`rounded-full px-5 py-2.5 text-sm font-semibold capitalize transition ${selectedType === type ? "bg-[#0B5D3B] text-white shadow-sm" : "text-slate-600 hover:text-[#0B5D3B]"}`}>{type === "all" ? "All vehicles" : type === "buy" ? "Buy" : "Rent"}</button>)}
           </div>
         </div>
       </section>

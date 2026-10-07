@@ -3,337 +3,244 @@
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
-  Car,
-  ChevronDown,
-  CheckCircle2,
-  Loader2,
-  Lock,
-  Mail,
-  Phone,
+  ArrowRight,
+  CarFront,
+  Check,
   ShieldCheck,
-  Sparkles,
-  UserRound,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+type Intent = "buyer" | "seller";
+type Step = 1 | 2 | 3;
+
 export default function RegisterPage() {
-  const { register, loginWithGoogle } = useAuth();
+  const {
+    register,
+    loginWithGoogle,
+    updateAccountRole,
+    sendVerificationEmail,
+    checkEmailVerification,
+    firebaseEnabled,
+  } = useAuth();
   const router = useRouter();
-
-  const [submitting, setSubmitting] = useState(false);
-
+  const [step, setStep] = useState<Step>(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
     password: "",
-    role: "buyer" as "buyer" | "seller",
+    intent: null as Intent | null,
   });
 
-  useEffect(() => {
-    const next = new URLSearchParams(window.location.search).get("next");
-    if (next?.startsWith("/create-listing")) {
-      setForm((current) => ({ ...current, role: "seller" }));
-    }
-  }, []);
-
-  const update = (field: keyof typeof form, value: string) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (form.password.length < 6) {
-      toast.error("Password must contain at least 6 characters.");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      await register(form);
-      toast.success("Your Easy Ride account has been created.");
-      router.push(getNextPath());
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed.";
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const googleLogin = async () => {
-    try {
-      await loginWithGoogle();
-      toast.success("Welcome to Easy Ride.");
-      router.push(getNextPath());
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Google registration failed."
-      );
-    }
-  };
-
-  const getNextPath = () => {
+  const nextPath = () => {
     const next = new URLSearchParams(window.location.search).get("next");
     return next?.startsWith("/") && !next.startsWith("//") ? next : "/";
   };
 
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next?.startsWith("/create-listing")) {
+      setForm((current) => ({ ...current, intent: "seller" }));
+    }
+  }, []);
+
+  const update = (field: keyof typeof form, value: string | Intent | null) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setError("");
+  };
+
+  const handleGoogle = async () => {
+    try {
+      setLoading(true);
+      await loginWithGoogle();
+      setStep(3);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Google sign-up failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createAccount = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) {
+      setError("Please enter your name and email address.");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("Your password must contain at least 8 characters.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        phone: form.phone.trim(),
+        role: "buyer",
+      });
+      setStep(firebaseEnabled ? 2 : 3);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const continueAfterVerification = async () => {
+    try {
+      setLoading(true);
+      if (firebaseEnabled && !(await checkEmailVerification())) {
+        setError("Please verify your email using the link we sent, then try again.");
+        return;
+      }
+      setStep(3);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finish = async () => {
+    if (!form.intent) {
+      setError("Choose whether you want to buy or rent, or sell a vehicle.");
+      return;
+    }
+    if (form.intent === "seller" && !form.phone.trim()) {
+      setError("Sellers need a phone or WhatsApp number so buyers can contact them.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateAccountRole(form.intent, form.phone.trim());
+      toast.success("Your Easy Ride account is ready.");
+      router.replace(form.intent === "seller" ? "/create-listing" : nextPath());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not finish setup.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(11,93,59,0.08),_transparent_45%),linear-gradient(180deg,#f8f9fa_0%,#eef2f7_100%)] px-4 py-6 text-[#202124] sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 font-semibold text-[#0B5D3B] transition hover:text-[#084b30]"
-        >
-          <ArrowLeft size={18} />
-          Return home
+    <main className="min-h-screen bg-[#f5f7f6] px-5 py-8 text-slate-900 sm:px-8 lg:py-14">
+      <div className="mx-auto max-w-6xl">
+        <Link href="/" className="inline-flex items-center gap-2 font-semibold text-[#0B5D3B]">
+          <ArrowLeft size={18} /> Home
         </Link>
 
-        <section className="mt-6 overflow-hidden rounded-[36px] border border-white/60 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
-          <div className="grid min-h-[820px] lg:grid-cols-[0.92fr_1.08fr]">
-            <aside className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0b5d3b] via-[#0a6a44] to-[#063821] px-8 py-10 text-white sm:px-10 lg:px-12">
-              <div className="absolute inset-0">
-                <Image
-                  src="https://images.unsplash.com/photo-1550355291-bbee04a92027?auto=format&fit=crop&w=1200&q=80"
-                  alt=""
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 42vw"
-                  className="object-cover opacity-20"
-                />
-                <div className="absolute inset-0 bg-gradient-to-br from-[#0b5d3b]/95 via-[#0b5d3b]/80 to-[#031b11]/92" />
+        <section className="mt-6 grid overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.10)] lg:grid-cols-[0.85fr_1.15fr]">
+          <aside className="hidden bg-[#0B5D3B] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
+                <CarFront size={20} /> <span className="font-semibold">Easy Ride</span>
               </div>
+              <h1 className="mt-12 max-w-md text-5xl font-extrabold leading-tight">
+                Your next journey starts here.
+              </h1>
+              <p className="mt-6 max-w-md text-lg leading-8 text-emerald-50/80">
+                One account for discovering vehicles, renting, buying and selling.
+              </p>
+            </div>
+            <div className="space-y-3 text-sm text-emerald-50">
+              <Benefit icon={<ShieldCheck size={18} />} text="One secure account for every journey" />
+              <Benefit icon={<Check size={18} />} text="Choose your path when you are ready" />
+              <Benefit icon={<ArrowRight size={18} />} text="Become a verified dealer later" />
+            </div>
+          </aside>
 
-              <div className="relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
-                    <Car className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/65">
-                      Easy Ride
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white/80">
-                      Drive with confidence
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-16 max-w-md">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#C9A227]">
-                    Start here
-                  </p>
-                  <h1 className="mt-4 text-4xl font-bold leading-tight sm:text-5xl">
-                    Welcome to Easy Ride
-                  </h1>
-                  <p className="mt-5 max-w-sm text-base leading-8 text-white/80 sm:text-lg">
-                    Create your account to browse vehicles, save favorites and
-                    post listings that reach real buyers.
-                  </p>
-                </div>
-
-                <div className="mt-12 space-y-4">
-                  {[
-                    {
-                      icon: Sparkles,
-                      title: "Explore thousands of vehicles",
-                      description: "Search cars for sale, rent or sell.",
-                    },
-                    {
-                      icon: CheckCircle2,
-                      title: "List your vehicle with confidence",
-                      description: "Add details, photos and contact info.",
-                    },
-                    {
-                      icon: ShieldCheck,
-                      title: "Safe, trusted community",
-                      description: "Built for verified buyers and sellers.",
-                    },
-                  ].map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <div
-                        key={item.title}
-                        className="flex items-start gap-4 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm"
-                      >
-                        <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold">{item.title}</p>
-                          <p className="mt-1 text-sm leading-6 text-white/70">
-                            {item.description}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="px-5 py-8 sm:px-10 sm:py-12">
+            <div className="mb-10">
+              <div className="flex justify-between text-xs font-semibold text-slate-400">
+                {["Account", "Verify", "Personalize"].map((label, index) => (
+                  <span key={label} className={step > index ? "text-[#0B5D3B]" : ""}>{label}</span>
+                ))}
               </div>
-
-              <div className="relative z-10 mt-12 rounded-3xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm sm:max-w-sm">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
-                    <Lock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Your information is secure</p>
-                    <p className="mt-1 text-sm leading-6 text-white/70">
-                      We only use your details to create your Easy Ride account.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </aside>
-
-            <div className="flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
-              <div className="w-full max-w-2xl">
-                <div className="text-center">
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#0B5D3B]">
-                    Create your account
-                  </p>
-                  <h2 className="mt-3 text-3xl font-bold text-[#1f2937] sm:text-4xl">
-                    Browse vehicles or create listings as a seller.
-                  </h2>
-                </div>
-
-                <form onSubmit={submit} className="mt-10 space-y-5">
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Full name
-                      </span>
-                      <div className="relative">
-                        <UserRound className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                          required
-                          value={form.name}
-                          onChange={(event) => update("name", event.target.value)}
-                          className="input pr-12"
-                          placeholder="Your full name"
-                        />
-                      </div>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Email address
-                      </span>
-                      <div className="relative">
-                        <Mail className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                          required
-                          type="email"
-                          value={form.email}
-                          onChange={(event) => update("email", event.target.value)}
-                          className="input pr-12"
-                          placeholder="name@example.com"
-                        />
-                      </div>
-                    </label>
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Phone or WhatsApp number
-                      </span>
-                      <div className="relative">
-                        <Phone className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                          value={form.phone}
-                          onChange={(event) => update("phone", event.target.value)}
-                          className="input pr-12"
-                          placeholder="+263 77 123 4567"
-                        />
-                      </div>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        Password
-                      </span>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                          required
-                          type="password"
-                          value={form.password}
-                          onChange={(event) => update("password", event.target.value)}
-                          className="input pr-12"
-                          placeholder="Create a password"
-                        />
-                      </div>
-                    </label>
-                  </div>
-
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-gray-600">
-                      I am a...
-                    </span>
-                    <div className="relative">
-                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                      <select
-                        value={form.role}
-                        onChange={(event) => update("role", event.target.value)}
-                        className="input pr-12"
-                      >
-                        <option value="buyer">Buyer or renter</option>
-                        <option value="seller">Private seller</option>
-                      </select>
-                    </div>
-                  </label>
-
-                  <button
-                    disabled={submitting}
-                    className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 text-lg font-bold text-white shadow-[0_18px_40px_rgba(11,93,59,0.22)] transition hover:bg-[#084b30] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submitting && <Loader2 className="animate-spin" size={19} />}
-                    Create Account
-                  </button>
-                </form>
-
-                <div className="my-6 flex items-center gap-4">
-                  <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-sm text-gray-500">or</span>
-                  <div className="h-px flex-1 bg-gray-200" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={googleLogin}
-                  className="flex w-full items-center justify-center gap-3 rounded-full border border-[#E5E7EB] bg-white px-6 py-4 font-semibold text-[#1f2937] shadow-sm transition hover:border-[#0B5D3B]/30 hover:bg-[#F8F9FA]"
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-lg font-bold text-[#4285F4]">
-                    G
-                  </span>
-                  Continue with Google
-                </button>
-
-                <p className="mt-8 text-center text-sm text-gray-500">
-                  Already registered?{" "}
-                  <Link
-                    href="/login"
-                    onClick={(event) => { const next = new URLSearchParams(window.location.search).get("next"); if (next) { event.preventDefault(); router.push(`/login?next=${encodeURIComponent(next)}`); } }}
-                    className="font-bold text-[#0B5D3B] underline-offset-4 hover:underline"
-                  >
-                    Log in
-                  </Link>
-                </p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-[#0B5D3B] transition-all" style={{ width: `${step * 33.33}%` }} />
               </div>
             </div>
+
+            {step === 1 && (
+              <div className="mx-auto max-w-xl">
+                <Header eyebrow="Create your account" title="Get started with Easy Ride." />
+                <button type="button" onClick={handleGoogle} disabled={loading} className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 px-4 py-3.5 font-semibold transition hover:bg-slate-50 disabled:opacity-60">
+                  <span className="text-lg font-bold text-[#4285F4]">G</span>
+                  {loading ? "Connecting..." : "Continue with Google"}
+                </button>
+                <div className="my-7 flex items-center gap-4 text-xs text-slate-400"><div className="h-px flex-1 bg-slate-200" /> OR <div className="h-px flex-1 bg-slate-200" /></div>
+                <form onSubmit={createAccount} className="space-y-5">
+                  <Field label="Full name"><input required value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Your full name" className="input" /></Field>
+                  <Field label="Email address"><input required type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="name@example.com" className="input" /></Field>
+                  <Field label="Password"><input required minLength={8} type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="At least 8 characters" className="input" /></Field>
+                  {error && <ErrorMessage message={error} />}
+                  <SubmitButton loading={loading}>Continue</SubmitButton>
+                </form>
+                <p className="mt-6 text-center text-sm text-slate-500">Already have an account? <Link href={`/login?next=${encodeURIComponent(nextPath())}`} className="font-bold text-[#0B5D3B] hover:underline">Log in</Link></p>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="mx-auto max-w-md text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-[#0B5D3B]"><ShieldCheck size={30} /></div>
+                <Header eyebrow="Verify your account" title="Check your email." />
+                <p className="mt-4 text-sm leading-6 text-slate-500">We sent a verification link to <strong>{form.email}</strong>. Open it, then return here to continue.</p>
+                {error && <div className="mt-4"><ErrorMessage message={error} /></div>}
+                <button type="button" onClick={continueAfterVerification} disabled={loading} className="mt-8 w-full rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Checking..." : "I verified my email"}</button>
+                <button type="button" onClick={() => sendVerificationEmail().catch((error) => setError(error instanceof Error ? error.message : "Could not resend the email."))} className="mt-5 text-sm font-semibold text-[#0B5D3B] hover:underline">Resend verification email</button>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="mx-auto max-w-xl">
+                <Header eyebrow="Welcome to Easy Ride" title="What brings you here?" />
+                <p className="mt-4 text-center text-sm leading-6 text-slate-500">Choose your main goal. You can change or expand your account later.</p>
+                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                  <IntentCard selected={form.intent === "buyer"} onClick={() => update("intent", "buyer")} title="Buy or Rent" description="Discover vehicles, save favorites and manage bookings." icon={<CarFront size={23} />} />
+                  <IntentCard selected={form.intent === "seller"} onClick={() => update("intent", "seller")} title="Sell a Vehicle" description="List your vehicle and reach real buyers." icon={<ArrowRight size={23} />} />
+                </div>
+                {form.intent === "seller" && <div className="mt-5"><Field label="Phone or WhatsApp number"><input required value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+263 77 123 4567" className="input" /></Field></div>}
+                {error && <div className="mt-5"><ErrorMessage message={error} /></div>}
+                <button type="button" onClick={finish} disabled={loading} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Finishing..." : "Continue to Easy Ride"} {!loading && <ArrowRight size={17} />}</button>
+                <p className="mt-5 text-center text-xs text-slate-400">You can apply to become a verified dealer later from your account.</p>
+              </div>
+            )}
           </div>
         </section>
       </div>
     </main>
   );
+}
+
+function Header({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return <div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.22em] text-[#0B5D3B]">{eyebrow}</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">{title}</h2></div>;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>;
+}
+
+function SubmitButton({ loading, children }: { loading: boolean; children: React.ReactNode }) {
+  return <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Creating account..." : children}<ArrowRight size={17} /></button>;
+}
+
+function IntentCard({ selected, onClick, title, description, icon }: { selected: boolean; onClick: () => void; title: string; description: string; icon: React.ReactNode }) {
+  return <button type="button" onClick={onClick} className={`rounded-3xl border-2 p-6 text-left transition ${selected ? "border-[#0B5D3B] bg-emerald-50 shadow-lg shadow-emerald-900/5" : "border-slate-200 hover:border-slate-300"}`}><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${selected ? "bg-[#0B5D3B] text-white" : "bg-slate-100 text-slate-600"}`}>{icon}</div><h3 className="mt-5 text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>{selected && <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[#0B5D3B]"><Check size={17} /> Selected</div>}</button>;
+}
+
+function Benefit({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">{icon}</div><span>{text}</span></div>;
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
 }
