@@ -1,10 +1,10 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createRentalBooking } from "@/services/bookingService";
 import type { Vehicle } from "@/Types/vehicle";
-import { CalendarDays, Loader2, ShieldCheck } from "lucide-react";
+import { CalendarDays, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -12,15 +12,15 @@ import toast from "react-hot-toast";
 export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
   const { firebaseUser, profile } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const [pickupDate, setPickupDate] = useState("");
-  const [returnDate, setReturnDate] = useState("");
+  const [pickupDate, setPickupDate] = useState(() => searchParams.get("pickupDate") ?? "");
+  const [returnDate, setReturnDate] = useState(() => searchParams.get("returnDate") ?? "");
   const [message, setMessage] = useState(
     `Hello, I would like to rent this ${vehicle.make} ${vehicle.model}.`,
   );
-  const [submitting, setSubmitting] = useState(false);
 
   const totalDays = useMemo(() => {
     if (!pickupDate || !returnDate) return 0;
@@ -35,7 +35,7 @@ export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
   const deposit = 0;
   const total = subtotal + serviceFee + deposit;
 
-  const submitBooking = async () => {
+  const submitBooking = () => {
     if (!firebaseUser || !profile) {
       toast.error("Log in to request a booking.");
       router.push("/login");
@@ -47,28 +47,9 @@ export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
       return;
     }
 
-    try {
-      setSubmitting(true);
-      const booking = await createRentalBooking({
-        vehicle,
-        renter: {
-          id: firebaseUser.uid,
-          name: profile.name,
-          email: profile.email,
-          phone: profile.phone ?? "",
-        },
-        pickupDate,
-        returnDate,
-        message,
-      });
-
-      toast.success("Rental request submitted.");
-      router.push(`/bookings/${booking.id}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Booking could not be created.");
-    } finally {
-      setSubmitting(false);
-    }
+    router.push(
+      `/bookings/new?vehicle=${encodeURIComponent(vehicle.id)}&start=${encodeURIComponent(pickupDate)}&end=${encodeURIComponent(returnDate)}`,
+    );
   };
 
   return (
@@ -156,10 +137,9 @@ export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
       <button
         type="button"
         onClick={submitBooking}
-        disabled={submitting || (!!profile && totalDays < 1)}
+        disabled={!!profile && totalDays < 1}
         className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {submitting && <Loader2 className="animate-spin" size={19} />}
         Request Booking
       </button>
     </section>

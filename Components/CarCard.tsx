@@ -5,6 +5,7 @@ import type { Vehicle } from "@/Types/vehicle";
 import { BadgeCheck, Fuel, Gauge, MapPin, Settings2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface CarCardProps {
   vehicle: Vehicle;
@@ -12,8 +13,14 @@ interface CarCardProps {
 }
 
 export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
+  const searchParams = useSearchParams();
   const formattedPrice = new Intl.NumberFormat("en-US").format(vehicle.price);
   const isList = layout === "list";
+  const pickupDate = searchParams.get("pickupDate");
+  const returnDate = searchParams.get("returnDate");
+  const detailHref = vehicle.listingType === "rent" && (pickupDate || returnDate)
+    ? `/vehicle/${vehicle.id}?pickupDate=${encodeURIComponent(pickupDate ?? "")}&returnDate=${encodeURIComponent(returnDate ?? "")}`
+    : `/vehicle/${vehicle.id}`;
 
   return (
     <article
@@ -22,7 +29,7 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
       }`}
     >
       <div className={`relative overflow-hidden ${isList ? "h-60 md:h-full" : "h-56"}`}>
-        <Link href={`/vehicle/${vehicle.id}`} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
+        <Link href={detailHref} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
           <Image
             src={vehicle.coverImage}
             alt={`${vehicle.make} ${vehicle.model}`}
@@ -53,7 +60,7 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-xl font-bold text-[#121212]">
-              <Link href={`/vehicle/${vehicle.id}`} className="hover:text-[#0B5D3B]">
+              <Link href={detailHref} className="hover:text-[#0B5D3B]">
               {vehicle.make} {vehicle.model} {vehicle.year}
               </Link>
             </h3>
@@ -109,7 +116,7 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
           </span>
 
           <Link
-            href={`/vehicle/${vehicle.id}`}
+            href={detailHref}
             className="rounded-full bg-[#0B5D3B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#084B30]"
           >
             View Details

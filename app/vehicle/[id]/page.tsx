@@ -17,6 +17,8 @@ import { createWhatsAppUrl } from "@/utils/whatsapp";
 import type { Vehicle } from "@/Types/vehicle";
 import {
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Fuel,
   Gauge,
   Heart,
@@ -28,15 +30,17 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function VehiclePage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { profile, firebaseUser, loading: authLoading } = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [similarVehicles, setSimilarVehicles] = useState<Vehicle[]>([]);
   const [activePhoto, setActivePhoto] = useState("");
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showPhone, setShowPhone] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -84,7 +88,9 @@ export default function VehiclePage() {
     let active = true;
     if (!vehicle) return () => { active = false; };
 
-    setActivePhoto(vehicle.coverImage || vehicle.images[0] || "");
+    const photos = [...new Set([vehicle.coverImage, ...vehicle.images])].filter(Boolean);
+    setActivePhoto(photos[0] || "");
+    setActivePhotoIndex(0);
     getActiveListings()
       .then((listings) => {
         if (!active) return;
@@ -138,6 +144,22 @@ export default function VehiclePage() {
   }
 
   const formattedPrice = new Intl.NumberFormat("en-US").format(vehicle.price);
+  const photos = [...new Set([vehicle.coverImage, ...vehicle.images])].filter(Boolean);
+
+  const selectPhoto = (index: number) => {
+    const photo = photos[index];
+    if (!photo) return;
+    setActivePhotoIndex(index);
+    setActivePhoto(photo);
+  };
+
+  const movePhoto = (direction: "next" | "previous") => {
+    if (photos.length < 2) return;
+    const nextIndex = direction === "next"
+      ? (activePhotoIndex + 1) % photos.length
+      : (activePhotoIndex - 1 + photos.length) % photos.length;
+    selectPhoto(nextIndex);
+  };
 
   const requireLogin = () => {
     if (authLoading) return false;
@@ -182,7 +204,7 @@ export default function VehiclePage() {
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[1.4fr_0.8fr]">
           <div className="space-y-6">
-            <div className="relative h-[360px] overflow-hidden rounded-[32px] bg-gray-200 sm:h-[520px]">
+            <div className="group relative h-[360px] overflow-hidden rounded-[32px] bg-gray-200 sm:h-[520px]">
               <Image
                 src={activePhoto || vehicle.coverImage}
                 alt={`${vehicle.make} ${vehicle.model}`}
@@ -191,11 +213,34 @@ export default function VehiclePage() {
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 65vw"
               />
+              {photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => movePhoto("previous")}
+                    aria-label="Previous vehicle photo"
+                    className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/45 text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <ChevronLeft size={21} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => movePhoto("next")}
+                    aria-label="Next vehicle photo"
+                    className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-black/45 text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <ChevronRight size={21} />
+                  </button>
+                  <span className="absolute bottom-4 right-4 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                    {activePhotoIndex + 1} / {photos.length}
+                  </span>
+                </>
+              )}
             </div>
-            {vehicle.images.length > 1 && (
+            {photos.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-1" aria-label="Vehicle photos">
-                {[...new Set([vehicle.coverImage, ...vehicle.images])].map((photo, index) => (
-                  <button key={photo} type="button" onClick={() => setActivePhoto(photo)} aria-label={`Show vehicle photo ${index + 1}`} aria-pressed={activePhoto === photo} className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 ${activePhoto === photo ? "border-[#0B5D3B]" : "border-transparent"}`}>
+                {photos.map((photo, index) => (
+                  <button key={photo} type="button" onClick={() => selectPhoto(index)} aria-label={`Show vehicle photo ${index + 1}`} aria-pressed={activePhoto === photo} className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 ${activePhoto === photo ? "border-[#C9A227]" : "border-transparent"}`}>
                     <Image src={photo} alt={`${vehicle.make} ${vehicle.model} photo ${index + 1}`} fill sizes="112px" className="object-cover" />
                   </button>
                 ))}
@@ -239,10 +284,16 @@ export default function VehiclePage() {
           </div>
 
           <aside className="h-fit rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:sticky lg:top-24">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#0B5D3B] px-3 py-1 text-xs font-bold text-white">
                 {vehicle.listingType === "buy" ? "For Sale" : "For Rent"}
               </span>
+
+              {vehicle.featured && (
+                <span className="rounded-full border border-[#C9A227]/40 bg-[#C9A227]/10 px-3 py-1 text-xs font-bold text-[#9B7410]">
+                  Featured listing
+                </span>
+              )}
 
               {vehicle.verified && (
                 <span className="flex items-center gap-1 text-sm font-semibold text-[#0B5D3B]">
@@ -270,6 +321,12 @@ export default function VehiclePage() {
               )}
             </p>
 
+            <p className="mt-2 text-sm text-gray-500">
+              {vehicle.listingType === "rent"
+                ? "Request your dates and confirm availability before payment."
+                : "Make an offer or contact the seller to arrange a viewing."}
+            </p>
+
             <div className="mt-7 rounded-2xl bg-[#F8F9FA] p-4">
               <p className="text-sm text-gray-500">Listed by</p>
               <p className="mt-1 font-bold">{vehicle.ownerName}</p>
@@ -278,6 +335,18 @@ export default function VehiclePage() {
                 View seller profile
               </Link>
             </div>
+
+            {vehicle.listingType === "buy" && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (requireLogin()) router.push(`/checkout/${vehicle.id}?type=purchase`);
+                }}
+                className="mt-6 flex w-full items-center justify-center rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white hover:bg-[#084B30]"
+              >
+                Buy this vehicle
+              </button>
+            )}
 
             <div className="mt-4 flex justify-end">
               {authLoading ? (

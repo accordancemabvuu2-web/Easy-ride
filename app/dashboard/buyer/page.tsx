@@ -10,7 +10,7 @@ import { getActiveListings } from "@/services/listingService";
 import { getUserOffers } from "@/services/offerService";
 import { getUserBookings } from "@/services/bookingService";
 import type { Vehicle } from "@/Types/vehicle";
-import { BadgeDollarSign, CalendarDays, Heart, Loader2, MessageCircle, Search } from "lucide-react";
+import { BadgeDollarSign, CalendarDays, Heart, Loader2, MessageCircle, Search, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -71,26 +71,31 @@ function BuyerDashboardContent() {
   return (
     <DashboardShell role="buyer">
       <section>
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C9A227]">Buyer dashboard</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Good morning, {profile?.name?.split(" ")[0] ?? "there"}</h1>
-        <p className="mt-2 text-gray-500">Find your next ride and keep every marketplace activity in one place.</p>
+        <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Customer dashboard</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Good morning, {profile?.name?.trim().split(/\s+/)[0] || "Guest"} <span aria-hidden="true">👋</span></h1>
+        <p className="mt-2 text-gray-500">Here&apos;s what&apos;s happening with your vehicles and searches.</p>
 
-        <label className="mt-7 flex h-14 max-w-2xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
-          <Search className="text-gray-400" size={20} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cars, brands, models..." className="w-full bg-transparent outline-none" />
+        <div className="mt-6 inline-flex rounded-xl border border-[#DCE5DF] bg-white p-1 shadow-sm">
+          <Link href="/dashboard/buyer?mode=buy" className="rounded-lg bg-[#08784D] px-6 py-2 text-sm font-bold text-white shadow-sm">Buy</Link>
+          <Link href="/dashboard?mode=rent" className="rounded-lg px-6 py-2 text-sm font-bold text-gray-500 hover:text-[#08784D]">Rent</Link>
+        </div>
+
+        <label className="mt-6 flex h-14 max-w-3xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
+          <Search className="text-[#08784D]" size={20} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cars, makes, models or locations..." className="w-full bg-transparent outline-none" />
         </label>
 
         <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <BuyerMetric icon={<Heart className="text-red-500" />} label="Saved vehicles" value={savedCount} href="/favorites" />
-          <BuyerMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Active offers" value={offerCount} href="/offers" />
-          <BuyerMetric icon={<CalendarDays className="text-[#08784D]" />} label="Upcoming bookings" value={bookingCount} href="/bookings" />
-          <BuyerMetric icon={<MessageCircle className="text-blue-500" />} label="Messages" value="Open" href="/messages" />
+          <BuyerMetric icon={<Heart className="text-red-500" />} label="Saved Vehicles" value={savedCount} href="/favorites" />
+          <BuyerMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Active Offers" value={offerCount} href="/offers" />
+          <BuyerMetric icon={<CalendarDays className="text-[#08784D]" />} label="Upcoming Bookings" value={bookingCount} href="/bookings" />
+          <BuyerMetric icon={<MessageCircle className="text-blue-500" />} label="Unread Messages" value="4" href="/messages" />
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Curated for you</p>
-            <h2 className="mt-1 text-2xl font-black">Recommended vehicles</h2>
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]"><Sparkles size={15} /> Recommended for you</p>
+            <h2 className="mt-1 text-2xl font-black">Featured vehicles</h2>
           </div>
           <Link href="/" className="text-sm font-bold text-[#08784D] hover:underline">Browse all</Link>
         </div>
@@ -112,7 +117,7 @@ function BuyerDashboardContent() {
 }
 
 function BuyerMetric({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: string | number; href: string }) {
-  return <Link href={href} className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#08784D] hover:shadow-md"><div className="flex items-start justify-between"><div><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-black text-[#17201D]">{value}</p></div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></Link>;
+  return <Link href={href} className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,29,0.06)] transition hover:-translate-y-0.5 hover:border-[#08784D] hover:shadow-md"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-wide text-gray-500">{label}</p><p className="mt-2 text-3xl font-black text-[#17201D]">{value}</p><p className="mt-2 text-xs font-semibold text-[#08784D]">View details</p></div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></Link>;
 }
 
 function RecommendedVehicle({ vehicle }: { vehicle: Vehicle }) {

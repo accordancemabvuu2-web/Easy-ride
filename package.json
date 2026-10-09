@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@googlemaps/markerclusterer": "^2.6.2",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "date-fns": "^4.4.0",
     "firebase": "^12.16.0",
     "firebase-admin": "^13.5.0",

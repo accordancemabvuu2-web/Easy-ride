@@ -123,7 +123,9 @@ export default function RegisterPage() {
       setLoading(true);
       await updateAccountRole(form.intent, form.phone.trim());
       toast.success("Your Easy Ride account is ready.");
-      router.replace(form.intent === "seller" ? "/create-listing" : nextPath());
+      router.replace(
+        form.intent === "seller" ? "/dashboard/seller" : "/dashboard?mode=buy",
+      );
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not finish setup.");
     } finally {

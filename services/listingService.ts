@@ -1,6 +1,7 @@
 "use client";
 
 import { db, firebaseReady, storage } from "@/lib/firebase";
+import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/browser";
 import type { ListingStatus, ListingType, Vehicle } from "@/Types/vehicle";
 import {
   DocumentSnapshot,
@@ -32,8 +33,13 @@ function nowIso() {
 
 export interface ListingPage {
   listings: Vehicle[];
-  lastDocument: QueryDocumentSnapshot | null;
+  lastDocument: QueryDocumentSnapshot | SupabaseListingCursor | null;
   hasMore: boolean;
+}
+
+interface SupabaseListingCursor {
+  source: "supabase";
+  offset: number;
 }
 
 export interface ListingPageFilters {
@@ -133,7 +139,160 @@ function normalizeListing(listing: Vehicle): Vehicle {
   };
 }
 
+type SupabaseVehicleRow = {
+  id: string;
+  owner_id: string;
+  listing_type: ListingType;
+  status: ListingStatus;
+  make: string;
+  model: string;
+  year: number;
+  price: number | string;
+  currency: string;
+  transmission: Vehicle["transmission"];
+  fuel_type: Vehicle["fuelType"];
+  mileage: number;
+  condition: Vehicle["condition"];
+  body_type: string | null;
+  color: string | null;
+  description: string;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  views: number;
+  favorites_count: number;
+  featured: boolean;
+  created_at: string;
+  updated_at: string;
+  profiles:
+    | {
+        full_name: string;
+        phone: string | null;
+        avatar_url: string | null;
+        role: "buyer" | "seller" | "dealer" | "admin";
+      }
+    | null;
+  vehicle_images: Array<{
+    image_url: string;
+    display_order: number;
+  }>;
+};
+
+function mapSupabaseVehicle(row: SupabaseVehicleRow): Vehicle {
+  const images = [...(row.vehicle_images ?? [])]
+    .sort((left, right) => left.display_order - right.display_order)
+    .map((image) => image.image_url)
+    .filter(Boolean);
+  const profile = row.profiles;
+  const coverImage = images[0] ?? "";
+
+  return normalizeListing({
+    id: row.id,
+    ownerId: row.owner_id,
+    ownerName: profile?.full_name || "Easy Ride seller",
+    ownerPhone: profile?.phone || "",
+    ownerEmail: "",
+    listingType: row.listing_type,
+    status: row.status,
+    make: row.make,
+    model: row.model,
+    year: row.year,
+    price: Number(row.price),
+    currency: row.currency,
+    transmission: row.transmission,
+    fuelType: row.fuel_type,
+    mileage: row.mileage,
+    condition: row.condition,
+    bodyType: row.body_type ?? undefined,
+    color: row.color ?? undefined,
+    description: row.description,
+    location: {
+      address: row.address ?? "",
+      city: row.city ?? "",
+      country: row.country ?? "",
+      latitude: row.latitude ?? 0,
+      longitude: row.longitude ?? 0,
+    },
+    images,
+    coverImage,
+    sellerType:
+      profile?.role === "dealer" ? "Dealer" : "Private Seller",
+    verified: profile?.role === "dealer" || profile?.role === "admin",
+    featured: row.featured,
+    views: row.views,
+    favoritesCount: row.favorites_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+const supabaseVehicleSelect =
+  "*, profiles!vehicles_owner_id_fkey(full_name,phone,avatar_url,role), vehicle_images(image_url,display_order)";
+
+async function fetchSupabaseListings(
+  filters: ListingPageFilters,
+  offset = 0,
+): Promise<{ listings: Vehicle[]; hasMore: boolean }> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  let query = supabase
+    .from("vehicles")
+    .select(supabaseVehicleSelect)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .range(offset, offset + 19);
+
+  if (filters.listingType && filters.listingType !== "all") {
+    query = query.eq("listing_type", filters.listingType);
+  }
+  if (filters.location && filters.location !== "all") {
+    query = query.ilike("city", filters.location);
+  }
+  if (filters.make && filters.make !== "all") {
+    query = query.ilike("make", filters.make);
+  }
+  if (filters.model && filters.model !== "all") {
+    query = query.ilike("model", filters.model);
+  }
+  if (filters.bodyType && filters.bodyType !== "all") {
+    query = query.ilike("body_type", filters.bodyType);
+  }
+  if (filters.transmission && filters.transmission !== "all") {
+    query = query.eq("transmission", filters.transmission);
+  }
+  if (filters.fuelType && filters.fuelType !== "all") {
+    query = query.eq("fuel_type", filters.fuelType);
+  }
+  if (filters.condition && filters.condition !== "all") {
+    query = query.eq("condition", filters.condition);
+  }
+  if (filters.priceMin !== undefined) query = query.gte("price", filters.priceMin);
+  if (filters.priceMax !== undefined) query = query.lte("price", filters.priceMax);
+  if (filters.yearMin !== undefined) query = query.gte("year", filters.yearMin);
+  if (filters.yearMax !== undefined) query = query.lte("year", filters.yearMax);
+  if (filters.mileageMax !== undefined) {
+    query = query.lte("mileage", filters.mileageMax);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Could not load Supabase listings: ${error.message}`);
+
+  const rows = (data ?? []) as SupabaseVehicleRow[];
+  return {
+    listings: rows.map(mapSupabaseVehicle),
+    hasMore: rows.length === 20,
+  };
+}
+
 async function fetchRemoteListings(): Promise<Vehicle[]> {
+  if (isSupabaseConfigured()) {
+    const result = await fetchSupabaseListings({});
+    return result.listings;
+  }
+
   if (!db) return readLocalListings().map(normalizeListing);
 
   const activeSnapshot = await getDocs(
@@ -177,8 +336,21 @@ export async function getActiveListings(): Promise<Vehicle[]> {
 
 export async function getActiveListingPage(
   filters: ListingPageFilters = {},
-  lastDocument?: DocumentSnapshot,
+  lastDocument?: DocumentSnapshot | SupabaseListingCursor,
 ): Promise<ListingPage> {
+  if (isSupabaseConfigured()) {
+    const offset =
+      lastDocument && "source" in lastDocument ? lastDocument.offset : 0;
+    const result = await fetchSupabaseListings(filters, offset);
+    return {
+      listings: result.listings,
+      lastDocument: result.listings.length
+        ? { source: "supabase", offset: offset + result.listings.length }
+        : null,
+      hasMore: result.hasMore,
+    };
+  }
+
   if (!db) {
     const listings = readLocalListings()
       .map(normalizeListing)
@@ -186,8 +358,10 @@ export async function getActiveListingPage(
       .filter((listing) => matchesListingFilters(listing, filters))
       .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
 
-    const startIndex = lastDocument
-      ? listings.findIndex((listing) => listing.id === lastDocument.id) + 1
+    const firebaseLastDocument =
+      lastDocument && !("source" in lastDocument) ? lastDocument : undefined;
+    const startIndex = firebaseLastDocument
+      ? listings.findIndex((listing) => listing.id === firebaseLastDocument.id) + 1
       : 0;
     const pageListings = listings.slice(startIndex, startIndex + 20);
 
@@ -286,6 +460,19 @@ export async function getMyListings(ownerId: string): Promise<Vehicle[]> {
 }
 
 export async function getListingById(id: string): Promise<Vehicle | null> {
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) throw new Error("Supabase is not configured.");
+
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select(supabaseVehicleSelect)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Could not load vehicle: ${error.message}`);
+    return data ? mapSupabaseVehicle(data as SupabaseVehicleRow) : null;
+  }
+
   if (!db) {
     const listings = readLocalListings().map(normalizeListing);
     return listings.find((listing) => listing.id === id) ?? null;

@@ -7,6 +7,13 @@
   --primary-hover: #084b30;
   --gold: #c9a227;
   --border: #e5e7eb;
+  --easy-deep: #052e16;
+  --easy-green: #0b4a32;
+  --easy-black: #02140b;
+  --easy-gold-light: #e5be42;
+  --dashboard-bg: #090d10;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.035);
 }
 
 * {
@@ -111,6 +118,24 @@ textarea:focus-visible {
 
 .input {
   @apply w-full rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none transition focus:border-[#0B5D3B];
+}
+
+.dashboard-shell {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(11, 74, 50, 0.22), transparent 34%),
+    var(--dashboard-bg);
+}
+
+.glass-panel {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 24px 60px rgba(2, 20, 11, 0.2);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, var(--gold), var(--easy-gold-light));
 }
 
 ::-webkit-scrollbar {

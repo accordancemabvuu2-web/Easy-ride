@@ -87,8 +87,8 @@ function PersonalDashboard() {
     <DashboardShell role="personal">
       <section>
         <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C9A227]">Customer dashboard</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Good afternoon, {profile?.name?.split(" ")[0] ?? "there"}</h1>
-        <p className="mt-2 text-gray-500">{mode === "rent" ? "Plan your next trip and keep your rental activity in one place." : "Find something you&apos;ll love and keep your Easy Ride activity in one place."}</p>
+        <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Good afternoon, {profile?.name?.trim().split(/\s+/)[0] || "Guest"}</h1>
+        <p className="mt-2 text-gray-500">{mode === "rent" ? "Plan your next trip and keep your rental activity in one place." : "Find something you will love and keep your Easy Ride activity in one place."}</p>
 
         <div className="mt-7 inline-flex rounded-full border border-[#DCE5DF] bg-white p-1 shadow-sm">
           {(["buy", "rent"] as const).map((nextMode) => (
@@ -106,17 +106,17 @@ function PersonalDashboard() {
         <Link href={`/marketplace?mode=${mode}`} className="mt-7 flex h-14 max-w-2xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 text-gray-400 shadow-sm transition hover:border-[#08784D]"><Search size={20} /><span>{mode === "rent" ? "Find a vehicle to rent..." : "Search vehicles..."}</span></Link>
 
         <div className="mt-7 grid gap-4 sm:grid-cols-3">
-          <DashboardMetric icon={<Heart className="text-red-500" />} label="Favorites" value={savedCount} href="/favorites" />
-          <DashboardMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Offers" value={offerCount} href="/offers" />
-          <DashboardMetric icon={<CalendarDays className="text-[#08784D]" />} label={mode === "rent" ? "Upcoming rentals" : "Bookings"} value={bookingCount} href="/bookings" />
+          <DashboardMetric icon={<Heart className="text-red-500" />} label="Favorites" value={savedCount} href="/favorites" emptyCta="Browse vehicles to add favorites" emptyCtaHref={`/marketplace?mode=${mode}`} />
+          <DashboardMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Offers" value={offerCount} href="/offers" emptyCta="Browse vehicles to make an offer" emptyCtaHref={`/marketplace?mode=${mode}`} />
+          <DashboardMetric icon={<CalendarDays className="text-[#08784D]" />} label={mode === "rent" ? "Upcoming rentals" : "Bookings"} value={bookingCount} href="/bookings" emptyCta={mode === "rent" ? "Browse rentals to book a vehicle" : "Browse vehicles to book or buy"} emptyCtaHref={`/marketplace?mode=${mode}`} />
         </div>
 
-        <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Recently viewed</p><h2 className="mt-1 text-2xl font-black">Recommended vehicles</h2></div><Link href="/" className="text-sm font-bold text-[#08784D] hover:underline">Browse all</Link></div>
+        <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Recommended for you</p><h2 className="mt-1 text-2xl font-black">{mode === "rent" ? "Rental vehicles" : "Vehicles for sale"}</h2></div><Link href={`/marketplace?mode=${mode}`} className="text-sm font-bold text-[#08784D] hover:underline">Browse all</Link></div>
 
         {vehicles.length === 0 ? (
           <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><Search className="mx-auto text-gray-300" size={38} /><h2 className="mt-4 text-xl font-bold">{mode === "rent" ? "Find a vehicle to rent" : "Start exploring vehicles"}</h2><Link href={`/marketplace?mode=${mode}`} className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Browse marketplace</Link></div>
         ) : (
-          <div className="mt-5 grid gap-5 md:grid-cols-3">{vehicles.map((vehicle) => <Link key={vehicle.id} href={`/vehicle/${vehicle.id}`} className="group overflow-hidden rounded-2xl border border-[#DCE5DF] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]"><Image src={vehicle.coverImage} alt={`${vehicle.make} ${vehicle.model}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" /></div><div className="p-4"><h3 className="font-bold group-hover:text-[#08784D]">{vehicle.make} {vehicle.model} {vehicle.year}</h3><p className="mt-2 font-black text-[#063F2C]">{vehicle.currency} {vehicle.price.toLocaleString()}</p><p className="mt-1 text-sm text-gray-500">{vehicle.location.city}, {vehicle.location.country}</p></div></Link>)}</div>
+          <div className="mt-5 grid gap-5 md:grid-cols-3">{vehicles.map((vehicle) => <Link key={vehicle.id} href={`/vehicle/${vehicle.id}`} className="group overflow-hidden rounded-2xl border border-[#DCE5DF] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]"><Image src={vehicle.coverImage} alt={`${vehicle.make} ${vehicle.model}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" /></div><div className="p-4"><h3 className="font-bold group-hover:text-[#08784D]">{vehicle.make} {vehicle.model} {vehicle.year}</h3><p className="mt-2 font-black text-[#063F2C]">{vehicle.currency} {vehicle.price.toLocaleString()}</p><p className="mt-1 text-sm text-gray-500">{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p></div></Link>)}</div>
         )}
 
         <div className="mt-10 flex flex-col gap-4 rounded-3xl bg-[#063F2C] p-6 text-white sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Grow with Easy Ride</p><h2 className="mt-2 text-xl font-black">{mode === "rent" ? "Have a vehicle to rent?" : "Interested in selling vehicles?"}</h2><p className="mt-1 text-sm text-white/70">List vehicles, manage enquiries and grow your Easy Ride activity from one account.</p></div><Link href="/create-listing" className="inline-flex shrink-0 rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">{mode === "rent" ? "List a rental" : "Add a vehicle"}</Link></div>
@@ -125,8 +125,8 @@ function PersonalDashboard() {
   );
 }
 
-function DashboardMetric({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: number; href: string }) {
-  return <Link href={href} className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#08784D] hover:shadow-md"><div className="flex items-start justify-between"><div><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-black text-[#17201D]">{value}</p></div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></Link>;
+function DashboardMetric({ icon, label, value, href, emptyCta, emptyCtaHref }: { icon: React.ReactNode; label: string; value: number; href: string; emptyCta: string; emptyCtaHref: string }) {
+  return <Link href={value === 0 ? emptyCtaHref : href} className="group rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-[0_8px_24px_rgba(23,32,29,0.06)] transition hover:-translate-y-0.5 hover:border-[#08784D] hover:shadow-md"><div className="flex items-start justify-between"><div><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-black text-[#17201D]">{value}</p>{value === 0 && <span className="mt-2 block text-xs font-semibold text-[#08784D] group-hover:underline">{emptyCta}</span>}</div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></Link>;
 }
 
 // Legacy code kept for reference - now uses role-based routing above

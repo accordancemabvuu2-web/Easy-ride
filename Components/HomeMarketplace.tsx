@@ -27,6 +27,8 @@ export default function HomeMarketplace() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const search = searchParams.get("q") ?? "";
+  const pickupDate = searchParams.get("pickupDate") ?? "";
+  const returnDate = searchParams.get("returnDate") ?? "";
   const requestedType = searchParams.get("mode") ?? searchParams.get("type");
   const listingType: FilterType = requestedType === "rent" ? "rent" : requestedType === "all" ? "all" : "buy";
   const location = searchParams.get("location") ?? "all";
@@ -177,6 +179,21 @@ export default function HomeMarketplace() {
             <Search size={20} className="shrink-0 text-[#0B5D3B]" />
             <input value={search} onChange={(event) => updateFilter("q", event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search make, model, keyword..." aria-label="Search vehicles" />
           </label>
+          {listingType === "rent" && (
+            <div className="mt-4 grid max-w-3xl gap-3 sm:grid-cols-[1fr_1fr_auto]">
+              <label className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <span className="block text-xs font-semibold text-slate-500">Pick-up date</span>
+                <input type="date" min={new Date().toISOString().slice(0, 10)} value={pickupDate} onChange={(event) => updateFilter("pickupDate", event.target.value)} className="mt-1 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none" />
+              </label>
+              <label className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <span className="block text-xs font-semibold text-slate-500">Return date</span>
+                <input type="date" min={pickupDate || new Date().toISOString().slice(0, 10)} value={returnDate} onChange={(event) => updateFilter("returnDate", event.target.value)} className="mt-1 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none" />
+              </label>
+              <Link href={`/marketplace?mode=rent${pickupDate || returnDate ? `&pickupDate=${encodeURIComponent(pickupDate)}&returnDate=${encodeURIComponent(returnDate)}` : ""}#vehicles`} className="inline-flex items-center justify-center rounded-xl bg-[#0B5D3B] px-5 py-3 text-sm font-bold text-white hover:bg-[#084B30]">
+                Search rentals
+              </Link>
+            </div>
+          )}
           <div className="mt-5 inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm" aria-label="Listing type">
             {(["all", "buy", "rent"] as const).map((type) => <button key={type} type="button" onClick={() => updateFilter("mode", type)} aria-pressed={selectedType === type} className={`rounded-full px-5 py-2.5 text-sm font-semibold capitalize transition ${selectedType === type ? "bg-[#0B5D3B] text-white shadow-sm" : "text-slate-600 hover:text-[#0B5D3B]"}`}>{type === "all" ? "All vehicles" : type === "buy" ? "Buy" : "Rent"}</button>)}
           </div>

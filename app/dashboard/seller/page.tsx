@@ -8,7 +8,7 @@ import { getUserBookings } from "@/services/bookingService";
 import { deleteListing, getMyListings, updateListingStatus } from "@/services/listingService";
 import { getUserOffers } from "@/services/offerService";
 import type { Vehicle } from "@/Types/vehicle";
-import { AlertCircle, BarChart3, CheckCircle2, Eye, HandCoins, Loader2, Plus, Trash2, Users } from "lucide-react";
+import { AlertCircle, BarChart3, CheckCircle2, Eye, HandCoins, Loader2, Plus, Trash2, Users, CalendarDays, MessageCircle, Store } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -92,9 +92,9 @@ function SellerDashboardContent() {
       <section>
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C9A227]">Seller dashboard</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Welcome back, {profile?.name?.split(" ")[0] ?? "seller"}</h1>
-            <p className="mt-2 text-gray-500">Manage your vehicles, enquiries, and performance from one workspace.</p>
+            <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Seller dashboard</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Welcome back, {profile?.name?.trim().split(/\s+/)[0] || "Seller"} <span aria-hidden="true">👋</span></h1>
+            <p className="mt-2 text-gray-500">Track your performance, manage your inventory and grow your business.</p>
           </div>
           <Link href="/create-listing" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E7B319] px-5 py-3 font-black text-[#17201D] shadow-sm hover:bg-[#F4C83D]"><Plus size={18} /> Add vehicle</Link>
         </div>
@@ -114,7 +114,7 @@ function SellerDashboardContent() {
             </div>
             <div className="mt-3 flex justify-between pl-4 text-xs text-gray-400"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
           </section>
-          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller checklist</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 space-y-4 text-sm text-white/80"><p className="flex gap-3"><CheckCircle2 className="shrink-0 text-[#E7B319]" size={18} /> Add clear photos to every listing</p><p className="flex gap-3"><CheckCircle2 className="shrink-0 text-[#E7B319]" size={18} /> Reply quickly to enquiries</p><p className="flex gap-3"><CheckCircle2 className="shrink-0 text-[#E7B319]" size={18} /> Keep availability and pricing current</p></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
+          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/create-listing" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
