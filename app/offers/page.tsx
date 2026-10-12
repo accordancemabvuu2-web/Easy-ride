@@ -18,14 +18,24 @@ import { BadgeDollarSign, Check, Loader2, Repeat2, ShoppingBag, X } from "lucide
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function OffersPage() {
   return (
     <RequireAuth>
-      <OffersContent />
+      <Suspense fallback={<OffersLoading />}>
+        <OffersContent />
+      </Suspense>
     </RequireAuth>
+  );
+}
+
+function OffersLoading() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F8F9FA]">
+      <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
+    </main>
   );
 }
 

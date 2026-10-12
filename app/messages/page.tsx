@@ -9,13 +9,23 @@ import { markConversationRead, subscribeToUserConversations } from "@/services/m
 import type { Conversation } from "@/Types/message";
 import { ArrowLeft, Loader2, MessageCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function MessagesPage() {
   return (
     <RequireAuth>
-      <MessagesContent />
+      <Suspense fallback={<MessagesLoading />}>
+        <MessagesContent />
+      </Suspense>
     </RequireAuth>
+  );
+}
+
+function MessagesLoading() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F8F9FA]">
+      <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
+    </main>
   );
 }
 

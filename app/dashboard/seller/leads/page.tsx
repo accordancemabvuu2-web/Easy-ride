@@ -4,7 +4,6 @@ import Footer from "@/Components/Footer";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
-import { useAuth } from "@/contexts/AuthContext";
 import { Phone, MessageCircle, Loader2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -20,7 +19,6 @@ export default function SellerLeadsPage() {
 }
 
 function SellerLeadsContent() {
-  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,7 +41,7 @@ function SellerLeadsContent() {
     );
   }
 
-  const leads: any[] = [];
+  const leads: unknown[] = [];
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
@@ -81,7 +79,7 @@ function SellerLeadsContent() {
           <TrendingUp size={48} className="mx-auto text-gray-300" />
           <h2 className="mt-4 text-2xl font-bold">No leads yet</h2>
           <p className="mt-2 text-gray-500">
-            Buyers will contact you when they're interested in your vehicles. Make sure your listings are active and complete.
+            Buyers will contact you when they&apos;re interested in your vehicles. Make sure your listings are active and complete.
           </p>
 
           <Link

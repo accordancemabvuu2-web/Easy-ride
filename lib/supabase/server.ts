@@ -8,7 +8,7 @@ function getSupabaseKey() {
   );
 }
 
-export async function getSupabaseServerClient() {
+export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = getSupabaseKey();
 
@@ -41,3 +41,5 @@ export async function getSupabaseServerClient() {
     },
   );
 }
+
+export const getSupabaseServerClient = createClient;

@@ -4,8 +4,7 @@ import Footer from "@/Components/Footer";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
-import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, CheckCircle, Clock, Loader2, XCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -20,7 +19,6 @@ export default function BuyerOffersPage() {
 }
 
 function BuyerOffersContent() {
-  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,7 +58,7 @@ function BuyerOffersContent() {
           </p>
           <h1 className="mt-2 text-4xl font-bold">Your offers</h1>
           <p className="mt-3 text-gray-500">
-            Track all offers you've made and monitor seller responses.
+            Track all offers you&apos;ve made and monitor seller responses.
           </p>
         </div>
 
