@@ -53,7 +53,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
     script.async = true;
     script.defer = true;
     script.dataset.easyRideMap = "true";
@@ -73,11 +73,17 @@ export default function MarketplaceMap({
 }: MarketplaceMapProps) {
   const mapElement = useRef<HTMLDivElement | null>(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  const googleMapsEnabled =
+    process.env.NEXT_PUBLIC_ENABLE_GOOGLE_MAPS === "true";
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!apiKey || !mapElement.current) {
-      setError("Google Maps key unavailable. Showing the OpenStreetMap fallback.");
+    if (!googleMapsEnabled || !apiKey || !mapElement.current) {
+      setError(
+        !googleMapsEnabled
+          ? "Showing the OpenStreetMap fallback. Enable Google Maps after billing is configured."
+          : "Google Maps key unavailable. Showing the OpenStreetMap fallback.",
+      );
       return;
     }
 
@@ -164,9 +170,9 @@ export default function MarketplaceMap({
         delete googleWindow.gm_authFailure;
       }
     };
-  }, [apiKey, onVehicleSelect, vehicles]);
+  }, [apiKey, googleMapsEnabled, onVehicleSelect, vehicles]);
 
-  const showFallback = !apiKey || Boolean(error);
+  const showFallback = !googleMapsEnabled || !apiKey || Boolean(error);
 
   return (
     <div>
