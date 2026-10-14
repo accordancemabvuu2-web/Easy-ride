@@ -7,16 +7,17 @@ import { useEffect, useState } from "react";
 
 const links = [
   ["Home", "/"],
-  ["Marketplace", "/marketplace"],
-  ["Map", "/map"],
-  ["Sell/Rent", "/create-listing"],
+  ["Buy", "/marketplace?type=buy"],
+  ["Rent", "/marketplace?type=rent"],
+  ["Explore map", "/map"],
+  ["Sell", "/create-listing"],
   ["About", "/about"],
-  ["Contact", "/support"],
+  ["Support", "/support"],
 ];
 
 function navigationTypes(pathname: string, href: string) {
   const currentIndex = links.findIndex(([, linkHref]) => pathname === linkHref || (linkHref !== "/" && pathname.startsWith(`${linkHref}/`)));
-  const targetIndex = links.findIndex(([, linkHref]) => href === linkHref);
+  const targetIndex = links.findIndex(([, linkHref]) => href.split("?")[0] === linkHref.split("?")[0]);
   return [targetIndex >= currentIndex ? "nav-forward" : "nav-back"];
 }
 

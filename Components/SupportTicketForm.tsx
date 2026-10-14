@@ -35,12 +35,12 @@ export default function SupportTicketForm() {
         category,
         description: description.trim(),
       });
-      toast.success("Support ticket submitted.");
+      toast.success("Support ticket saved. Our team will follow up.");
       setSubject("");
       setDescription("");
       setCategory("other");
     } catch {
-      toast.error("Support ticket could not be submitted.");
+      toast.error("Support ticket could not be saved. Your message was not sent.");
     } finally {
       setSubmitting(false);
     }

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
 
@@ -71,12 +71,30 @@ export default function LandingPage() {
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const updateScrolled = () => setScrolled(window.scrollY > 24);
     updateScrolled();
     window.addEventListener("scroll", updateScrolled, { passive: true });
     return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
+
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video || !("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        video.preload = "auto";
+        void video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    }, { rootMargin: "120px" });
+
+    observer.observe(video);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -118,7 +136,7 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white text-slate-900">
+    <main className="min-h-screen overflow-x-hidden bg-[#f7f8f5] text-slate-900">
       <header className={`fixed inset-x-0 top-0 z-50 border-b text-white transition-[background-color,border-color,backdrop-filter,box-shadow] duration-300 ${scrolled ? "border-white/10 bg-[#06110f]/80 shadow-lg shadow-black/10 backdrop-blur-md" : "border-transparent bg-transparent"}`}>
         <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
           <Link href="/" className="flex items-center gap-3" aria-label="Easy Ride home">
@@ -148,21 +166,32 @@ export default function LandingPage() {
       </header>
 
       <section id="home" className="relative isolate w-full overflow-hidden bg-[#06110f] text-white">
-        <Image src="/images/pexels-dilrubasaricimen-7534335.jpg" alt="Vehicle on an open mountain road" fill priority sizes="100vw" className="-z-20 object-cover object-[62%_58%]" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
+        <video
+          ref={heroVideoRef}
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_58%]"
+          muted
+          loop
+          playsInline
+          preload="none"
+          poster="/images/pexels-dilrubasaricimen-7534335.jpg"
+          aria-hidden="true"
+        >
+          <source src="/easy-ride-hero.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/74 to-[#06110f]/20" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
-        <div className="mx-auto flex min-h-[min(650px,calc(100svh-72px))] w-full max-w-[1440px] flex-col justify-center gap-8 px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
-          <div className="max-w-[610px]">
-            <p className="mb-4 text-sm font-semibold tracking-[0.2em] text-emerald-400">BUY <span className="px-1">•</span> SELL <span className="px-1">•</span> RENT</p>
-            <h1 className="text-[clamp(2.5rem,7vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.045em] text-white">Your Next Ride<br /><span className="text-emerald-400">Is Just a Click Away.</span></h1>
-            <p className="mt-5 max-w-[450px] text-[15px] leading-6 text-slate-200 sm:text-base">Discover quality vehicles, connect with trusted sellers, and find the perfect ride — whether you’re buying, selling or renting.</p>
+        <div className="mx-auto flex min-h-[min(736px,calc(100svh-76px))] w-full max-w-[1440px] flex-col justify-center gap-9 px-4 pb-12 pt-24 sm:px-8 sm:pb-16 sm:pt-28 lg:min-h-[696px] lg:px-12 xl:min-h-[756px]">
+          <div className="max-w-[800px]">
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.19em] text-emerald-300"><ShieldCheck size={14} /> Zimbabwe&#39;s trusted vehicle marketplace</p>
+            <h1 className="text-[clamp(2.8rem,7.4vw,5.6rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">The right road<br /><span className="text-emerald-300">starts right here.</span></h1>
+            <p className="mt-6 max-w-[510px] text-base leading-7 text-slate-200 sm:text-lg">Find your next car, meet verified sellers and make your move with confidence. Buy or rent, all in one place.</p>
           </div>
           <div className="w-full max-w-[920px]">
-            <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/15 bg-[#06151a]/80 p-2 shadow-[0_14px_45px_rgba(0,0,0,0.35)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-full lg:p-2">
+            <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/20 bg-[#06110f]/35 p-2.5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-2xl">
               <SearchSelect label="Location" icon={<MapPin size={17} />} value={location} onChange={setLocation} options={locations} dark />
               <SearchSelect label="Make" icon={<CarFront size={17} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} dark />
               <SearchSelect label="Model" icon={<CarFront size={17} />} value={model} onChange={setModel} options={models} dark />
-              <button type="button" onClick={browseVehicles} className="flex min-h-12 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-[#032117] transition hover:bg-emerald-400 min-[480px]:col-span-2 lg:col-span-1 lg:min-w-40 lg:rounded-full"><Search size={17} className="shrink-0" /> Search Vehicles <ArrowRight size={15} className="shrink-0" /></button>
+              <button type="button" onClick={browseVehicles} className="flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-6 text-sm font-bold text-[#032117] transition hover:bg-emerald-400 min-[480px]:col-span-2 lg:col-span-1 lg:min-w-44"><Search size={17} className="shrink-0" /> Find a vehicle <ArrowRight size={15} className="shrink-0" /></button>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {(["buy", "rent"] as const).map((item) => <button key={item} type="button" onClick={() => setMode(item)} className={`inline-flex min-h-10 min-w-24 items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-bold capitalize transition ${mode === item ? "border-emerald-500 bg-emerald-500 text-[#032117] shadow-lg shadow-emerald-950/20" : "border-white/25 bg-[#06151a]/50 text-white hover:bg-white/10"}`}><CarFront size={15} />{item}</button>)}
@@ -173,7 +202,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section aria-label="Why choose Easy Ride" className="border-b border-slate-100 bg-white">
+      <section aria-label="Why choose Easy Ride" className="sticky top-0 z-20 -mt-1 border-b border-slate-100 bg-white shadow-[0_12px_40px_rgba(12,32,23,0.08)]">
         <div className="mx-auto grid max-w-[1440px] grid-cols-2 divide-x divide-slate-100 px-5 py-3 sm:px-8 lg:grid-cols-4 lg:px-12 lg:py-4">
           <TrustItem icon={<ShieldCheck />} title="Trusted Sellers" text="Verified dealers & private sellers" />
           <TrustItem icon={<ShieldCheck />} title="Seller Verification" text="Verified badges mark reviewed sellers" />

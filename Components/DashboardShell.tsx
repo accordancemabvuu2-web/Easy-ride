@@ -34,8 +34,8 @@ interface DashboardShellProps {
 
 const buyerLinks = [
   { label: "Dashboard", href: "/dashboard/buyer", icon: LayoutDashboard },
-  { label: "Buy Vehicles", href: "/marketplace?mode=buy", icon: Search },
-  { label: "Rent Vehicles", href: "/marketplace?mode=rent", icon: CalendarDays },
+  { label: "Buy Vehicles", href: "/dashboard/buyer?mode=buy", icon: Search },
+  { label: "Rent Vehicles", href: "/dashboard/buyer?mode=rent", icon: CalendarDays },
   { label: "Favorites", href: "/favorites", icon: Heart },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },
@@ -59,8 +59,8 @@ const sellerLinks = [
 
 const personalLinks = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Buy vehicles", href: "/marketplace?mode=buy", icon: Search },
-  { label: "Rent vehicles", href: "/marketplace?mode=rent", icon: CalendarDays },
+  { label: "Buy vehicles", href: "/dashboard?mode=buy", icon: Search },
+  { label: "Rent vehicles", href: "/dashboard?mode=rent", icon: CalendarDays },
   { label: "Favorites", href: "/favorites", icon: Heart },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },
@@ -88,8 +88,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const closeMobile = () => setMobileOpen(false);
 
   return (
-    <div className="dashboard-shell min-h-screen text-[#17201D]">
-      <header className="sticky top-0 z-40 border-b border-[#DCE5DF] bg-white/95 backdrop-blur lg:hidden">
+    <div className="dashboard-shell min-h-screen bg-[#F1F3F0] text-[#17201D]">
+      <header className="sticky top-0 z-40 border-b border-[#DCE5DF] bg-[#F1F3F0]/95 backdrop-blur lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2 font-black text-[#063F2C]">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#063F2C] text-sm text-white">ER</span>
@@ -107,7 +107,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
       </header>
 
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className={`${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-4 text-white shadow-xl lg:sticky lg:top-5 lg:block lg:h-[calc(100vh-40px)] lg:w-64 lg:rounded-none lg:border-0 lg:bg-[#063F2C] lg:shadow-none`}>
+        <aside className={`${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-3xl border border-[#063F2F] bg-[#063F2F] p-4 text-white shadow-xl lg:sticky lg:top-0 lg:block lg:h-screen lg:w-72 lg:rounded-none lg:border-0 lg:bg-[#063F2F] lg:shadow-none`}>
           <div className="hidden items-center gap-3 px-3 py-4 lg:flex">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
             <div>
@@ -116,7 +116,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             </div>
           </div>
 
-          <div className="mt-2 rounded-2xl border border-white/10 bg-white/10 p-3">
+          <div className="mt-2 rounded-2xl border border-[#E5B625]/30 bg-[#074530] p-3">
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A8E6C3]">Current mode</p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-bold">
@@ -160,7 +160,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           </div>
         </aside>
 
-        <main className="min-h-screen min-w-0 flex-1 bg-[#F5F7F6]/95 px-4 py-5 sm:px-6 lg:rounded-tl-[32px] lg:px-10 lg:py-8">
+        <main className="min-h-screen min-w-0 flex-1 bg-[#F1F3F0] px-4 py-5 sm:px-6 lg:rounded-tl-[32px] lg:px-10 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-8 hidden items-center justify-between gap-5 lg:flex">
               <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">

@@ -13,13 +13,16 @@ import type { Vehicle } from "@/Types/vehicle";
 import { BadgeDollarSign, CalendarDays, Heart, Loader2, MessageCircle, Search, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 export default function BuyerDashboardPage() {
   return (
     <RequireAuth>
       <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Marketplace">
-        <BuyerDashboardContent />
+        <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-[#08784D]" size={32} /></div>}>
+          <BuyerDashboardContent />
+        </Suspense>
       </RoleGuard>
     </RequireAuth>
   );
@@ -27,6 +30,8 @@ export default function BuyerDashboardPage() {
 
 function BuyerDashboardContent() {
   const { profile } = useAuth();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode") === "rent" ? "rent" : "buy";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [savedCount, setSavedCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
@@ -46,7 +51,7 @@ function BuyerDashboardContent() {
           getUserOffers(userId),
           getUserBookings(userId),
         ]);
-        setVehicles(activeListings.slice(0, 8));
+        setVehicles(activeListings.filter((vehicle) => vehicle.listingType === mode).slice(0, 8));
         setSavedCount(favorites.length);
         setOfferCount(offers.filter((offer) => ["pending", "countered", "accepted"].includes(offer.status)).length);
         setBookingCount(bookings.filter((booking) => !["cancelled", "completed", "rejected"].includes(booking.status)).length);
@@ -56,7 +61,7 @@ function BuyerDashboardContent() {
     }
 
     void loadDashboard();
-  }, [profile]);
+  }, [mode, profile]);
 
   const recommended = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -73,16 +78,16 @@ function BuyerDashboardContent() {
       <section>
         <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Customer dashboard</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Good morning, {profile?.name?.trim().split(/\s+/)[0] || "Guest"} <span aria-hidden="true">👋</span></h1>
-        <p className="mt-2 text-gray-500">Here&apos;s what&apos;s happening with your vehicles and searches.</p>
+        <p className="mt-2 max-w-2xl text-gray-500">{mode === "rent" ? "Plan your next trip with rental vehicles, bookings and availability in one workspace." : "Keep your saved vehicles, offers and bookings moving from one calm, focused workspace."}</p>
 
-        <div className="mt-6 inline-flex rounded-xl border border-[#DCE5DF] bg-white p-1 shadow-sm">
-          <Link href="/dashboard/buyer?mode=buy" className="rounded-lg bg-[#08784D] px-6 py-2 text-sm font-bold text-white shadow-sm">Buy</Link>
-          <Link href="/dashboard?mode=rent" className="rounded-lg px-6 py-2 text-sm font-bold text-gray-500 hover:text-[#08784D]">Rent</Link>
+        <div className="mt-6 inline-flex rounded-full border border-[#DCE5DF] bg-white p-1 shadow-sm">
+          <Link href="/dashboard/buyer?mode=buy" className={`rounded-full px-6 py-2 text-sm font-bold shadow-sm ${mode === "buy" ? "bg-[#063F2F] text-white" : "text-gray-500 hover:text-[#08784D]"}`}>Buy vehicles</Link>
+          <Link href="/dashboard/buyer?mode=rent" className={`rounded-full px-6 py-2 text-sm font-bold ${mode === "rent" ? "bg-[#063F2F] text-white" : "text-gray-500 hover:text-[#08784D]"}`}>Rent vehicles</Link>
         </div>
 
-        <label className="mt-6 flex h-14 max-w-3xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
+        <label className="mt-6 flex h-14 max-w-3xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 shadow-[0_12px_30px_rgba(6,63,47,0.06)] focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
           <Search className="text-[#08784D]" size={20} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cars, makes, models or locations..." className="w-full bg-transparent outline-none" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={mode === "rent" ? "Search rental vehicles, makes or locations..." : "Search cars, makes, models or locations..."} className="w-full bg-transparent outline-none" />
         </label>
 
         <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -94,17 +99,17 @@ function BuyerDashboardContent() {
 
         <div className="mt-10 flex items-end justify-between gap-4">
           <div>
-            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]"><Sparkles size={15} /> Recommended for you</p>
-            <h2 className="mt-1 text-2xl font-black">Featured vehicles</h2>
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[#C39A1B]"><Sparkles size={15} /> Recommended for you</p>
+            <h2 className="mt-1 text-2xl font-black">{mode === "rent" ? "Vehicles available to rent" : "Vehicles available to buy"}</h2>
           </div>
-          <Link href="/" className="text-sm font-bold text-[#08784D] hover:underline">Browse all</Link>
+          <Link href={`/dashboard/buyer?mode=${mode}`} className="text-sm font-bold text-[#08784D] hover:underline">View all</Link>
         </div>
 
         {recommended.length === 0 ? (
           <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center">
             <Search className="mx-auto text-gray-300" size={38} />
-            <h2 className="mt-4 text-xl font-bold">No matching vehicles</h2>
-            <Link href="/" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Browse marketplace</Link>
+            <h2 className="mt-4 text-xl font-bold">{mode === "rent" ? "No rental vehicles found" : "No vehicles found"}</h2>
+            <Link href={`/dashboard/buyer?mode=${mode}`} className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Refresh catalogue</Link>
           </div>
         ) : (
           <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">

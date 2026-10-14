@@ -251,6 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         options: {
           data: { full_name: name.trim(), phone },
+          emailRedirectTo:
+            typeof window === "undefined"
+              ? undefined
+              : `${window.location.origin}/auth/callback?next=/register`,
         },
       });
       if (error) throw new Error(error.message);
@@ -519,7 +523,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkEmailVerification = async () => {
     if (supabase) {
       const { data, error } = await supabase.auth.getUser();
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (error.message.toLowerCase().includes("auth session missing")) {
+          return false;
+        }
+        throw new Error(error.message);
+      }
       return Boolean(data.user?.email_confirmed_at);
     }
 
