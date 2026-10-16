@@ -1,6 +1,6 @@
 "use client";
 
-import { CarFront, Menu, X } from "lucide-react";
+import { CarFront, LogIn, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -49,8 +49,7 @@ export default function LandingNavbar({ transparentOnTop = true }: { transparent
           })}
         </nav>
         <div className="hidden items-center gap-3 sm:flex">
-          <Link href="/login" className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">Login</Link>
-          <Link href="/register" className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600">Sign Up</Link>
+          <Link href="/login" className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">Login</Link>
         </div>
         <button type="button" aria-label="Toggle navigation" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)} className="rounded-lg border border-white/40 p-2 text-white lg:hidden">
           {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
@@ -62,8 +61,7 @@ export default function LandingNavbar({ transparentOnTop = true }: { transparent
             const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
             return <Link key={href} href={href} prefetch transitionTypes={navigationTypes(pathname, href)} aria-current={active ? "page" : undefined} onClick={() => setMobileMenuOpen(false)} className={`rounded-lg px-4 py-3 text-sm font-semibold ${active ? "bg-emerald-50 text-[#0B5D3B]" : "text-slate-700 hover:bg-emerald-50"}`}>{label}</Link>;
           })}
-          <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">Login</Link>
-          <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-bold text-white">Sign Up</Link>
+          <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"><LogIn size={17} />Login</Link>
         </nav>
       )}
     </header>

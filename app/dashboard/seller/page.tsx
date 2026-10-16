@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardShell from "@/Components/DashboardShell";
+import DashboardWelcomeHero from "@/Components/DashboardWelcomeHero";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,13 +13,16 @@ import { AlertCircle, BarChart3, CheckCircle2, Eye, HandCoins, Loader2, Plus, Tr
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense } from "react";
 import toast from "react-hot-toast";
 
 export default function SellerDashboardPage() {
   return (
     <RequireAuth>
       <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Seller">
-        <SellerDashboardContent />
+        <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-[#08784D]" size={32} /></div>}>
+          <SellerDashboardContent />
+        </Suspense>
       </RoleGuard>
     </RequireAuth>
   );
@@ -57,7 +61,9 @@ function SellerDashboardContent() {
   }, [loadDashboard]);
 
   const stats = useMemo(() => ({
+    total: listings.length,
     active: listings.filter((listing) => listing.status === "active").length,
+    pending: listings.filter((listing) => listing.status === "pending").length,
     views: listings.reduce((total, listing) => total + (listing.views ?? 0), 0),
     enquiries: offerCount + bookingCount,
   }), [bookingCount, listings, offerCount]);
@@ -90,14 +96,7 @@ function SellerDashboardContent() {
   return (
     <DashboardShell role="seller">
       <section>
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C39A1B]">Seller studio</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Welcome back, {profile?.name?.trim().split(/\s+/)[0] || "Seller"} <span aria-hidden="true">👋</span></h1>
-            <p className="mt-2 max-w-2xl text-gray-500">Track performance, respond to buyer interest and keep your inventory moving from one workspace.</p>
-          </div>
-          <Link href="/create-listing" className="gold-gradient inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 font-black text-[#17201D] shadow-sm hover:brightness-105"><Plus size={18} /> Add vehicle</Link>
-        </div>
+        <DashboardWelcomeHero name={profile?.name?.trim().split(/\s+/)[0] || "there"} />
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SellerMetric icon={<CheckCircle2 className="text-[#08784D]" />} label="Active listings" value={stats.active} />
@@ -108,11 +107,13 @@ function SellerDashboardContent() {
 
         <div className="mt-8 grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-[28px] border border-[#DCE5DF] bg-white p-6 shadow-[0_12px_32px_rgba(6,63,47,0.06)]">
-            <div className="flex items-center justify-between"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#08784D]">Performance</p><h2 className="mt-1 text-xl font-black">Listing views</h2></div><BarChart3 className="text-[#08784D]" /></div>
-            <div className="mt-8 flex h-40 items-end gap-3 border-b border-l border-[#DCE5DF] px-4 pb-0">
-              {[38, 55, 44, 72, 64, 88, 76].map((height, index) => <div key={index} className="group flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-[#08784D] transition group-hover:bg-[#E7B319]" style={{ height: `${height}%` }} /></div>)}
+            <div className="flex items-center justify-between"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#08784D]">Inventory overview</p><h2 className="mt-1 text-xl font-black">Your listings at a glance</h2></div><BarChart3 className="text-[#08784D]" /></div>
+            <div className="mt-7 grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-[#F4F8F5] p-4"><p className="text-xs font-semibold text-gray-500">All listings</p><p className="mt-2 text-3xl font-black">{stats.total}</p></div>
+              <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-semibold text-emerald-800">Live</p><p className="mt-2 text-3xl font-black text-emerald-900">{stats.active}</p></div>
+              <div className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-semibold text-amber-800">In review</p><p className="mt-2 text-3xl font-black text-amber-900">{stats.pending}</p></div>
             </div>
-            <div className="mt-3 flex justify-between pl-4 text-xs text-gray-400"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <p className="mt-5 text-sm text-gray-500">Views and enquiries are shown from your listings and current marketplace activity.</p>
           </section>
           <section className="rounded-[28px] border border-[#063F2F] bg-[#063F2F] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/create-listing" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>

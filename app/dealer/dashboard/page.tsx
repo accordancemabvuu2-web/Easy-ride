@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getSellerAnalytics, type SellerAnalytics } from "@/services/analyticsService";
 import { getMyListings } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
-import { LayoutDashboard, Loader2 } from "lucide-react";
+import { ArrowUpRight, BarChart3, CarFront, LayoutDashboard, Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -52,21 +52,20 @@ function DealerDashboardContent() {
   const pending = listings.filter((listing) => listing.status === "pending").length;
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
+    <main className="min-h-screen bg-[#F4F7F3] text-[#17251E]">
       <Navbar />
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 lg:grid-cols-[280px_1fr] lg:px-6">
+      <section className="mx-auto grid max-w-[1440px] gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
         <DealerSidebar />
 
         <div>
           <div className="flex items-center gap-3">
             <LayoutDashboard className="text-[#0B5D3B]" />
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-                Dealer dashboard
-              </p>
-              <h1 className="text-4xl font-bold">Your dealer workspace</h1>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9A6814]">Workspace / Overview</p>
+              <h1 className="mt-1 text-4xl font-extrabold tracking-tight text-[#17251E]">Your dealer workspace</h1>
             </div>
           </div>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#52665B]">A clear view of your inventory, performance and the next steps for your dealership.</p>
 
           {loading ? (
             <div className="flex min-h-80 items-center justify-center">
@@ -74,7 +73,7 @@ function DealerDashboardContent() {
             </div>
           ) : (
             <>
-              <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <AnalyticsMetric label="Total inventory" value={listings.length} />
                 <AnalyticsMetric label="Active listings" value={active} />
                 <AnalyticsMetric label="Pending listings" value={pending} />
@@ -85,19 +84,22 @@ function DealerDashboardContent() {
                 <AnalyticsMetric label="Lead count" value={analytics?.leadCount ?? 0} />
               </div>
 
-              <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                <h2 className="text-2xl font-bold">Quick actions</h2>
+              <section className="mt-6 overflow-hidden rounded-xl border border-[#CEDBD0] bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#CEDBD0] px-5 py-4 sm:px-6"><div><h2 className="text-lg font-bold">Your inventory</h2><p className="mt-1 text-sm text-[#52665B]">Review vehicle status and keep your listings current.</p></div><Link href="/dealer/inventory" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-bold text-[#0B5D3B] hover:bg-[#EAF0E9]">Manage inventory <ArrowUpRight size={16} /></Link></div>
+                {listings.length === 0 ? <div className="flex min-h-52 flex-col items-center justify-center px-6 py-9 text-center"><span className="grid h-12 w-12 place-items-center rounded-xl bg-[#EAF0E9] text-[#0B5D3B]"><CarFront size={23} /></span><h3 className="mt-4 font-bold">No vehicles in your inventory yet</h3><p className="mt-1 max-w-md text-sm leading-6 text-[#52665B]">Add your first vehicle to start reaching buyers and renters on Easy Ride.</p><Link href="/create-listing" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0B5D3B] px-4 font-bold text-white hover:bg-[#084B30]"><Plus size={17} /> Add a vehicle</Link></div> : <div className="divide-y divide-[#EAF0E9]">{listings.slice(0, 5).map((listing) => <div key={listing.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"><div><p className="font-bold">{listing.make} {listing.model} {listing.year}</p><p className="mt-1 text-sm text-[#52665B]">{listing.location?.city ?? "Zimbabwe"} · {listing.listingType === "buy" ? "For sale" : "For rent"}</p></div><span className="rounded-full bg-[#EAF0E9] px-3 py-1 text-xs font-bold capitalize text-[#0B5D3B]">{listing.status}</span></div>)}</div>}
+              </section>
+
+              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-xl border border-[#CEDBD0] bg-white p-5 sm:p-6">
+                <div className="flex items-center gap-2"><BarChart3 size={18} className="text-[#0B5D3B]" /><h2 className="text-lg font-bold">Performance</h2></div>
+                <p className="mt-1 text-sm text-[#52665B]">Your latest listing activity.</p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <Link href="/dealer/inventory" className="rounded-full bg-[#0B5D3B] px-5 py-3 font-semibold text-white">
-                    View inventory
-                  </Link>
-                  <Link href="/create-listing" className="rounded-full border border-[#E5E7EB] px-5 py-3 font-semibold">
-                    Add vehicle
-                  </Link>
-                  <Link href="/dealer/analytics" className="rounded-full border border-[#E5E7EB] px-5 py-3 font-semibold">
-                    View analytics
+                  <Link href="/dealer/analytics" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0B5D3B] px-4 font-bold text-white hover:bg-[#084B30]">
+                    View analytics <ArrowUpRight size={16} />
                   </Link>
                 </div>
+              </div>
+              <div className="rounded-xl border border-[#CEDBD0] bg-white p-5 sm:p-6"><h2 className="text-lg font-bold">Dealer tools</h2><p className="mt-1 text-sm text-[#52665B]">Keep your business profile complete and trusted.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/dealer/profile" className="rounded-lg border border-[#CEDBD0] px-4 py-2.5 text-sm font-semibold hover:bg-[#F4F7F3]">Business profile</Link><Link href="/verification" className="rounded-lg border border-[#CEDBD0] px-4 py-2.5 text-sm font-semibold hover:bg-[#F4F7F3]">Verification</Link></div></div>
               </div>
             </>
           )}

@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 type DashboardRole = "personal" | "buyer" | "seller";
@@ -50,8 +50,11 @@ const sellerLinks = [
   { label: "Leads", href: "/dashboard/seller/leads", icon: Users },
   { label: "Rental Management", href: "/bookings", icon: CalendarDays },
   { label: "Add Vehicle", href: "/create-listing", icon: Plus },
+  { label: "Favorites", href: "/favorites", icon: Heart },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
   { label: "Messages", href: "/messages", icon: MessageCircle },
+  { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Support", href: "/support", icon: ShieldCheck },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },
   { label: "Analytics", href: "/dealer/analytics", icon: BarChart3 },
   { label: "Promotions", href: "/promote", icon: Store },
@@ -72,6 +75,7 @@ const personalLinks = [
 export default function DashboardShell({ role, children }: DashboardShellProps) {
   const { profile, logout } = useAuth();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -88,8 +92,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const closeMobile = () => setMobileOpen(false);
 
   return (
-    <div className="dashboard-shell min-h-screen bg-[#F1F3F0] text-[#17201D]">
-      <header className="sticky top-0 z-40 border-b border-[#DCE5DF] bg-[#F1F3F0]/95 backdrop-blur lg:hidden">
+    <div className="min-h-screen bg-[#F4F7F3] text-[#17251E]">
+      <header className="sticky top-0 z-40 border-b border-[#E4EAE6] bg-white/95 backdrop-blur lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2 font-black text-[#063F2C]">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#063F2C] text-sm text-white">ER</span>
@@ -106,8 +110,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className={`${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-3xl border border-[#063F2F] bg-[#063F2F] p-4 text-white shadow-xl lg:sticky lg:top-0 lg:block lg:h-screen lg:w-72 lg:rounded-none lg:border-0 lg:bg-[#063F2F] lg:shadow-none`}>
+      <div className="relative min-h-screen w-full lg:pl-[270px]">
+        <aside className={`${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-xl border border-[#063F2F] bg-[#063F2F] p-4 text-white shadow-xl lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:h-screen lg:w-[270px] lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-[#063F2F] lg:shadow-none`}>
           <div className="hidden items-center gap-3 px-3 py-4 lg:flex">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
             <div>
@@ -116,7 +120,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             </div>
           </div>
 
-          <div className="mt-2 rounded-2xl border border-[#E5B625]/30 bg-[#074530] p-3">
+          <div className="mt-2 rounded-lg border border-white/20 bg-white/5 p-3">
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A8E6C3]">Current mode</p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-bold">
@@ -131,14 +135,21 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             {links.map((link) => {
               const Icon = link.icon;
               const linkPath = link.href.split("?")[0];
-              const active = pathname === linkPath && linkPath !== "/";
+              const linkMode = new URLSearchParams(link.href.split("?")[1] ?? "").get("mode");
+              const hasModeSiblings = links.some((candidate) =>
+                candidate.href.split("?")[0] === linkPath &&
+                new URLSearchParams(candidate.href.split("?")[1] ?? "").has("mode"),
+              );
+              const active = pathname === linkPath && linkPath !== "/" && (
+                linkMode ? searchParams.get("mode") === linkMode : !hasModeSiblings || !searchParams.has("mode")
+              );
 
               return (
                 <Link
                   key={link.label}
                   href={link.href}
                   onClick={closeMobile}
-                  className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-semibold transition ${active ? "border-[#A8E6C3] bg-white text-[#063F2C] shadow-sm" : "border-transparent text-white/75 hover:bg-white/10 hover:text-white"}`}
+                  className={`flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[#A8E6C3] bg-white text-[#063F2C] shadow-sm" : "border-transparent text-white/75 hover:bg-white/10 hover:text-white"}`}
                 >
                   <Icon size={18} />
                   {link.label}
@@ -160,8 +171,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           </div>
         </aside>
 
-        <main className="min-h-screen min-w-0 flex-1 bg-[#F1F3F0] px-4 py-5 sm:px-6 lg:rounded-tl-[32px] lg:px-10 lg:py-8">
-          <div className="mx-auto max-w-7xl">
+        <main className="min-h-screen min-w-0 bg-[#F4F7F3] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 xl:px-10">
+          <div className="mx-auto max-w-[1440px]">
             <div className="mb-8 hidden items-center justify-between gap-5 lg:flex">
               <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
                 <Search size={17} className="shrink-0 text-[#7A8A82]" />
@@ -183,15 +194,6 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
                 </div>
               </div>
             </div>
-            {role === "personal" && (
-              <div className="mb-8 rounded-2xl border border-[#C9A227]/40 bg-[#C9A227]/5 p-4 text-white shadow-lg">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E5BE42]">Have a vehicle?</p>
-                <p className="mt-2 text-sm font-semibold">Sell it on Easy Ride.</p>
-                <Link href="/create-listing" className="gold-gradient mt-3 flex items-center justify-center rounded-xl py-2.5 text-xs font-bold text-[#02140B]">
-                  List Your Vehicle
-                </Link>
-              </div>
-            )}
             {children}
           </div>
         </main>

@@ -153,15 +153,14 @@ export default function LandingPage() {
             <Link href="/support" prefetch transitionTypes={["nav-forward"]} className="text-sm font-medium text-white/90 hover:text-emerald-300">Contact Us</Link>
           </nav>
           <div className="hidden items-center gap-3 sm:flex">
-            <Link href="/login" prefetch transitionTypes={["nav-forward"]} className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">Login</Link>
-            <Link href="/register" prefetch transitionTypes={["nav-forward"]} className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600">Sign Up</Link>
+            <Link href="/login" className="rounded-lg border border-white/40 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">Login</Link>
           </div>
           <button type="button" aria-label="Toggle navigation" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg border border-white/40 p-2 text-white lg:hidden">
             {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
           </button>
         </div>
         {mobileMenuOpen && <nav className="absolute left-0 right-0 top-[72px] grid gap-1 border-b border-slate-100 bg-white p-4 shadow-lg lg:hidden">
-          {[["Home", "/"], ["Buy", "/marketplace?type=buy"], ["Rent", "/marketplace?type=rent"], ["Map", "/map"], ["Sell", "/create-listing"], ["About", "/about"], ["Contact", "/support"], ["Login", "/login"], ["Sign Up", "/register"]].map(([label, href]) => <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">{label}</Link>)}
+          {[["Home", "/"], ["Buy", "/marketplace?type=buy"], ["Rent", "/marketplace?type=rent"], ["Map", "/map"], ["Sell", "/create-listing"], ["About", "/about"], ["Contact", "/support"], ["Login", "/login"]].map(([label, href]) => <Link key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">{label}</Link>)}
         </nav>}
       </header>
 

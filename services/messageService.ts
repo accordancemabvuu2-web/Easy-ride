@@ -1,7 +1,7 @@
 "use client";
 
 import { createNotification } from "@/services/notificationService";
-import { db, firebaseReady } from "@/lib/firebase";
+import { auth, db, firebaseReady } from "@/lib/firebase";
 import type { Conversation, EasyRideMessage } from "@/Types/message";
 import type { Vehicle } from "@/Types/vehicle";
 import {
@@ -108,14 +108,23 @@ async function notifyRecipient(params: {
   message: string;
   link: string;
 }) {
-  await createNotification({
-    userId: params.recipientId,
-    type: "message",
-    title: params.title,
-    message: params.message,
-    actionUrl: params.link,
-    link: params.link,
-  });
+  try {
+    await createNotification({
+      userId: params.recipientId,
+      type: "message",
+      title: params.title,
+      message: params.message,
+      actionUrl: params.link,
+      link: params.link,
+    });
+  } catch (error) {
+    // A notification failure should not prevent a conversation or message from being saved.
+    console.error("Could not create a message notification", error);
+  }
+}
+
+function canUseFirestoreMessages() {
+  return firebaseReady && Boolean(db) && Boolean(auth?.currentUser);
 }
 
 async function persistLocalConversationAndMessage(
@@ -185,7 +194,7 @@ export async function startConversation(
   const recipientId = listing.ownerId;
   const now = Timestamp.now();
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     const existing =
       readLocalConversations().find((conversation) => conversation.id === id) ??
       normalizeConversation({
@@ -295,7 +304,7 @@ export async function sendMessage(
   const firestore = db;
   const now = Timestamp.now();
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     await persistLocalConversationAndMessage(conversation, {
       id: crypto.randomUUID(),
       conversationId: conversation.id,
@@ -345,7 +354,7 @@ export function subscribeToMessages(
 ): () => void {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     const emit = () => {
       const messages = readLocalMessages()[conversationIdValue] ?? [];
       callback(
@@ -391,10 +400,11 @@ export function subscribeToMessages(
 export function subscribeToUserConversations(
   userId: string,
   callback: (conversations: Conversation[]) => void,
+  onError?: (error: Error) => void,
 ): () => void {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     const emit = () => {
       callback(
         sortConversations(
@@ -434,13 +444,13 @@ export function subscribeToUserConversations(
           } as Conversation),
       ),
     );
-  });
+  }, (error) => onError?.(error));
 }
 
 export async function getConversationById(conversationIdValue: string): Promise<Conversation | null> {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     return (
       readLocalConversations().map(normalizeConversation).find((conversation) => conversation.id === conversationIdValue) ??
       null
@@ -462,7 +472,7 @@ export async function getConversationById(conversationIdValue: string): Promise<
 export async function getUserConversations(userId: string): Promise<Conversation[]> {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     return sortConversations(
       readLocalConversations()
         .map(normalizeConversation)
@@ -491,7 +501,7 @@ export async function getUserConversations(userId: string): Promise<Conversation
 export async function markConversationRead(conversationIdValue: string, userId: string): Promise<void> {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!canUseFirestoreMessages() || !firestore) {
     await persistLocalRead(conversationIdValue, userId);
     return;
   }

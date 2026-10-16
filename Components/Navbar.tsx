@@ -16,14 +16,13 @@ import {
   MessageCircle,
   Plus,
   ShieldCheck,
-  UserPlus,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 export default function Navbar() {
-  const { firebaseUser, profile, logout, loading } = useAuth();
+  const { firebaseUser, profile, logout } = useAuth();
   const unreadMessages = useUnreadMessages();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -110,16 +109,7 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden shrink-0 items-center gap-2 lg:flex xl:hidden">
-            {!loading && !firebaseUser && (
-              <Link
-                href="/login"
-                className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"
-              >
-                <LogIn size={18} />
-                Log in
-              </Link>
-            )}
-
+            {!firebaseUser && <Link href="/login" className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"><LogIn size={18} />Login</Link>}
             {firebaseUser && <NotificationBell />}
 
             <Link
@@ -230,26 +220,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden shrink-0 items-center gap-3 xl:flex">
-            {!loading && !firebaseUser && (
-              <>
-                <Link
-                  href="/login"
-                  className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"
-                >
-                  <LogIn size={18} />
-                  Log in
-                </Link>
-
-                <Link
-                  href="/register"
-                  className="flex items-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-3 font-semibold text-[#0B5D3B] transition hover:bg-[#0B5D3B]/5"
-                >
-                  <UserPlus size={18} />
-                  Register
-                </Link>
-              </>
-            )}
-
+            {!firebaseUser && <Link href="/login" className="flex items-center gap-2 rounded-full px-4 py-3 font-semibold text-gray-700 transition hover:bg-[#F3F6F4] hover:text-[#0B5D3B]"><LogIn size={18} />Login</Link>}
             {firebaseUser && (
               <>
                 <NotificationBell />
@@ -387,6 +358,8 @@ export default function Navbar() {
               </Link>
             ))}
 
+            {!firebaseUser && <Link href="/login" onClick={closeMenus} className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"><LogIn size={17} />Login</Link>}
+
             {firebaseUser && (
               <>
                 <Link
@@ -464,28 +437,6 @@ export default function Navbar() {
                 >
                   <Bell size={17} />
                   Notifications
-                </Link>
-              </>
-            )}
-
-            {!loading && !firebaseUser && (
-              <>
-                <Link
-                  href="/login"
-                  onClick={closeMenus}
-                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
-                >
-                  <LogIn size={17} />
-                  Log in
-                </Link>
-
-                <Link
-                  href="/register"
-                  onClick={closeMenus}
-                  className="flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-gray-700 hover:bg-[#F8F9FA]"
-                >
-                  <UserPlus size={17} />
-                  Register
                 </Link>
               </>
             )}

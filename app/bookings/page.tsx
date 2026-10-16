@@ -1,7 +1,7 @@
 "use client";
 
 import BookingStatusBadge from "@/Components/BookingStatusBadge";
-import Navbar from "@/Components/Navbar";
+import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -11,7 +11,7 @@ import {
   rejectBooking,
 } from "@/services/bookingService";
 import type { RentalBooking } from "@/Types/booking";
-import { CalendarDays, Check, Loader2, X } from "lucide-react";
+import { CalendarDays, Check, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -29,6 +29,9 @@ function BookingsContent() {
   const { profile } = useAuth();
   const [bookings, setBookings] = useState<RentalBooking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("upcoming");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const loadBookings = useCallback(async () => {
     if (!profile) {
@@ -52,9 +55,16 @@ function BookingsContent() {
   }, [loadBookings]);
 
   const orderedBookings = useMemo(
-    () => [...bookings].sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? "")),
-    [bookings],
+    () => [...bookings]
+      .filter((booking) => tab === "all" || (tab === "upcoming" ? ["pending", "awaiting_payment", "confirmed"].includes(booking.status) : tab === "active" ? booking.status === "active" : ["completed", "cancelled", "rejected"].includes(booking.status)))
+      .filter((booking) => statusFilter === "all" || booking.status === statusFilter)
+      .filter((booking) => !search || `${booking.listingTitle} ${booking.ownerName} ${booking.renterName} ${booking.pickupDate}`.toLowerCase().includes(search.toLowerCase()))
+      .sort((left, right) => (right.pickupDate ?? "").localeCompare(left.pickupDate ?? "")),
+    [bookings, tab, statusFilter, search],
   );
+  const upcomingCount = bookings.filter((booking) => ["pending", "awaiting_payment", "confirmed"].includes(booking.status)).length;
+  const activeCount = bookings.filter((booking) => booking.status === "active").length;
+  const pastCount = bookings.filter((booking) => ["completed", "cancelled", "rejected"].includes(booking.status)).length;
 
   const approve = (booking: RentalBooking) => {
     if (!profile) return;
@@ -101,26 +111,25 @@ function BookingsContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
-      <Navbar />
-      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+    <DashboardShell role="personal"><section className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-              Bookings
-            </p>
-            <h1 className="mt-2 text-4xl font-bold">Your rental requests</h1>
+            <p className="text-sm font-semibold text-[#718179]">Home <span className="mx-2">›</span> Bookings</p>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">Your bookings</h1>
+            <p className="mt-2 text-[#73827B]">Manage your upcoming trips, pickups, and vehicle reservations.</p>
           </div>
 
           <Link
             href="/marketplace"
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-5 py-3 font-semibold text-[#0B5D3B]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#07543D] px-5 py-3 font-semibold text-white"
           >
             <CalendarDays size={18} />
             Browse vehicles
           </Link>
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-3"><BookingMetric label="Upcoming" value={upcomingCount}/><BookingMetric label="Active now" value={activeCount}/><BookingMetric label="Past bookings" value={pastCount}/></div>
+        <div className="flex flex-col gap-3 rounded-2xl border border-[#E5ECE8] bg-white p-4 xl:flex-row xl:items-center"><div className="flex w-fit rounded-xl border border-[#E4EBE7] p-1">{[["upcoming","Upcoming",upcomingCount],["active","Active",activeCount],["past","Past bookings",pastCount],["all","All",bookings.length]].map(([key,label,count])=><button key={key} onClick={()=>setTab(String(key))} className={`rounded-lg px-3 py-2 text-sm font-bold ${tab===key?"bg-[#07543D] text-white":"text-[#687970]"}`}>{label} ({count})</button>)}</div><div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-3 text-[#718179]" size={18}/><input className="h-11 w-full rounded-xl border border-[#E1E9E4] bg-white pl-10 pr-3 text-sm outline-none" placeholder="Search bookings" value={search} onChange={(e)=>setSearch(e.target.value)}/></div><div className="flex items-center gap-2"><SlidersHorizontal size={17} className="text-[#07543D]"/><select aria-label="Filter booking status" className="h-11 rounded-xl border border-[#E1E9E4] bg-white px-3 text-sm" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">All statuses</option>{["pending","awaiting_payment","confirmed","active","completed","cancelled","rejected"].map((s)=><option key={s} value={s}>{s.replace("_"," ")}</option>)}</select></div></div>
         {loading ? (
           <div className="flex min-h-72 items-center justify-center">
             <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
@@ -141,7 +150,7 @@ function BookingsContent() {
               return (
                 <article
                   key={booking.id}
-                  className="grid gap-5 rounded-3xl border border-[#E5E7EB] bg-white p-5 md:grid-cols-[180px_1fr_auto]"
+                  className="grid gap-5 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm md:grid-cols-[180px_1fr_auto]"
                 >
                   <div className="relative h-40 overflow-hidden rounded-2xl">
                     <Image
@@ -174,6 +183,14 @@ function BookingsContent() {
                   </div>
 
                   <div className="flex flex-row gap-2 md:flex-col">
+                    {isRenter && booking.status === "awaiting_payment" && (
+                      <Link
+                        href={`/checkout/${booking.id}`}
+                        className="rounded-xl bg-[#E7B319] px-5 py-3 text-center text-sm font-bold text-[#17201D]"
+                      >
+                        Complete payment
+                      </Link>
+                    )}
                     <Link
                       href={`/bookings/${booking.id}`}
                       className="rounded-full border border-[#E5E7EB] px-5 py-3 text-center text-sm font-semibold"
@@ -217,7 +234,8 @@ function BookingsContent() {
             })}
           </div>
         )}
-      </section>
-    </main>
+      </section></DashboardShell>
   );
 }
+
+function BookingMetric({label,value}:{label:string;value:number}) { return <div className="flex items-center gap-4 rounded-2xl border border-[#E5ECE8] bg-white p-4"><span className="rounded-xl bg-[#EAF5EF] p-3 text-[#07543D]"><CalendarDays size={20}/></span><div><p className="text-sm text-[#718179]">{label}</p><p className="text-2xl font-black">{value}</p><p className="text-xs text-[#718179]">Reservations</p></div></div>; }

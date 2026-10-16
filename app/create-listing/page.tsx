@@ -1,7 +1,6 @@
 "use client";
 
 import LandingNavbar from "@/Components/LandingNavbar";
-import LoginPromptModal from "@/Components/LoginPromptModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { createListing, uploadVehicleImages } from "@/services/listingService";
 import { ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
@@ -20,7 +19,6 @@ function CreateListingForm() {
   const { profile } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
@@ -105,11 +103,6 @@ function CreateListingForm() {
   };
 
   const submit = async () => {
-    if (!profile) {
-      setShowLoginPrompt(true);
-      return;
-    }
-
     if (!form.make || !form.model || !form.year || !form.price || !form.city || !form.address) {
       toast.error("Please complete the required fields.");
       return;
@@ -120,10 +113,10 @@ function CreateListingForm() {
       const uploadedUrls = await ensureUploadedPhotos();
 
       const created = await createListing({
-        ownerId: profile.id,
-        ownerName: profile.name,
-        ownerPhone: form.phone || profile.phone || "",
-        ownerEmail: profile.email,
+        ownerId: profile?.id ?? "local-guest",
+        ownerName: profile?.name ?? "Guest Seller",
+        ownerPhone: form.phone || profile?.phone || "",
+        ownerEmail: profile?.email ?? "",
         listingType: form.type,
         make: form.make,
         model: form.model,
@@ -151,15 +144,15 @@ function CreateListingForm() {
         coverImage:
           uploadedUrls[0] ||
           "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400",
-        sellerType: profile.role === "dealer" ? "Dealer" : "Private Seller",
-        verified: profile.role === "dealer",
+        sellerType: profile?.role === "dealer" ? "Dealer" : "Private Seller",
+        verified: profile?.role === "dealer",
         featured: false,
       });
 
       toast.success(
         `Listing ${created.id} submitted for review. It will appear publicly after approval.`
       );
-      router.push("/dashboard");
+      router.push("/marketplace");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Listing could not be created.");
     } finally {
@@ -170,11 +163,6 @@ function CreateListingForm() {
   return (
     <main className="min-h-screen bg-[#F8F9FA] pt-[72px] text-[#202124]">
       <LandingNavbar transparentOnTop={false} />
-      <LoginPromptModal
-        open={showLoginPrompt}
-        onClose={() => setShowLoginPrompt(false)}
-        description="Log in to submit and manage your vehicle listing."
-      />
       <section className="mx-auto max-w-2xl px-4 py-8">
         <p className="text-sm text-gray-500">
           Step {step + 1} of {steps.length}: {steps[step]}
