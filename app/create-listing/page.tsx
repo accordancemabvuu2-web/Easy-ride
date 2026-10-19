@@ -1,48 +1,62 @@
 "use client";
 
-import LandingNavbar from "@/Components/LandingNavbar";
+import DashboardShell from "@/Components/DashboardShell";
+import RequireAuth from "@/Components/RequireAuth";
+import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { createListing, uploadVehicleImages } from "@/services/listingService";
-import { ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { createListing, saveListingDraft, updateListingStatus, uploadVehicleImages } from "@/services/listingService";
+import type { Vehicle } from "@/Types/vehicle";
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, CircleCheck, Loader2, Save, Tag, UploadCloud, Users } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-const steps = ["Type", "Car Info", "Details", "Price", "Location", "Photos", "Contact", "Review"];
+const steps = ["Vehicle details", "Photos", "Pricing & availability", "Review & publish"];
+const draftKey = (userId: string) => `easy-ride:seller-listing-draft:${userId}`;
+type ListingForm = {
+  type: "buy" | "rent"; make: string; model: string; year: string; mileage: string;
+  condition: Vehicle["condition"]; transmission: Vehicle["transmission"]; price: string;
+  city: string; country: string; address: string; latitude: string; longitude: string;
+  phone: string; fuelType: Vehicle["fuelType"]; bodyType: string; color: string; description: string;
+};
+const blankForm = (phone = ""): ListingForm => ({ type: "buy", make: "", model: "", year: "", mileage: "", condition: "Good", transmission: "Automatic", price: "", city: "", country: "Zimbabwe", address: "", latitude: "", longitude: "", phone, fuelType: "Petrol", bodyType: "", color: "", description: "" });
 
 export default function CreateListingPage() {
-  return <CreateListingForm />;
+  return <RequireAuth><RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Seller"><CreateListingForm /></RoleGuard></RequireAuth>;
 }
 
 function CreateListingForm() {
   const { profile } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [form, setForm] = useState<ListingForm>(() => blankForm());
+  const [draftId, setDraftId] = useState<string | undefined>();
+  const [ready, setReady] = useState(false);
+  const [savedAt, setSavedAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [form, setForm] = useState({
-    type: "buy" as "buy" | "rent",
-    make: "",
-    model: "",
-    year: "",
-    mileage: "",
-    condition: "Good",
-    transmission: "Automatic" as "Automatic" | "Manual",
-    price: "",
-    city: "",
-    country: "Zimbabwe",
-    address: "",
-    latitude: "",
-    longitude: "",
-    phone: profile?.phone ?? "",
-    fuelType: "Petrol" as "Petrol" | "Diesel" | "Hybrid" | "Electric",
-    bodyType: "",
-    color: "",
-    description: "",
-  });
+  const storageKey = profile ? draftKey(profile.id) : "";
+
+  useEffect(() => {
+    if (!profile) return;
+    try {
+      const raw = window.localStorage.getItem(draftKey(profile.id));
+      if (raw) {
+        const saved = JSON.parse(raw) as { form?: ListingForm; step?: number; id?: string; photos?: string[] };
+        if (saved.form) setForm({ ...blankForm(profile.phone ?? ""), ...saved.form });
+        if (typeof saved.step === "number") setStep(Math.min(3, Math.max(0, saved.step)));
+        setDraftId(saved.id);
+        setPhotoUrls(saved.photos ?? []);
+      } else {
+        setForm((current) => ({ ...current, phone: profile.phone ?? current.phone }));
+      }
+    } catch { setForm((current) => ({ ...current, phone: profile.phone ?? current.phone })); }
+    setReady(true);
+  }, [profile]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("type") === "rent") {
@@ -50,325 +64,85 @@ function CreateListingForm() {
     }
   }, []);
 
-  const update = (field: keyof typeof form, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+  useEffect(() => {
+    if (!ready || !storageKey) return;
+    const timeout = window.setTimeout(() => {
+      const persistedPhotos = photoUrls.filter((url) => !url.startsWith("data:"));
+      try { window.localStorage.setItem(storageKey, JSON.stringify({ form, step, id: draftId, photos: persistedPhotos })); } catch { /* Keep the current form usable if browser storage is full. */ }
+      setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }, 450);
+    return () => window.clearTimeout(timeout);
+  }, [draftId, form, photoUrls, ready, step, storageKey]);
+
+  const update = <K extends keyof ListingForm>(field: K, value: ListingForm[K]) => setForm((current) => ({ ...current, [field]: value }));
+  const priceLabel = useMemo(() => form.type === "rent" ? "per day" : "asking price", [form.type]);
+
+  const payload = useCallback((imageList: string[]): Omit<Vehicle, "id" | "status" | "views" | "favoritesCount" | "createdAt" | "updatedAt"> => ({
+    ownerId: profile?.id ?? "local-guest", ownerName: profile?.name ?? "Guest Seller", ownerPhone: form.phone || profile?.phone || "", ownerEmail: profile?.email ?? "",
+    listingType: form.type, make: form.make.trim(), model: form.model.trim(), year: Number(form.year), price: Number(form.price), currency: "USD", priceLabel: form.type === "rent" ? "per day" : undefined,
+    transmission: form.transmission, fuelType: form.fuelType, mileage: Number(form.mileage || 0), condition: form.condition, bodyType: form.bodyType || undefined, color: form.color || undefined,
+    description: form.description.trim() || `${form.year} ${form.make} ${form.model} available for ${form.type === "rent" ? "rent" : "sale"} in ${form.city}.`,
+    location: { address: form.address.trim(), city: form.city.trim(), country: form.country.trim(), latitude: Number(form.latitude || 0), longitude: Number(form.longitude || 0) },
+    images: imageList, coverImage: imageList[0] || "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400",
+    sellerType: profile?.role === "dealer" ? "Dealer" : "Private Seller", verified: profile?.role === "dealer", featured: false,
+  }), [form, profile]);
+
+  const onFiles = async (fileList: FileList | null) => {
+    const selected = fileList ? Array.from(fileList).slice(0, 10) : [];
+    if (!profile) { toast.error("Sign in before adding vehicle photos."); return; }
+    setPhotos(selected);
+    if (!selected.length) { setPhotoUrls([]); return; }
+    try { setUploading(true); setPhotoUrls(await uploadVehicleImages(profile.id, selected)); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Photo upload failed."); }
+    finally { setUploading(false); }
   };
 
-  const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
-  const back = () => setStep((s) => Math.max(s - 1, 0));
-
-  const priceLabel = useMemo(
-    () => (form.type === "rent" ? "per day" : undefined),
-    [form.type]
-  );
-
-  const onFilesChange = async (fileList: FileList | null) => {
-    const selectedFiles = fileList ? Array.from(fileList) : [];
-    const nextFiles = selectedFiles.slice(0, 10);
-
-    if (selectedFiles.length > 10) {
-      toast.error("You can upload up to 10 vehicle photos.");
-    }
-
-    setPhotos(nextFiles);
-
-    if (!profile || nextFiles.length === 0) {
-      setPhotoUrls([]);
-      return;
-    }
-
+  const saveDraft = async () => {
+    if (!profile) { toast.error("Sign in to save your listing draft."); return; }
     try {
-      setUploadingPhotos(true);
-      const urls = await uploadVehicleImages(profile.id, nextFiles);
-      setPhotoUrls(urls);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Photo upload failed.");
-    } finally {
-      setUploadingPhotos(false);
-    }
+      const saved = await saveListingDraft(payload(photoUrls), draftId);
+      setDraftId(saved.id);
+      const persistedPhotos = photoUrls.filter((url) => !url.startsWith("data:"));
+      try { window.localStorage.setItem(storageKey, JSON.stringify({ form, step, id: saved.id, photos: persistedPhotos })); } catch { /* Draft is also stored in the listings store. */ }
+      setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      toast.success("Draft saved to your inventory.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Draft could not be saved."); }
   };
 
-  const ensureUploadedPhotos = async () => {
-    if (!profile || photos.length === 0) {
-      return photoUrls;
-    }
-
-    if (photoUrls.length === photos.length) {
-      return photoUrls;
-    }
-
-    const urls = await uploadVehicleImages(profile.id, photos);
-    setPhotoUrls(urls);
-    return urls;
+  const continueStep = () => {
+    if (step === 0 && (!form.make.trim() || !form.model.trim() || !form.year || Number(form.year) < 1900 || Number(form.year) > new Date().getFullYear() + 1)) { toast.error("Add a valid make, model, and year first."); return; }
+    if (step === 2 && (!form.price || Number(form.price) <= 0 || !form.city.trim() || !form.address.trim())) { toast.error("Add a valid price and vehicle location first."); return; }
+    setStep((current) => Math.min(3, current + 1));
   };
 
   const submit = async () => {
-    if (!form.make || !form.model || !form.year || !form.price || !form.city || !form.address) {
-      toast.error("Please complete the required fields.");
-      return;
-    }
-
+    if (!profile) { toast.error("Sign in before publishing a vehicle."); return; }
     try {
       setSubmitting(true);
-      const uploadedUrls = await ensureUploadedPhotos();
-
-      const created = await createListing({
-        ownerId: profile?.id ?? "local-guest",
-        ownerName: profile?.name ?? "Guest Seller",
-        ownerPhone: form.phone || profile?.phone || "",
-        ownerEmail: profile?.email ?? "",
-        listingType: form.type,
-        make: form.make,
-        model: form.model,
-        year: Number(form.year),
-        price: Number(form.price),
-        currency: "USD",
-        priceLabel,
-        transmission: form.transmission,
-        fuelType: form.fuelType,
-        mileage: Number(form.mileage || 0),
-        condition: form.condition as "New" | "Excellent" | "Good" | "Fair",
-        bodyType: form.bodyType || undefined,
-        color: form.color || undefined,
-        description:
-          form.description ||
-          `${form.make} ${form.model} available for ${form.type === "rent" ? "rent" : "sale"} in ${form.city}.`,
-        location: {
-          address: form.address,
-          city: form.city,
-          country: form.country,
-          latitude: Number(form.latitude || 0),
-          longitude: Number(form.longitude || 0),
-        },
-        images: uploadedUrls,
-        coverImage:
-          uploadedUrls[0] ||
-          "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400",
-        sellerType: profile?.role === "dealer" ? "Dealer" : "Private Seller",
-        verified: profile?.role === "dealer",
-        featured: false,
-      });
-
-      toast.success(
-        `Listing ${created.id} submitted for review. It will appear publicly after approval.`
-      );
-      router.push("/marketplace");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Listing could not be created.");
-    } finally {
-      setSubmitting(false);
-    }
+      let images = photoUrls;
+      if (photos.length && photoUrls.length !== photos.length) images = await uploadVehicleImages(profile.id, photos);
+      const created = draftId
+        ? await saveListingDraft(payload(images), draftId)
+        : await createListing(payload(images));
+      if (draftId) await updateListingStatus(created.id, "pending");
+      window.localStorage.removeItem(storageKey);
+      toast.success(`${created.make} ${created.model} sent for review.`);
+      router.push("/dashboard/seller/inventory");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Listing could not be created."); }
+    finally { setSubmitting(false); }
   };
 
-  return (
-    <main className="min-h-screen bg-[#F8F9FA] pt-[72px] text-[#202124]">
-      <LandingNavbar transparentOnTop={false} />
-      <section className="mx-auto max-w-2xl px-4 py-8">
-        <p className="text-sm text-gray-500">
-          Step {step + 1} of {steps.length}: {steps[step]}
-        </p>
-
-        <div className="mt-3 h-2 rounded-full bg-gray-200">
-          <div
-            className="h-2 rounded-full bg-[#0B5D3B]"
-            style={{ width: `${((step + 1) / steps.length) * 100}%` }}
-          />
-        </div>
-
-        <div className="mt-8 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-          {step === 0 && (
-            <div>
-              <h2 className="text-2xl font-bold">What do you want to do?</h2>
-              <div className="mt-6 grid gap-4">
-                {[
-                  { value: "buy", title: "Sell a Car", desc: "List your vehicle for sale." },
-                  { value: "rent", title: "Rent a Car", desc: "Offer your vehicle for daily rental." },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => update("type", option.value)}
-                    className={`rounded-2xl border p-5 text-left ${
-                      form.type === option.value
-                        ? "border-[#0B5D3B] bg-[#0B5D3B]/10"
-                        : "border-[#E5E7EB]"
-                    }`}
-                  >
-                    <Car className="text-[#0B5D3B]" />
-                    <p className="mt-3 font-bold">{option.title}</p>
-                    <p className="text-sm text-gray-500">{option.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Car Information</h2>
-              <input className="input" placeholder="Make e.g. Toyota" value={form.make} onChange={(e) => update("make", e.target.value)} />
-              <input className="input" placeholder="Model e.g. Axio" value={form.model} onChange={(e) => update("model", e.target.value)} />
-              <input className="input" placeholder="Year e.g. 2018" value={form.year} onChange={(e) => update("year", e.target.value)} />
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Vehicle Details</h2>
-              <input className="input" placeholder="Mileage e.g. 78000 km" value={form.mileage} onChange={(e) => update("mileage", e.target.value)} />
-              <select className="input" value={form.condition} onChange={(e) => update("condition", e.target.value)}>
-                <option>New</option>
-                <option>Excellent</option>
-                <option>Good</option>
-                <option>Fair</option>
-              </select>
-              <select className="input" value={form.transmission} onChange={(e) => update("transmission", e.target.value)}>
-                <option>Automatic</option>
-                <option>Manual</option>
-              </select>
-              <select className="input" value={form.fuelType} onChange={(e) => update("fuelType", e.target.value)}>
-                <option>Petrol</option>
-                <option>Diesel</option>
-                <option>Hybrid</option>
-                <option>Electric</option>
-              </select>
-              <input className="input" placeholder="Body type e.g. Sedan" value={form.bodyType} onChange={(e) => update("bodyType", e.target.value)} />
-              <input className="input" placeholder="Color e.g. White" value={form.color} onChange={(e) => update("color", e.target.value)} />
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Price</h2>
-              <input className="input" placeholder={priceLabel ? "Price per day e.g. 35" : "Selling price e.g. 8500"} value={form.price} onChange={(e) => update("price", e.target.value)} />
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Location</h2>
-              <input className="input" placeholder="Address" value={form.address} onChange={(e) => update("address", e.target.value)} />
-              <input className="input" placeholder="City e.g. Harare" value={form.city} onChange={(e) => update("city", e.target.value)} />
-              <input className="input" placeholder="Country" value={form.country} onChange={(e) => update("country", e.target.value)} />
-
-              <div className="rounded-3xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#0B5D3B]">
-                  <MapPin size={16} />
-                  Google Maps placeholder
-                </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Connect the Maps JavaScript API in Sprint 3. For now, capture the location manually so the listing can still be created.
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <input className="input" placeholder="Latitude" value={form.latitude} onChange={(e) => update("latitude", e.target.value)} />
-                <input className="input" placeholder="Longitude" value={form.longitude} onChange={(e) => update("longitude", e.target.value)} />
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div>
-              <h2 className="text-2xl font-bold">Upload Photos</h2>
-              <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[#E5E7EB] p-10 text-center">
-                <Upload className="text-[#0B5D3B]" />
-                <p className="mt-3 font-semibold">Click to upload photos</p>
-                <p className="text-sm text-gray-500">Front, back, interior, engine (up to 10 photos)</p>
-                <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => void onFilesChange(e.target.files)} />
-              </label>
-              <p className="mt-4 text-sm text-gray-500">
-                {photos.length} file(s) selected
-              </p>
-              {uploadingPhotos && (
-                <p className="mt-2 text-sm font-medium text-[#0B5D3B]">
-                  Uploading photos...
-                </p>
-              )}
-              {photoUrls.length > 0 && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  {photoUrls.map((url) => (
-                    <div
-                      key={url}
-                      className="relative aspect-video overflow-hidden rounded-2xl bg-gray-100"
-                    >
-                      <Image
-                        src={url}
-                        alt="Selected listing photo preview"
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 6 && (
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">Contact Information</h2>
-              <div className="flex items-center gap-2 rounded-2xl bg-[#F8F9FA] p-4">
-                <Phone className="text-[#0B5D3B]" />
-                <input
-                  className="w-full bg-transparent outline-none"
-                  placeholder="WhatsApp / Phone number"
-                  value={form.phone}
-                  onChange={(e) => update("phone", e.target.value)}
-                />
-              </div>
-              <textarea
-                className="input min-h-[128px]"
-                placeholder="Description"
-                value={form.description}
-                onChange={(e) => update("description", e.target.value)}
-              />
-            </div>
-          )}
-
-          {step === 7 && (
-            <div>
-              <CheckCircle className="text-[#0B5D3B]" size={40} />
-              <h2 className="mt-4 text-2xl font-bold">Review Listing</h2>
-              <div className="mt-5 rounded-2xl bg-[#F8F9FA] p-4 text-sm">
-                <p><b>Type:</b> {form.type}</p>
-                <p><b>Car:</b> {form.make} {form.model} {form.year}</p>
-                <p><b>Price:</b> USD {form.price}</p>
-                <p><b>Location:</b> {form.city}</p>
-                <p><b>Contact:</b> {form.phone}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 flex justify-between">
-          {step > 0 ? (
-            <button onClick={back} className="rounded-full border border-[#E5E7EB] px-5 py-3 font-semibold">
-              Back
-            </button>
-          ) : (
-            <div />
-          )}
-
-          {step < steps.length - 1 ? (
-            <button
-              onClick={next}
-              className="flex items-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-3 font-semibold text-white"
-            >
-              Next <ArrowRight size={18} />
-            </button>
-          ) : (
-            <button
-              onClick={() => void submit()}
-              disabled={submitting}
-              className="flex items-center gap-2 rounded-full bg-[#C9A227] px-6 py-3 font-bold text-[#121212] disabled:opacity-60"
-            >
-              {submitting && <Loader2 className="animate-spin" size={18} />}
-              Submit Listing
-            </button>
-          )}
-        </div>
-      </section>
-    </main>
-  );
+  return <DashboardShell role="seller"><div className="mx-auto max-w-[1440px]">
+    <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">Seller studio <span className="mx-2">/</span>Add vehicle</p><h1 className="mt-2 text-4xl font-black">Add a vehicle</h1><p className="mt-2 text-slate-600">Create a complete listing and reach ready-to-buy shoppers.</p></div><div className="flex items-center gap-3">{savedAt&&<span className="hidden text-xs text-slate-500 sm:inline">Autosaved {savedAt}</span>}<button onClick={()=>void saveDraft()} className="rounded-xl border border-emerald-800 bg-white px-4 py-3 text-sm font-bold text-emerald-900"><Save className="mr-2 inline" size={17}/>Save draft</button></div></header>
+    <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0"><div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><div className="grid grid-cols-4 gap-2">{steps.map((label,index)=><button key={label} onClick={()=>index<step&&setStep(index)} className="text-left"><span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black ${index===step?"bg-[#063F2C] text-white":index<step?"bg-emerald-100 text-emerald-900":"border border-slate-200 text-slate-500"}`}>{index<step?<Check size={17}/>:index+1}</span><span className={`mt-2 block text-xs font-bold sm:text-sm ${index===step?"text-[#063F2C]":"text-slate-500"}`}>{label}</span></button>)}</div><div className="mt-4 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-emerald-700 transition-all" style={{width:`${((step+1)/4)*100}%`}}/></div>
+      <div className="mt-7 min-h-[400px]">{step===0&&<section><h2 className="text-2xl font-black">Tell us about your vehicle</h2><p className="mt-1 text-sm text-slate-500">Provide accurate details to attract the right buyers.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="field-label">Listing type<select className="input mt-1" value={form.type} onChange={(event)=>update("type",event.target.value as ListingForm["type"])}><option value="buy">For sale</option><option value="rent">For rent</option></select></label><Field label="Make *" value={form.make} onChange={(value)=>update("make",value)} placeholder="e.g. Toyota"/><Field label="Model *" value={form.model} onChange={(value)=>update("model",value)} placeholder="e.g. RAV4"/><Field label="Trim" value={form.color} onChange={(value)=>update("color",value)} placeholder="e.g. Hybrid XLE"/><Field label="Year *" value={form.year} onChange={(value)=>update("year",value)} type="number" placeholder="2022"/><Field label="Mileage (km)" value={form.mileage} onChange={(value)=>update("mileage",value)} type="number" placeholder="42,300"/><label className="field-label">Condition<select className="input mt-1" value={form.condition} onChange={(event)=>update("condition",event.target.value as Vehicle["condition"])}>{["New","Excellent","Good","Fair"].map((value)=><option key={value}>{value}</option>)}</select></label><label className="field-label">Body type<select className="input mt-1" value={form.bodyType} onChange={(event)=>update("bodyType",event.target.value)}><option value="">Choose body type</option>{["SUV","Sedan","Hatchback","Pickup","Van","Coupe","Wagon"].map((value)=><option key={value}>{value}</option>)}</select></label><label className="field-label">Fuel type<select className="input mt-1" value={form.fuelType} onChange={(event)=>update("fuelType",event.target.value as Vehicle["fuelType"])}>{["Petrol","Diesel","Hybrid","Electric"].map((value)=><option key={value}>{value}</option>)}</select></label><label className="field-label">Transmission<select className="input mt-1" value={form.transmission} onChange={(event)=>update("transmission",event.target.value as Vehicle["transmission"])}><option>Automatic</option><option>Manual</option></select></label><Field label="City *" value={form.city} onChange={(value)=>update("city",value)} placeholder="Harare"/><Field label="Country" value={form.country} onChange={(value)=>update("country",value)} placeholder="Zimbabwe"/><Field label="Pickup / viewing address *" value={form.address} onChange={(value)=>update("address",value)} placeholder="Area or street address"/></div></section>}
+      {step===1&&<section><h2 className="text-2xl font-black">Show buyers your vehicle</h2><p className="mt-1 text-sm text-slate-500">Clear photos help shoppers understand the vehicle’s condition.</p><label className="mt-6 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-8 text-center"><UploadCloud className="text-emerald-800" size={34}/><b className="mt-3">Choose vehicle photos</b><span className="mt-1 text-sm text-slate-500">Add up to 10 photos · JPG, PNG, or WebP</span><input type="file" multiple accept="image/*" className="hidden" onChange={(event)=>void onFiles(event.target.files)}/></label>{uploading&&<p className="mt-3 flex items-center gap-2 text-sm font-semibold text-emerald-800"><Loader2 className="animate-spin" size={16}/>Uploading photos…</p>}<p className="mt-3 text-sm font-semibold text-slate-600">{photoUrls.length} photos added</p>{photoUrls.length>0&&<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{photoUrls.map((url,index)=><div key={`${url}-${index}`} className="relative aspect-video overflow-hidden rounded-xl bg-slate-100"><Image src={url} alt={`Vehicle photo ${index+1}`} fill className="object-cover" unoptimized/><button type="button" onClick={()=>setPhotoUrls((current)=>current.filter((_,i)=>i!==index))} className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-xs font-bold">Remove</button></div>)}</div>}</section>}
+      {step===2&&<section><h2 className="text-2xl font-black">Set pricing and availability</h2><p className="mt-1 text-sm text-slate-500">Choose a clear price and give shoppers the details they need.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label={form.type==="rent"?"Daily rental price *":"Asking price *"} value={form.price} onChange={(value)=>update("price",value)} type="number" placeholder={form.type==="rent"?"35":"32900"}/><div className="flex items-end pb-3 text-sm font-semibold text-slate-500">USD {priceLabel}</div><label className="field-label sm:col-span-2">Description<textarea className="input mt-1 min-h-32" maxLength={1200} value={form.description} onChange={(event)=>update("description",event.target.value)} placeholder="Describe condition, features, service history, and anything a buyer should know."/></label><Field label="Contact phone" value={form.phone} onChange={(value)=>update("phone",value)} placeholder="WhatsApp / phone number"/><div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900"><BadgeCheck className="mr-2 inline" size={18}/>Your phone is shared only with interested buyers.</div></div></section>}
+      {step===3&&<section><CircleCheck className="text-emerald-700" size={38}/><h2 className="mt-3 text-2xl font-black">Review your listing</h2><p className="mt-1 text-sm text-slate-500">Check these details before sending the listing for review.</p><div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]"><div className="relative aspect-video overflow-hidden rounded-2xl bg-slate-100">{(photoUrls[0]||"https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400")&&<Image src={photoUrls[0]||"https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400"} alt={`${form.make} ${form.model}`} fill className="object-cover" unoptimized/>}</div><div><p className="text-xl font-black">{form.year} {form.make} {form.model}</p><p className="mt-1 text-sm text-slate-500">{form.type==="rent"?"Rental listing":"For sale"} · {form.city}, {form.country}</p><p className="mt-4 text-2xl font-black text-emerald-900">USD {Number(form.price||0).toLocaleString()} <span className="text-sm font-semibold text-slate-500">{form.type==="rent"?"/ day":""}</span></p><div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">{[`${Number(form.mileage||0).toLocaleString()} km`,form.fuelType,form.bodyType||"Body type not set",form.transmission].map((value)=><span key={value} className="rounded-full bg-slate-100 px-3 py-1.5">{value}</span>)}</div><p className="mt-4 text-sm leading-6 text-slate-600">{form.description||"Add a vehicle description to help shoppers understand this listing."}</p></div></div><div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">After you submit, the listing goes to review. You can track it from your Inventory tab.</div></section>}</div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5"><div>{step>0&&<button onClick={()=>setStep((current)=>Math.max(0,current-1))} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"><ArrowLeft className="mr-2 inline" size={17}/>Back</button>}</div>{step<3?<button disabled={uploading} onClick={continueStep} className="rounded-xl bg-[#063F2C] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Continue <ArrowRight className="ml-2 inline" size={17}/></button>:<button disabled={submitting||uploading} onClick={()=>void submit()} className="rounded-xl bg-[#063F2C] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting?<Loader2 className="mr-2 inline animate-spin" size={17}/>:<Check className="mr-2 inline" size={17}/>}Submit for review</button>}</div>
+    </div></div><aside className="space-y-4"><section className="rounded-2xl border border-emerald-100 bg-[#F1FAF5] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-emerald-800">Listing quality</p><h2 className="mt-1 text-xl font-black">{qualityScore(form,photoUrls.length)}% complete</h2></div><span className="grid h-14 w-14 place-items-center rounded-full border-4 border-emerald-600 text-sm font-black text-emerald-900">{qualityScore(form,photoUrls.length)}</span></div><div className="mt-4 space-y-3">{[[Boolean(form.make&&form.model&&form.year),"Vehicle details complete"],[photoUrls.length>=3,"Add at least 3 photos"],[Boolean(form.price),"Set a competitive price"],[Boolean(form.description),"Add a description"]].map(([done,label])=><p key={String(label)} className="flex items-center gap-2 text-sm"><span className={`grid h-5 w-5 place-items-center rounded-full ${done?"bg-emerald-600 text-white":"border border-slate-300 text-transparent"}`}>{done?<Check size={13}/>:"·"}</span>{label}</p>)}</div><p className="mt-4 rounded-lg bg-amber-100 p-3 text-xs font-semibold text-amber-900">Complete listings help shoppers make confident decisions.</p></section><section className="rounded-2xl bg-[#063F2C] p-5 text-white"><p className="text-xs font-bold uppercase tracking-widest text-emerald-200">Sell smarter with Easy Ride</p><h2 className="mt-2 text-xl font-black">Reach more buyers</h2><div className="mt-5 space-y-4 text-sm"><p><Users className="mr-2 inline text-emerald-200" size={18}/>Secure buyer messaging</p><p><BadgeCheck className="mr-2 inline text-emerald-200" size={18}/>Clear listing review</p><p><Tag className="mr-2 inline text-emerald-200" size={18}/>Manage offers in one place</p></div></section><Link href="/dashboard/seller/inventory" className="block rounded-xl border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-700">Back to inventory</Link></aside></div>
+  </div></DashboardShell>;
 }
+
+function Field({label,value,onChange,type="text",placeholder=""}:{label:string;value:string;onChange:(value:string)=>void;type?:string;placeholder?:string}) { return <label className="field-label">{label}<input className="input mt-1" type={type} value={value} onChange={(event)=>onChange(event.target.value)} placeholder={placeholder}/></label>; }
+function qualityScore(form:ListingForm,photos:number) { let score=0;if(form.make&&form.model&&form.year)score+=30;if(photos>=3)score+=25;else if(photos)score+=10;if(form.price)score+=20;if(form.description)score+=15;if(form.city&&form.address)score+=10;return score; }

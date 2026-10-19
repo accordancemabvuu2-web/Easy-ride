@@ -14,6 +14,7 @@ type ViewMode = "grid" | "list";
 type SortType = "newest" | "price-asc" | "price-desc" | "year-desc" | "year-asc" | "views-desc";
 
 const optionalNumber = (value: string | null) => value ? Number(value) : "";
+const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 export default function HomeMarketplace() {
   const router = useRouter();
@@ -175,6 +176,7 @@ export default function HomeMarketplace() {
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0B5D3B]">Easy Ride Marketplace</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">{listingType === "rent" ? "Rent a Vehicle" : listingType === "buy" ? "Buy a Vehicle" : "Find Your Next Ride"}</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">{listingType === "rent" ? "Find available rental vehicles, compare daily rates and choose dates before requesting a booking." : "Browse vehicles from trusted sellers and dealers. Search the whole marketplace and narrow your results to find the right vehicle."}</p>
+          {demoMode && <p className="mt-4 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900">Demo data · changes are stored in this browser</p>}
           <label className="mt-7 flex min-h-14 max-w-3xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-[#0B5D3B] focus-within:ring-4 focus-within:ring-emerald-100">
             <Search size={20} className="shrink-0 text-[#0B5D3B]" />
             <input value={search} onChange={(event) => updateFilter("q", event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search make, model, keyword..." aria-label="Search vehicles" />

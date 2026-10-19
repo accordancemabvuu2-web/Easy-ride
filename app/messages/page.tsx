@@ -33,6 +33,7 @@ function MessagesLoading() {
 
 function MessagesContent() {
   const { firebaseUser, profile } = useAuth();
+  const isSeller = profile?.role === "seller" || profile?.role === "dealer";
   const currentUserId = profile?.id ?? firebaseUser?.uid ?? null;
   const searchParams = useSearchParams();
   const requestedConversationId = searchParams.get("conversation");
@@ -72,6 +73,21 @@ function MessagesContent() {
 
     setLoading(true);
     setLoadError("");
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem("easy-ride:conversations") ?? "[]") as Conversation[];
+        if (!saved.some((item) => item.participants?.includes(currentUserId))) {
+          const now = new Date().toISOString();
+          const buyerId = isSeller ? "demo-buyer-maya" : currentUserId; const sellerId = isSeller ? currentUserId : "demo-seller-city-auto";
+          const demo: Conversation = { id: `demo-conversation-${currentUserId}`, listingId: "seed-1", listingTitle: "2018 Toyota Axio", listingImage: "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400", buyerId, buyerName: isSeller ? "Maya Chen" : profile?.name ?? "Buyer", sellerId, sellerName: isSeller ? profile?.name ?? "Seller" : "City Auto", participants: [buyerId, sellerId], lastMessage: isSeller ? "Hi, is the Toyota Axio still available? I’d like to view it this weekend." : "Thanks for your offer. Could you come by to view the vehicle tomorrow?", lastMessageAt: now, unreadBy: [currentUserId], createdAt: now, updatedAt: now };
+          window.localStorage.setItem("easy-ride:conversations", JSON.stringify([demo, ...saved]));
+          const messages = JSON.parse(window.localStorage.getItem("easy-ride:messages") ?? "{}") as Record<string, unknown[]>;
+          window.localStorage.setItem("easy-ride:messages", JSON.stringify({ ...messages, [demo.id]: [{ id: `${demo.id}-message`, conversationId: demo.id, senderId: isSeller ? demo.buyerId : demo.sellerId, senderName: isSeller ? demo.buyerName : demo.sellerName, body: demo.lastMessage, read: false, createdAt: now }] }));
+          window.dispatchEvent(new Event("easy-ride-conversations-updated"));
+          window.dispatchEvent(new Event("easy-ride-messages-updated"));
+        }
+      } catch { /* demo fixtures are optional */ }
+    }
     const unsubscribe = subscribeToUserConversations(currentUserId, (items) => {
       setConversations(items);
       setLoading(false);
@@ -123,7 +139,7 @@ function MessagesContent() {
     <DashboardShell role="personal"><section className="space-y-5">
         <div className="mb-6">
           <p className="text-sm font-semibold text-[#718179]">Home <span className="mx-2">›</span> Messages</p>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-black sm:text-4xl">Messages</h1><p className="mt-2 text-[#73827B]">Stay connected with sellers, buyers, and rental hosts.</p></div><Link href="/marketplace" className="rounded-xl bg-[#07543D] px-4 py-3 text-sm font-bold text-white">Browse vehicles to message</Link></div>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-black sm:text-4xl">Messages</h1><p className="mt-2 text-[#73827B]">{isSeller?"Keep every buyer conversation clear, helpful, and moving forward.":"Stay connected with sellers, buyers, and rental hosts."}</p></div>{isSeller?<Link href="/dashboard/seller/leads" className="rounded-xl bg-[#07543D] px-4 py-3 text-sm font-bold text-white">View buyer leads</Link>:<Link href="/marketplace" className="rounded-xl bg-[#07543D] px-4 py-3 text-sm font-bold text-white">Browse vehicles to message</Link>}</div>
         </div>
 
         {loading ? (

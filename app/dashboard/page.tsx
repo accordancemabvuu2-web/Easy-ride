@@ -35,7 +35,7 @@ function DashboardRouter() {
   }
 
   if (profile.role === "dealer") {
-    return <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA]"><Link href="/dealer/dashboard" className="rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white">Open dealer dashboard</Link></div>;
+    return <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA]"><Link href="/dashboard/seller" className="rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white">Open Seller Studio</Link></div>;
   }
 
   return (

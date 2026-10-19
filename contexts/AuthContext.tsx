@@ -182,10 +182,17 @@ async function persistFallbackProfile(profile: EasyRideUser) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabaseBrowserClient();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<EasyRideUser | null>(() =>
-    auth ? null : readSessionProfile(),
-  );
+  // Keep the server render and the first browser render identical. Session storage
+  // is browser-only, so hydrate its cached profile after React has mounted.
+  const [profile, setProfile] = useState<EasyRideUser | null>(null);
   const [loading, setLoading] = useState(() => Boolean(auth || supabase));
+
+  useEffect(() => {
+    if (!auth && !supabase) {
+      const sessionProfile = readSessionProfile();
+      if (sessionProfile) setProfile(sessionProfile);
+    }
+  }, [auth, supabase]);
 
   useEffect(() => {
     if (supabase) {

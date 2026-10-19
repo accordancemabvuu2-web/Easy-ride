@@ -120,6 +120,10 @@ textarea:focus-visible {
   @apply w-full rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none transition focus:border-[#0B5D3B];
 }
 
+.field-label {
+  @apply block text-sm font-semibold text-slate-700;
+}
+
 .dashboard-shell {
   background:
     radial-gradient(circle at 20% 0%, rgba(11, 74, 50, 0.22), transparent 34%),

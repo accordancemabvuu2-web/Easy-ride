@@ -51,6 +51,7 @@ export default function NotificationsPage() {
 
 function NotificationsContent() {
   const { profile } = useAuth();
+  const isSeller = profile?.role === "seller" || profile?.role === "dealer";
   const notifications = useNotifications();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("all");
@@ -101,7 +102,7 @@ function NotificationsContent() {
           <div>
             <p className="text-sm font-semibold text-[#718179]">Home <span className="mx-2">›</span> Notifications</p>
             <h1 className="mt-2 text-3xl font-black sm:text-4xl">Notifications</h1>
-            <p className="mt-2 text-[#73827B]">Stay up to date with your vehicles, offers, bookings, and messages.</p>
+            <p className="mt-2 text-[#73827B]">{isSeller?"Stay ahead of every buyer, booking, and inventory update.":"Stay up to date with your vehicles, offers, bookings, and messages."}</p>
           </div>
           <div className="flex flex-wrap gap-2">{unreadNotifications.length > 0 && <button
               type="button"

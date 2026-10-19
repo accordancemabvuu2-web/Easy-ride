@@ -4,6 +4,7 @@ import BookingStatusBadge from "@/Components/BookingStatusBadge";
 import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
+import { vehicles as demoVehicles } from "@/Data/vehicles";
 import {
   approveBooking,
   cancelBooking,
@@ -27,6 +28,7 @@ export default function BookingsPage() {
 
 function BookingsContent() {
   const { profile } = useAuth();
+  const isSeller = profile?.role === "seller" || profile?.role === "dealer";
   const [bookings, setBookings] = useState<RentalBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("upcoming");
@@ -40,7 +42,13 @@ function BookingsContent() {
 
     setLoading(true);
     try {
-      setBookings(await getUserBookings(profile.id));
+      const saved = await getUserBookings(profile.id);
+      if (!saved.length && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+        const now = new Date();
+        const date = (offset: number) => new Date(now.getTime() + offset * 86400000).toISOString().slice(0, 10);
+        const rentals = demoVehicles.filter((vehicle) => vehicle.listingType === "rent");
+        setBookings(rentals.slice(0, 2).map((vehicle, index) => ({ id: `demo-booking-${index}`, listingId: vehicle.id, listingTitle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`, listingImage: vehicle.coverImage, renterId: isSeller ? `demo-renter-${index}` : profile.id, renterName: isSeller ? ["Maya Chen", "Jordan Williams"][index] : profile.name, renterEmail: "renter@example.com", renterPhone: "+263 77 111 2222", ownerId: isSeller ? profile.id : `demo-owner-${index}`, ownerName: isSeller ? profile.name : vehicle.ownerName, pickupDate: date(index + 1), returnDate: date(index + 4), totalDays: 3, dailyRate: vehicle.price, subtotal: vehicle.price * 3, serviceFee: 0, deposit: 0, totalAmount: vehicle.price * 3, currency: vehicle.currency, status: (index === 0 ? "confirmed" : "pending") as RentalBooking["status"], renterMessage: "Looking forward to the trip.", paymentStatus: "paid" as const, createdAt: now.toISOString(), updatedAt: now.toISOString() })));
+      } else setBookings(saved);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Bookings could not be loaded.",
@@ -48,7 +56,7 @@ function BookingsContent() {
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, isSeller]);
 
   useEffect(() => {
     void loadBookings();
@@ -68,6 +76,7 @@ function BookingsContent() {
 
   const approve = (booking: RentalBooking) => {
     if (!profile) return;
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && booking.id.startsWith("demo-booking-")) { setBookings((items)=>items.map((item)=>item.id===booking.id?{...item,status:"confirmed"}:item)); toast.success("Booking approved."); return; }
     void (async () => {
       try {
         await approveBooking(booking.id, profile.id);
@@ -86,6 +95,7 @@ function BookingsContent() {
     }
 
     if (!profile) return;
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && booking.id.startsWith("demo-booking-")) { setBookings((items)=>items.map((item)=>item.id===booking.id?{...item,status:"rejected",rejectionReason:reason.trim()}:item)); toast.success("Booking declined."); return; }
     void (async () => {
       try {
         await rejectBooking(booking.id, profile.id, reason.trim());
@@ -115,16 +125,16 @@ function BookingsContent() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-[#718179]">Home <span className="mx-2">›</span> Bookings</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-4xl">Your bookings</h1>
-            <p className="mt-2 text-[#73827B]">Manage your upcoming trips, pickups, and vehicle reservations.</p>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">{isSeller ? "Bookings" : "Your bookings"}</h1>
+            <p className="mt-2 text-[#73827B]">{isSeller ? "Keep every pickup, handoff, and return running smoothly." : "Manage your upcoming trips, pickups, and vehicle reservations."}</p>
           </div>
 
           <Link
-            href="/marketplace"
+            href="/dashboard/seller/rentals"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#07543D] px-5 py-3 font-semibold text-white"
           >
             <CalendarDays size={18} />
-            Browse vehicles
+            {isSeller ? "Rental management" : "Browse vehicles"}
           </Link>
         </div>
 

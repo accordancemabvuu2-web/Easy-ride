@@ -5,6 +5,7 @@ import DashboardWelcomeHero from "@/Components/DashboardWelcomeHero";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
+import { vehicles as demoVehicles } from "@/Data/vehicles";
 import { getUserBookings } from "@/services/bookingService";
 import { deleteListing, getMyListings, updateListingStatus } from "@/services/listingService";
 import { getUserOffers } from "@/services/offerService";
@@ -29,7 +30,7 @@ export default function SellerDashboardPage() {
 }
 
 function SellerDashboardContent() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const [listings, setListings] = useState<Vehicle[]>([]);
   const [offerCount, setOfferCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
@@ -37,9 +38,16 @@ function SellerDashboardContent() {
   const [loading, setLoading] = useState(true);
 
   const loadDashboard = useCallback(async () => {
-    if (!profile) return;
     try {
       setLoading(true);
+      if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+        setListings(demoVehicles);
+        setOfferCount(4);
+        setCompletedCount(3);
+        setBookingCount(2);
+        return;
+      }
+      if (!profile) { setLoading(false); return; }
       const [nextListings, offers, bookings] = await Promise.all([
         getMyListings(profile.id),
         getUserOffers(profile.id),
@@ -57,8 +65,9 @@ function SellerDashboardContent() {
   }, [profile]);
 
   useEffect(() => {
+    if (authLoading && process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return;
     void loadDashboard();
-  }, [loadDashboard]);
+  }, [authLoading, loadDashboard]);
 
   const stats = useMemo(() => ({
     total: listings.length,
@@ -93,6 +102,10 @@ function SellerDashboardContent() {
     return <div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-[#08784D]" size={32} /></div>;
   }
 
+  if (!profile && process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    return <DashboardShell role="seller"><section className="mx-auto mt-16 max-w-xl rounded-3xl border border-[#DCE5DF] bg-white p-10 text-center"><h1 className="text-2xl font-black">Sign in to open Seller Studio</h1><p className="mt-2 text-[#718179]">Your seller dashboard and listings are available after you sign in.</p><Link href="/login" className="mt-5 inline-flex rounded-xl bg-[#063F2C] px-5 py-3 font-bold text-white">Sign in</Link></section></DashboardShell>;
+  }
+
   return (
     <DashboardShell role="seller">
       <section>
@@ -118,7 +131,7 @@ function SellerDashboardContent() {
           <section className="rounded-[28px] border border-[#063F2F] bg-[#063F2F] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/create-listing" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>
 
-        <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
+        <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller/inventory" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
 
         {listings.length === 0 ? <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><CarEmpty /><h2 className="mt-4 text-xl font-bold">No vehicles listed yet</h2><p className="mt-2 text-gray-500">Add your first vehicle and start receiving interest.</p><Link href="/create-listing" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Add a vehicle</Link></div> : <div className="mt-5 space-y-4">{listings.slice(0, 6).map((listing) => <ListingRow key={listing.id} listing={listing} onMarkUnavailable={markUnavailable} onDelete={removeListing} />)}</div>}
       </section>

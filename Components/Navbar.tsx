@@ -32,7 +32,7 @@ export default function Navbar() {
       case "admin":
         return "/admin";
       case "dealer":
-        return "/dealer/dashboard";
+        return "/dashboard/seller";
       case "seller":
         return "/dashboard/seller";
       case "buyer":

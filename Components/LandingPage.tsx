@@ -172,7 +172,7 @@ export default function LandingPage() {
           loop
           playsInline
           preload="none"
-          poster="/images/pexels-dilrubasaricimen-7534335.jpg"
+          poster="/images/Screenshot 2026-10-19 112359.png"
           aria-hidden="true"
         >
           <source src="/easy-ride-hero.mp4" type="video/mp4" />

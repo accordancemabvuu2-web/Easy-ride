@@ -46,18 +46,18 @@ const buyerLinks = [
 
 const sellerLinks = [
   { label: "Dashboard", href: "/dashboard/seller", icon: LayoutDashboard },
-  { label: "Inventory", href: "/dashboard/seller", icon: CarFront },
+  { label: "Inventory", href: "/dashboard/seller/inventory", icon: CarFront },
   { label: "Leads", href: "/dashboard/seller/leads", icon: Users },
-  { label: "Rental Management", href: "/bookings", icon: CalendarDays },
+  { label: "Rental Management", href: "/dashboard/seller/rentals", icon: CalendarDays },
   { label: "Add Vehicle", href: "/create-listing", icon: Plus },
-  { label: "Favorites", href: "/favorites", icon: Heart },
-  { label: "Offers", href: "/offers", icon: BadgeDollarSign },
-  { label: "Messages", href: "/messages", icon: MessageCircle },
-  { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Support", href: "/support", icon: ShieldCheck },
-  { label: "Bookings", href: "/bookings", icon: CalendarDays },
-  { label: "Analytics", href: "/dealer/analytics", icon: BarChart3 },
-  { label: "Promotions", href: "/promote", icon: Store },
+  { label: "Favorites", href: "/dashboard/seller/favorites", icon: Heart },
+  { label: "Offers", href: "/dashboard/seller/offers", icon: BadgeDollarSign },
+  { label: "Messages", href: "/dashboard/seller/messages", icon: MessageCircle },
+  { label: "Notifications", href: "/dashboard/seller/notifications", icon: Bell },
+  { label: "Support", href: "/dashboard/seller/support", icon: ShieldCheck },
+  { label: "Bookings", href: "/dashboard/seller/bookings", icon: CalendarDays },
+  { label: "Analytics", href: "/dashboard/seller/analytics", icon: BarChart3 },
+  { label: "Promotions", href: "/dashboard/seller/promotions", icon: Store },
 ];
 
 const personalLinks = [
@@ -80,7 +80,13 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const links = role === "personal" ? personalLinks : role === "buyer" ? buyerLinks : sellerLinks;
+  const isSellerRoute = pathname.startsWith("/dashboard/seller");
+  const activeRole = isSellerRoute || profile?.role === "seller" || profile?.role === "dealer"
+    ? "seller"
+    : profile?.role === "buyer"
+      ? "buyer"
+      : role;
+  const links = activeRole === "personal" ? personalLinks : activeRole === "buyer" ? buyerLinks : sellerLinks;
   const displayName = profile?.name?.trim() || "Guest";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
@@ -116,7 +122,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
             <div>
               <p className="font-black tracking-tight">EASY<span className="text-[#E7B319]">RIDE</span></p>
-              <p className="text-xs text-white/60">{role === "personal" ? "Personal account" : role === "buyer" ? "Marketplace" : "Seller studio"}</p>
+              <p className="text-xs text-white/60">{activeRole === "personal" ? "Personal account" : activeRole === "buyer" ? "Marketplace" : "Seller studio"}</p>
             </div>
           </div>
 
@@ -124,10 +130,10 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A8E6C3]">Current mode</p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-bold">
-                {role === "personal" ? <UserRound size={16} /> : role === "buyer" ? <Search size={16} /> : <Store size={16} />}
-                {role === "personal" ? "Personal" : role === "buyer" ? "Buyer" : "Seller"}
+                {activeRole === "personal" ? <UserRound size={16} /> : activeRole === "buyer" ? <Search size={16} /> : <Store size={16} />}
+                {activeRole === "personal" ? "Personal" : activeRole === "buyer" ? "Buyer" : "Seller"}
               </span>
-              {role === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">Become a Dealer</Link> : null}
+              {activeRole === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">Become a Dealer</Link> : null}
             </div>
           </div>
 
@@ -135,13 +141,14 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             {links.map((link) => {
               const Icon = link.icon;
               const linkPath = link.href.split("?")[0];
-              const linkMode = new URLSearchParams(link.href.split("?")[1] ?? "").get("mode");
-              const hasModeSiblings = links.some((candidate) =>
-                candidate.href.split("?")[0] === linkPath &&
-                new URLSearchParams(candidate.href.split("?")[1] ?? "").has("mode"),
-              );
+              const linkQuery = new URLSearchParams(link.href.split("?")[1] ?? "");
+              const hasQuerySiblings = links.some((candidate) => {
+                const candidateQuery = new URLSearchParams(candidate.href.split("?")[1] ?? "");
+                return candidate.href.split("?")[0] === linkPath && candidateQuery.toString().length > 0;
+              });
+              const queryMatches = [...linkQuery.entries()].every(([key, value]) => searchParams.get(key) === value);
               const active = pathname === linkPath && linkPath !== "/" && (
-                linkMode ? searchParams.get("mode") === linkMode : !hasModeSiblings || !searchParams.has("mode")
+                linkQuery.size ? queryMatches : !hasQuerySiblings || searchParams.size === 0
               );
 
               return (

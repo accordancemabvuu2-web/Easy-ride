@@ -27,6 +27,9 @@ const STORAGE_KEY = "easy-ride:listings";
 const MAX_VEHICLE_IMAGES = 10;
 const MAX_LOCAL_LISTINGS = 25;
 
+// Demo mode keeps marketplace testing independent from a configured remote backend.
+const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -331,6 +334,7 @@ async function fetchAllOwnedListings(ownerId: string): Promise<Vehicle[]> {
 }
 
 export async function getActiveListings(): Promise<Vehicle[]> {
+  if (demoMode) return readLocalListings().map(normalizeListing).filter((listing) => listing.status === "active");
   return fetchRemoteListings();
 }
 
@@ -338,6 +342,21 @@ export async function getActiveListingPage(
   filters: ListingPageFilters = {},
   lastDocument?: DocumentSnapshot | SupabaseListingCursor,
 ): Promise<ListingPage> {
+  if (demoMode) {
+    const listings = readLocalListings()
+      .map(normalizeListing)
+      .filter((listing) => listing.status === "active")
+      .filter((listing) => matchesListingFilters(listing, filters))
+      .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
+    const offset = lastDocument && "source" in lastDocument ? lastDocument.offset : 0;
+    const pageListings = listings.slice(offset, offset + 20);
+    return {
+      listings: pageListings,
+      lastDocument: pageListings.length ? { source: "supabase", offset: offset + pageListings.length } : null,
+      hasMore: offset + pageListings.length < listings.length,
+    };
+  }
+
   if (isSupabaseConfigured()) {
     const offset =
       lastDocument && "source" in lastDocument ? lastDocument.offset : 0;
@@ -460,6 +479,12 @@ export async function getMyListings(ownerId: string): Promise<Vehicle[]> {
 }
 
 export async function getListingById(id: string): Promise<Vehicle | null> {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    const local = readLocalListings().map(normalizeListing).find((listing) => listing.id === id);
+    if (local) return local;
+    const sample = seedVehicles.find((listing) => listing.id === id);
+    if (sample) return sample;
+  }
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) throw new Error("Supabase is not configured.");
@@ -508,6 +533,37 @@ export async function createListing(
 
   await setDoc(doc(db, "listings", payload.id), payload);
   return payload;
+}
+
+export async function saveListingDraft(
+  listing: Omit<Vehicle, "id" | "status" | "views" | "favoritesCount" | "createdAt" | "updatedAt">,
+  draftId?: string,
+): Promise<Vehicle> {
+  const existing = draftId
+    ? db
+      ? await getListingById(draftId)
+      : readLocalListings().find((item) => item.id === draftId) ?? null
+    : null;
+  const now = nowIso();
+  const draft = normalizeListing({
+    ...existing,
+    ...listing,
+    id: existing?.id ?? draftId ?? crypto.randomUUID(),
+    status: "draft",
+    views: existing?.views ?? 0,
+    favoritesCount: existing?.favoritesCount ?? 0,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+
+  if (!db) {
+    const listings = readLocalListings().map(normalizeListing);
+    writeLocalListings([draft, ...listings.filter((item) => item.id !== draft.id)]);
+    return draft;
+  }
+
+  await setDoc(doc(db, "listings", draft.id), draft);
+  return draft;
 }
 
 export async function updateListingStatus(

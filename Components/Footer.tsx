@@ -34,7 +34,7 @@ export default function Footer() {
 
         <FooterColumn title="For Sellers">
           <Link href="/create-listing">Post a vehicle</Link>
-          <Link href="/dashboard">Seller dashboard</Link>
+          <Link href="/dashboard/seller">Seller dashboard</Link>
           <Link href="/support">Dealer services</Link>
         </FooterColumn>
 
