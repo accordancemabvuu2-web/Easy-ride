@@ -69,6 +69,7 @@ interface AuthContextValue {
   firebaseEnabled: boolean;
   register: (input: RegisterInput) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  continueWithLocalRole: (role: UserRole) => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -110,6 +111,42 @@ function normalizeProfile(profile: EasyRideUser): EasyRideUser {
       ? profile.capabilities
       : capabilitiesForRole(profile.role),
   };
+}
+
+function withAuthDeadline<T>(request: Promise<T>, fallback: T, timeoutMs = 10_000): Promise<T> {
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => resolve(fallback), timeoutMs);
+    request.then(resolve, () => resolve(fallback)).finally(() => window.clearTimeout(timeout));
+  });
+}
+
+function supabaseFallbackProfile(user: SupabaseUser): EasyRideUser {
+  const role = user.user_metadata.role === "seller" || user.user_metadata.role === "dealer" ? user.user_metadata.role : "buyer";
+  return normalizeProfile({
+    id: user.id,
+    name: user.user_metadata.full_name || user.user_metadata.name || "Easy Ride User",
+    email: user.email ?? "",
+    phone: user.user_metadata.phone ?? "",
+    role,
+    roles: [role],
+    capabilities: capabilitiesForRole(role),
+    photoURL: user.user_metadata.avatar_url ?? "",
+    createdAt: user.created_at,
+  });
+}
+
+function firebaseFallbackProfile(user: User): EasyRideUser {
+  return normalizeProfile({
+    id: user.uid,
+    name: user.displayName || "Easy Ride User",
+    email: user.email ?? "",
+    phone: user.phoneNumber ?? "",
+    role: "buyer",
+    roles: ["buyer"],
+    capabilities: capabilitiesForRole("buyer"),
+    photoURL: user.photoURL ?? "",
+    createdAt: user.metadata.creationTime ?? new Date().toISOString(),
+  });
 }
 
 function readCachedProfile(): EasyRideUser | null {
@@ -197,15 +234,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (supabase) {
       let active = true;
-      void supabase.auth.getUser().then(async ({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setProfile(null);
-        } else if (data.user) {
-          setProfile(await loadSupabaseProfile(data.user));
+      void (async () => {
+        try {
+          const result = await withAuthDeadline<Awaited<ReturnType<typeof supabase.auth.getUser>> | null>(supabase.auth.getUser(), null);
+          if (!active) return;
+          if (!result) {
+            setProfile(readSessionProfile());
+          } else if (result.data.user) {
+            const user = result.data.user;
+            const loaded = await withAuthDeadline(loadSupabaseProfile(user), supabaseFallbackProfile(user));
+            if (active) setProfile(loaded);
+          } else if (!result.error) {
+            setProfile(null);
+          }
+        } catch {
+          if (active) setProfile(readSessionProfile());
+        } finally {
+          if (active) setLoading(false);
         }
-        setLoading(false);
-      });
+      })();
 
       const {
         data: { subscription },
@@ -215,8 +262,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
-        void loadSupabaseProfile(session.user).then((nextProfile) => {
-          if (active) setProfile(nextProfile);
+        void withAuthDeadline(loadSupabaseProfile(session.user), supabaseFallbackProfile(session.user)).then((nextProfile) => {
+          if (!active) return;
+          setProfile(nextProfile);
           setLoading(false);
         });
       });
@@ -233,17 +281,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
-
-      if (user) {
-        const userProfile = await loadFirebaseProfile(user);
-        setProfile(userProfile);
-      } else {
-        setProfile(null);
+      try {
+        if (user) {
+          const userProfile = await withAuthDeadline(loadFirebaseProfile(user), firebaseFallbackProfile(user));
+          setProfile(userProfile ?? firebaseFallbackProfile(user));
+        } else {
+          setProfile(null);
+        }
+      } catch {
+        setProfile(user ? firebaseFallbackProfile(user) : null);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     });
   }, [supabase]);
+
+  const continueWithLocalRole = (role: UserRole) => {
+    const label = role === "admin" ? "Admin" : role === "seller" ? "Seller" : "Buyer";
+    const localProfile: EasyRideUser = {
+      id: `local-${role}`,
+      name: `Local ${label}`,
+      email: `${role}@easyride.local`,
+      role,
+      roles: [role],
+      capabilities: capabilitiesForRole(role),
+      createdAt: new Date().toISOString(),
+    };
+    writeCachedProfile(localProfile);
+    writeSessionProfile(localProfile);
+    setProfile(localProfile);
+    setLoading(false);
+  };
 
   const register = async ({
     name,
@@ -552,6 +620,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       firebaseEnabled: firebaseReady || isSupabaseConfigured(),
       register,
       login,
+      continueWithLocalRole,
       loginWithGoogle,
       logout,
       refreshProfile,
@@ -565,6 +634,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       register,
       login,
+      continueWithLocalRole,
       loginWithGoogle,
       logout,
       refreshProfile,

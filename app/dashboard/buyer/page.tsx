@@ -6,6 +6,7 @@ import FavoriteButton from "@/Components/FavoriteButton";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
+import { vehicles as demoVehicles } from "@/Data/vehicles";
 import { getUserFavoriteListings } from "@/services/favoriteService";
 import { getActiveListings } from "@/services/listingService";
 import { getUserOffers } from "@/services/offerService";
@@ -30,7 +31,7 @@ export default function BuyerDashboardPage() {
 }
 
 function BuyerDashboardContent() {
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode") === "rent" ? "rent" : "buy";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -44,7 +45,8 @@ function BuyerDashboardContent() {
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
-    if (!profile) return;
+    if (authLoading) return;
+    if (!profile) { setLoading(false); return; }
     const userId = profile.id;
     let cancelled = false;
 
@@ -52,6 +54,14 @@ function BuyerDashboardContent() {
       setLoading(true);
       setLoadError("");
       try {
+        if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+          setVehicles(demoVehicles.filter((vehicle) => vehicle.listingType === mode));
+          setFavoriteVehicles(demoVehicles.slice(0, 2));
+          setSavedCount(2);
+          setOfferCount(3);
+          setBookingCount(2);
+          return;
+        }
         const [activeListings, favorites, offers, bookings] = await Promise.all([
           getActiveListings(),
           getUserFavoriteListings(userId),
@@ -77,7 +87,7 @@ function BuyerDashboardContent() {
     return () => {
       cancelled = true;
     };
-  }, [mode, profile, retryKey]);
+  }, [authLoading, mode, profile, retryKey]);
 
   const recommended = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -111,6 +121,10 @@ function BuyerDashboardContent() {
 
   if (loading) {
     return <div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-[#08784D]" size={32} /></div>;
+  }
+
+  if (!profile) {
+    return <DashboardShell role="buyer"><section className="mx-auto mt-16 max-w-xl rounded-3xl border border-[#DCE5DF] bg-white p-10 text-center"><h1 className="text-2xl font-black">Sign in to open your marketplace</h1><p className="mt-2 text-gray-600">Your account session could not be restored.</p><Link href="/login" className="mt-5 inline-flex rounded-xl bg-[#063F2C] px-5 py-3 font-bold text-white">Sign in</Link></section></DashboardShell>;
   }
 
   return (

@@ -124,7 +124,7 @@ async function notifyRecipient(params: {
 }
 
 function canUseFirestoreMessages() {
-  return firebaseReady && Boolean(db) && Boolean(auth?.currentUser);
+  return process.env.NEXT_PUBLIC_DEMO_MODE !== "true" && firebaseReady && Boolean(db) && Boolean(auth?.currentUser);
 }
 
 async function persistLocalConversationAndMessage(

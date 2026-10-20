@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { SellerRouteContext } from "@/Components/SellerRouteContext";
 import {
   BadgeDollarSign,
   BarChart3,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
 
 type DashboardRole = "personal" | "buyer" | "seller";
 
@@ -49,7 +50,7 @@ const sellerLinks = [
   { label: "Inventory", href: "/dashboard/seller/inventory", icon: CarFront },
   { label: "Leads", href: "/dashboard/seller/leads", icon: Users },
   { label: "Rental Management", href: "/dashboard/seller/rentals", icon: CalendarDays },
-  { label: "Add Vehicle", href: "/create-listing", icon: Plus },
+  { label: "Add Vehicle", href: "/dashboard/seller/add-vehicle", icon: Plus },
   { label: "Favorites", href: "/dashboard/seller/favorites", icon: Heart },
   { label: "Offers", href: "/dashboard/seller/offers", icon: BadgeDollarSign },
   { label: "Messages", href: "/dashboard/seller/messages", icon: MessageCircle },
@@ -73,6 +74,7 @@ const personalLinks = [
 ];
 
 export default function DashboardShell({ role, children }: DashboardShellProps) {
+  const insidePersistentSellerShell = useContext(SellerRouteContext);
   const { profile, logout } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,6 +98,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   };
 
   const closeMobile = () => setMobileOpen(false);
+
+  if (insidePersistentSellerShell) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-[#F4F7F3] text-[#17251E]">
@@ -186,7 +190,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
                 <input value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA8A1]" placeholder="Search for make, model, or location..." aria-label="Search marketplace" />
               </form>
               <div className="flex items-center gap-3">
-                <Link href="/notifications" aria-label="View notifications" className="relative rounded-full border border-[#DCE5DF] bg-white p-2.5 text-[#063F2C] hover:border-[#08784D]"><Bell size={17} /><span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" /></Link>
+                <Link href={activeRole === "seller" ? "/dashboard/seller/notifications" : "/notifications"} aria-label="View notifications" className="relative rounded-full border border-[#DCE5DF] bg-white p-2.5 text-[#063F2C] hover:border-[#08784D]"><Bell size={17} /><span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" /></Link>
                 <div className="relative">
                   <button type="button" onClick={() => setProfileMenuOpen((current) => !current)} aria-expanded={profileMenuOpen} aria-label="Open profile menu" className="flex items-center gap-2 rounded-full border border-[#DCE5DF] bg-white p-1.5 pr-3 shadow-sm hover:border-[#08784D]">
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B5D3B] text-xs font-black text-white">{initials || "G"}</span>

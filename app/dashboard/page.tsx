@@ -4,6 +4,7 @@ import DashboardShell from "@/Components/DashboardShell";
 import DashboardWelcomeHero from "@/Components/DashboardWelcomeHero";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
+import { vehicles as demoVehicles } from "@/Data/vehicles";
 import { getUserBookings } from "@/services/bookingService";
 import { getUserFavoriteListings } from "@/services/favoriteService";
 import { getActiveListings } from "@/services/listingService";
@@ -26,8 +27,12 @@ export default function DashboardPage() {
 function DashboardRouter() {
   const { profile, loading } = useAuth();
 
-  if (loading || !profile) {
+  if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA]"><Loader2 className="animate-spin text-[#0B5D3B]" size={32} /></div>;
+  }
+
+  if (!profile) {
+    return <div className="flex min-h-screen flex-col items-center justify-center bg-[#F8F9FA] p-6 text-center"><h1 className="text-2xl font-black text-[#17251E]">Sign in to open your dashboard</h1><p className="mt-2 text-gray-600">Your account session could not be restored.</p><Link href="/login" className="mt-5 rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white">Sign in</Link></div>;
   }
 
   if (profile.role === "admin") {
@@ -62,6 +67,13 @@ function PersonalDashboard() {
 
     async function loadDashboard() {
       try {
+        if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+          setVehicles(demoVehicles.filter((vehicle) => mode === "rent" ? vehicle.listingType === "rent" : vehicle.listingType === "buy").slice(0, 3));
+          setSavedCount(2);
+          setOfferCount(3);
+          setBookingCount(2);
+          return;
+        }
         const [activeListings, favorites, offers, bookings] = await Promise.all([
           getActiveListings(),
           getUserFavoriteListings(userId),

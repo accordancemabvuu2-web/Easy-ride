@@ -35,6 +35,7 @@ function FavoritesContent() {
 
   const load = useCallback(async () => {
     if (!profile) { if (demoMode) setVehicles(demoVehicles.slice(0, 4)); setLoading(false); return; }
+    if (demoMode) { setVehicles(demoVehicles.slice(0, 4)); setLoading(false); return; }
     try {
       const saved = await getUserFavoriteListings(profile.id);
       setVehicles(saved.length || !demoMode ? saved : demoVehicles.slice(0, 4));

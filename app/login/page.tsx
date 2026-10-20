@@ -1,6 +1,7 @@
 "use client";
 
-import type { EasyRideUser, UserRole } from "@/Types/user";
+import type { UserRole } from "@/Types/user";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { CarFront, ShieldCheck, Store, UserRound } from "lucide-react";
 import { useState } from "react";
@@ -13,26 +14,12 @@ const roles: { role: UserRole; label: string; description: string; href: string;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { continueWithLocalRole } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>("buyer");
 
   const continueToDashboard = () => {
     const selected = roles.find(({ role }) => role === selectedRole) ?? roles[0];
-    const profile: EasyRideUser = {
-      id: `local-${selected.role}`,
-      name: `Local ${selected.label}`,
-      email: `${selected.role}@easyride.local`,
-      role: selected.role,
-      roles: [selected.role],
-      capabilities: selected.role === "admin"
-        ? ["buy", "rent", "sell", "dealer"]
-        : selected.role === "seller"
-          ? ["buy", "rent", "sell"]
-          : ["buy", "rent"],
-      createdAt: new Date().toISOString(),
-    };
-
-    window.localStorage.setItem("easy-ride:auth-profile", JSON.stringify(profile));
-    window.sessionStorage.setItem("easy-ride:auth-session", JSON.stringify(profile));
+    continueWithLocalRole(selected.role);
     router.replace(selected.href);
   };
 

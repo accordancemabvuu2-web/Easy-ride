@@ -117,7 +117,7 @@ export async function createNotification(
 
   const payload = mapNotificationInput(input);
 
-  if (!firebaseReady || !firestore) {
+  if (!firebaseReady || !firestore || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     const notifications = readLocalNotifications();
     writeLocalNotifications([payload, ...notifications]);
     return;
@@ -133,7 +133,7 @@ export async function createNotification(
 export async function getUserNotifications(userId: string): Promise<EasyRideNotification[]> {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!firebaseReady || !firestore || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     return sortNotifications(
       readLocalNotifications()
         .filter((notification) => notification.userId === userId)
@@ -162,7 +162,7 @@ export async function getUserNotifications(userId: string): Promise<EasyRideNoti
 export async function markNotificationRead(notificationId: string): Promise<void> {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!firebaseReady || !firestore || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     const notifications = readLocalNotifications();
     writeLocalNotifications(
       notifications.map((notification) =>
@@ -198,7 +198,7 @@ export function subscribeNotifications(
 ): () => void {
   const firestore = db;
 
-  if (!firebaseReady || !firestore) {
+  if (!firebaseReady || !firestore || process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     const emit = () => {
       callback(
         sortNotifications(

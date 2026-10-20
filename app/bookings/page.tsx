@@ -42,7 +42,7 @@ function BookingsContent() {
 
     setLoading(true);
     try {
-      const saved = await getUserBookings(profile.id);
+      const saved = process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? [] : await getUserBookings(profile.id);
       if (!saved.length && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
         const now = new Date();
         const date = (offset: number) => new Date(now.getTime() + offset * 86400000).toISOString().slice(0, 10);
