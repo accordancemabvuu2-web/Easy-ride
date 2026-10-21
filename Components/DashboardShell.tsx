@@ -2,6 +2,8 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { SellerRouteContext } from "@/Components/SellerRouteContext";
+import NotificationBell from "@/Components/NotificationBell";
+import { getMyListings } from "@/services/listingService";
 import {
   BadgeDollarSign,
   BarChart3,
@@ -24,7 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 type DashboardRole = "personal" | "buyer" | "seller";
 
@@ -84,6 +86,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [hasBuyerListings, setHasBuyerListings] = useState(false);
   const isSellerRoute = pathname.startsWith("/dashboard/seller");
   const activeRole = isSellerRoute || profile?.role === "seller" || profile?.role === "dealer"
     ? "seller"
@@ -98,6 +101,24 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   };
 
   const closeMobile = () => setMobileOpen(false);
+
+  useEffect(() => {
+    if (profile?.role !== "buyer") {
+      setHasBuyerListings(false);
+      return;
+    }
+    let cancelled = false;
+    void getMyListings(profile.id).then((listings) => {
+      if (!cancelled) setHasBuyerListings(listings.length > 0);
+    }).catch(() => {
+      if (!cancelled) setHasBuyerListings(false);
+    });
+    return () => { cancelled = true; };
+  }, [profile]);
+
+  const visibleLinks = activeRole === "buyer" && hasBuyerListings
+    ? [...links.slice(0, 3), { label: "My Listings", href: "/dashboard/buyer/listings", icon: CarFront }, ...links.slice(3)]
+    : links;
 
   if (insidePersistentSellerShell) return <>{children}</>;
 
@@ -142,7 +163,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           </div>
 
           <nav className="mt-5 space-y-1">
-            {links.map((link) => {
+            {visibleLinks.map((link) => {
               const Icon = link.icon;
               const linkPath = link.href.split("?")[0];
               const linkQuery = new URLSearchParams(link.href.split("?")[1] ?? "");
@@ -182,15 +203,15 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           </div>
         </aside>
 
-        <main className="min-h-screen min-w-0 bg-[#F5F7F4] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 xl:px-10">
+        <main className={`min-h-screen min-w-0 bg-[#F5F7F4] px-4 py-5 sm:px-6 lg:px-8 xl:px-10 ${pathname === "/offers" ? "lg:pt-6" : "lg:py-6"}`}>
           <div className="dashboard-content mx-auto max-w-[1440px]">
-            <div className="mb-8 hidden items-center justify-between gap-5 lg:flex">
-              <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm">
+            <div className={`mb-8 hidden items-center justify-between gap-5 lg:flex ${pathname === "/offers" ? "absolute right-10 top-6 z-10" : ""}`}>
+              {pathname !== "/offers" && <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm">
                 <Search size={17} className="shrink-0 text-[#7A8A82]" />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA8A1]" placeholder="Search for make, model, or location..." aria-label="Search marketplace" />
-              </form>
+              </form>}
               <div className="flex items-center gap-3">
-                <Link href={activeRole === "seller" ? "/dashboard/seller/notifications" : "/notifications"} aria-label="View notifications" className="relative rounded-full border border-[#DCE5DF] bg-white p-2.5 text-[#063F2C] hover:border-[#08784D]"><Bell size={17} /><span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" /></Link>
+                <NotificationBell />
                 <div className="relative">
                   <button type="button" onClick={() => setProfileMenuOpen((current) => !current)} aria-expanded={profileMenuOpen} aria-label="Open profile menu" className="flex items-center gap-2 rounded-full border border-[#DCE5DF] bg-white p-1.5 pr-3 shadow-sm hover:border-[#08784D]">
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B5D3B] text-xs font-black text-white">{initials || "G"}</span>

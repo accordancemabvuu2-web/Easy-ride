@@ -5,7 +5,7 @@ import { markNotificationRead } from "@/services/notificationService";
 import { useNotifications } from "@/hooks/useNotifications";
 import { Bell, BadgeDollarSign, CalendarDays, Car, CreditCard, ShieldCheck, Star, MessageCircle, LifeBuoy } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const iconMap = {
   message: MessageCircle,
@@ -28,6 +28,23 @@ export default function NotificationBell() {
   const { profile } = useAuth();
   const notifications = useNotifications();
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.read).length,
@@ -52,7 +69,7 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         aria-label="Open notifications"
@@ -85,7 +102,7 @@ export default function NotificationBell() {
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">No notifications yet.</div>
             ) : (
-              notifications.slice(0, 8).map((notification) => {
+              notifications.map((notification) => {
                 const Icon = iconMap[notification.type] ?? Bell;
 
                 return (

@@ -158,6 +158,9 @@ async function persistLocalConversationAndMessage(
 
 async function persistLocalRead(conversationIdValue: string, userId: string) {
   const conversations = readLocalConversations().map(normalizeConversation);
+  const conversation = conversations.find((item) => item.id === conversationIdValue);
+  if (!conversation?.unreadBy.includes(userId)) return;
+
   writeLocalConversations(
     conversations.map((conversation) =>
       conversation.id === conversationIdValue

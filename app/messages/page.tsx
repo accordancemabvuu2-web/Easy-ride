@@ -113,20 +113,20 @@ function MessagesContent() {
   }, [currentUserId, requestedConversationId, retryCount]);
 
   useEffect(() => {
-    if (!currentUserId || !selectedConversation) {
+    if (!currentUserId || !selectedConversation?.unreadBy?.includes(currentUserId)) {
       return;
     }
 
     void markConversationRead(selectedConversation.id, currentUserId).catch((error: unknown) => {
       console.error("Could not mark conversation read", error);
     });
-  }, [currentUserId, selectedConversation]);
+  }, [currentUserId, selectedConversation?.id, selectedConversation?.unreadBy]);
 
   const selectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
     setMobileThreadOpen(true);
 
-    if (currentUserId) {
+    if (currentUserId && conversation.unreadBy?.includes(currentUserId)) {
       try {
         await markConversationRead(conversation.id, currentUserId);
       } catch {

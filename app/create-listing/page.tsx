@@ -127,7 +127,7 @@ function CreateListingForm() {
       if (draftId) await updateListingStatus(created.id, "pending");
       window.localStorage.removeItem(storageKey);
       toast.success(`${created.make} ${created.model} sent for review.`);
-      router.push("/dashboard/seller/inventory");
+      router.push(profile.role === "buyer" ? "/dashboard/buyer/listings" : "/dashboard/seller/inventory");
     } catch (error) { toast.error(error instanceof Error ? error.message : "Listing could not be created."); }
     finally { setSubmitting(false); }
   };

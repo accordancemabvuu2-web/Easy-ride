@@ -3,13 +3,14 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { createVehicleOffer } from "@/services/offerService";
 import type { Vehicle } from "@/Types/vehicle";
-import { BadgeDollarSign, Loader2, X } from "lucide-react";
+import { BadgeDollarSign, Loader2, MessageCircle, Phone, Send, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { startConversation } from "@/services/messageService";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
-export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
-  const { firebaseUser, profile } = useAuth();
+export default function OfferForm({ vehicle, buttonClassName, buttonLabel = "Offer" }: { vehicle: Vehicle; buttonClassName?: string; buttonLabel?: string }) {
+  const { profile } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [offeredPrice, setOfferedPrice] = useState(String(Math.max(1, Math.floor(vehicle.price * 0.95))));
@@ -29,7 +30,7 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
   };
 
   const submit = async () => {
-    if (!firebaseUser || !profile) {
+    if (!profile) {
       toast.error("Log in to make an offer.");
       router.push("/login");
       return;
@@ -40,7 +41,7 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
       const offerId = await createVehicleOffer({
         vehicle,
         buyer: {
-          id: firebaseUser.uid,
+          id: profile.id,
           name: profile.name,
           email: profile.email,
           phone: profile.phone ?? "",
@@ -59,12 +60,34 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
     }
   };
 
+  const sendMessage = async () => {
+    if (!profile) {
+      toast.error("Log in to message the seller.");
+      router.push("/login");
+      return;
+    }
+    if (profile.id === vehicle.ownerId) {
+      toast.error("This is your own listing.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const conversationId = await startConversation(vehicle, { id: profile.id, name: profile.name }, `${message.trim()} My offer is ${vehicle.currency} ${amount.toLocaleString()}.`);
+      setOpen(false);
+      router.push(`/messages?conversation=${conversationId}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The message could not be sent.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <>
       <button
         type="button"
         onClick={() => {
-          if (!firebaseUser || !profile) {
+          if (!profile) {
             toast.error("Log in to make an offer.");
             router.push("/login");
             return;
@@ -72,10 +95,10 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
 
           showForm();
         }}
-        className="flex w-full items-center justify-center gap-2 rounded-full border border-[#C9A227] bg-[#C9A227]/10 px-6 py-4 font-bold text-[#7A620F] transition hover:bg-[#C9A227]/20"
+        className={buttonClassName ?? "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#B7D8C8] px-2 py-2.5 text-sm font-bold text-[#07543D] transition hover:bg-[#EFF9F4]"}
       >
-        <BadgeDollarSign size={20} />
-        Make an Offer
+        <BadgeDollarSign size={17} />
+        {buttonLabel}
       </button>
 
       {open && (
@@ -143,15 +166,13 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting || !amountIsValid}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:opacity-60"
-            >
-              {submitting && <Loader2 className="animate-spin" size={18} />}
-              Send Offer
-            </button>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <button type="button" onClick={submit} disabled={submitting || !amountIsValid} className="flex items-center justify-center gap-2 rounded-xl bg-[#0B5D3B] px-3 py-3 text-sm font-bold text-white disabled:opacity-60">
+                {submitting ? <Loader2 className="animate-spin" size={17} /> : <Send size={16} />} Send offer
+              </button>
+              {vehicle.ownerPhone ? <a href={`tel:${vehicle.ownerPhone}`} className="flex items-center justify-center gap-2 rounded-xl border border-[#B7D8C8] px-3 py-3 text-sm font-bold text-[#07543D]"><Phone size={16}/>Book a call</a> : <button type="button" disabled className="flex items-center justify-center gap-2 rounded-xl border border-[#B7D8C8] px-3 py-3 text-sm font-bold text-[#07543D] opacity-50"><Phone size={16}/>Call unavailable</button>}
+              <button type="button" onClick={() => void sendMessage()} disabled={submitting || !message.trim() || !amountIsValid} className="flex items-center justify-center gap-2 rounded-xl border border-[#B7D8C8] px-3 py-3 text-sm font-bold text-[#07543D] disabled:opacity-50"><MessageCircle size={16}/>Send message</button>
+            </div>
           </div>
         </div>
       )}

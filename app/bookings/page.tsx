@@ -5,6 +5,7 @@ import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import { vehicles as demoVehicles } from "@/Data/vehicles";
+import { getActiveListings } from "@/services/listingService";
 import {
   approveBooking,
   cancelBooking,
@@ -12,6 +13,7 @@ import {
   rejectBooking,
 } from "@/services/bookingService";
 import type { RentalBooking } from "@/Types/booking";
+import type { Vehicle } from "@/Types/vehicle";
 import { CalendarDays, Check, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -35,6 +37,8 @@ function BookingsContent() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [detailsBooking, setDetailsBooking] = useState<RentalBooking|null>(null);
+  const [availableRentals, setAvailableRentals] = useState<Vehicle[]>([]);
+  const [showRentals, setShowRentals] = useState(false);
 
   const loadBookings = useCallback(async () => {
     if (!profile) {
@@ -63,6 +67,15 @@ function BookingsContent() {
     void loadBookings();
   }, [loadBookings]);
 
+  useEffect(() => {
+    if (isSeller) return;
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+      setAvailableRentals(demoVehicles.filter((vehicle) => vehicle.listingType === "rent" && vehicle.status === "active"));
+      return;
+    }
+    void getActiveListings().then((listings) => setAvailableRentals(listings.filter((vehicle) => vehicle.listingType === "rent"))).catch(() => setAvailableRentals([]));
+  }, [isSeller]);
+
   const orderedBookings = useMemo(
     () => [...bookings]
       .filter((booking) => tab === "all" || (tab === "upcoming" ? ["pending", "awaiting_payment", "confirmed"].includes(booking.status) : tab === "active" ? booking.status === "active" : ["completed", "cancelled", "rejected"].includes(booking.status)))
@@ -74,6 +87,7 @@ function BookingsContent() {
   const upcomingCount = bookings.filter((booking) => ["pending", "awaiting_payment", "confirmed"].includes(booking.status)).length;
   const activeCount = bookings.filter((booking) => booking.status === "active").length;
   const pastCount = bookings.filter((booking) => ["completed", "cancelled", "rejected"].includes(booking.status)).length;
+  const matchingRentals = availableRentals.filter((vehicle) => !search.trim() || `${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.location.city} ${vehicle.location.country}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   const approve = (booking: RentalBooking) => {
     if (!profile) return;
@@ -130,17 +144,18 @@ function BookingsContent() {
             <p className="mt-2 text-[#73827B]">{isSeller ? "Keep every pickup, handoff, and return running smoothly." : "Manage your upcoming trips, pickups, and vehicle reservations."}</p>
           </div>
 
-          <Link
-            href={isSeller ? "/dashboard/seller/rentals" : "/marketplace?type=rent"}
+          {isSeller ? <Link
+            href="/dashboard/seller/rentals"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#07543D] px-5 py-3 font-semibold text-white"
           >
             <CalendarDays size={18} />
-            {isSeller ? "Rental management" : "Browse vehicles"}
-          </Link>
+            Rental management
+          </Link> : <button type="button" onClick={() => setShowRentals((shown) => !shown)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#07543D] px-5 py-3 font-semibold text-white"><CalendarDays size={18}/>{showRentals ? "Hide available vehicles" : "Browse vehicles"}</button>}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3"><BookingMetric label="Upcoming" value={upcomingCount}/><BookingMetric label="Active now" value={activeCount}/><BookingMetric label="Past bookings" value={pastCount}/></div>
-        <div className="flex flex-col gap-3 rounded-2xl border border-[#E5ECE8] bg-white p-4 xl:flex-row xl:items-center"><div className="flex w-fit rounded-xl border border-[#E4EBE7] p-1">{[["upcoming","Upcoming",upcomingCount],["active","Active",activeCount],["past","Past bookings",pastCount],["all","All",bookings.length]].map(([key,label,count])=><button key={key} onClick={()=>setTab(String(key))} className={`rounded-lg px-3 py-2 text-sm font-bold ${tab===key?"bg-[#07543D] text-white":"text-[#687970]"}`}>{label} ({count})</button>)}</div><div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-3 text-[#718179]" size={18}/><input className="h-11 w-full rounded-xl border border-[#E1E9E4] bg-white pl-10 pr-3 text-sm outline-none" placeholder="Search bookings" value={search} onChange={(e)=>setSearch(e.target.value)}/></div><div className="flex items-center gap-2"><SlidersHorizontal size={17} className="text-[#07543D]"/><select aria-label="Filter booking status" className="h-11 rounded-xl border border-[#E1E9E4] bg-white px-3 text-sm" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">All statuses</option>{["pending","awaiting_payment","confirmed","active","completed","cancelled","rejected"].map((s)=><option key={s} value={s}>{s.replace("_"," ")}</option>)}</select></div></div>
+        <div className="flex flex-col gap-3 rounded-2xl border border-[#E5ECE8] bg-white p-4 xl:flex-row xl:items-center"><div className="flex w-fit rounded-xl border border-[#E4EBE7] p-1">{[["upcoming","Upcoming",upcomingCount],["active","Active",activeCount],["past","Past bookings",pastCount],["all","All",bookings.length]].map(([key,label,count])=><button key={key} onClick={()=>setTab(String(key))} className={`rounded-lg px-3 py-2 text-sm font-bold ${tab===key?"bg-[#07543D] text-white":"text-[#687970]"}`}>{label} ({count})</button>)}</div><div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-3 text-[#718179]" size={18}/><input className="h-11 w-full rounded-xl border border-[#E1E9E4] bg-white pl-10 pr-3 text-sm outline-none" placeholder={isSeller ? "Search bookings" : "Search bookings or rental vehicles"} value={search} onChange={(e)=>{setSearch(e.target.value); if (!isSeller && e.target.value.trim()) setShowRentals(true);}}/></div><div className="flex items-center gap-2"><SlidersHorizontal size={17} className="text-[#07543D]"/><select aria-label="Filter booking status" className="h-11 rounded-xl border border-[#E1E9E4] bg-white px-3 text-sm" value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value)}><option value="all">All statuses</option>{["pending","awaiting_payment","confirmed","active","completed","cancelled","rejected"].map((s)=><option key={s} value={s}>{s.replace("_"," ")}</option>)}</select></div></div>
+        {!isSeller && showRentals && <section className="rounded-2xl border border-[#E5ECE8] bg-white p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-black">Available rental vehicles</h2><p className="mt-1 text-sm text-[#718179]">Browse and book without leaving your bookings page.</p></div><span className="text-sm text-[#718179]">{matchingRentals.length} available</span></div>{matchingRentals.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{matchingRentals.map((vehicle)=><article key={vehicle.id} className="overflow-hidden rounded-xl border border-[#E4EBE7]"><div className="relative h-44"><Image src={vehicle.coverImage} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover"/></div><div className="p-4"><h3 className="font-black">{vehicle.year} {vehicle.make} {vehicle.model}</h3><p className="mt-1 text-sm text-[#718179]">{vehicle.location.city}, {vehicle.location.country}</p><p className="mt-3 font-black">{vehicle.currency} {vehicle.price.toLocaleString()} / {vehicle.priceLabel ?? "day"}</p><Link href={`/bookings/new?vehicle=${encodeURIComponent(vehicle.id)}`} className="mt-4 inline-flex rounded-full bg-[#07543D] px-4 py-2 text-sm font-bold text-white">Book this vehicle</Link></div></article>)}</div> : <p className="mt-4 rounded-xl bg-[#F6F9F7] p-4 text-sm text-[#718179]">No available rentals match “{search}”.</p>}</section>}
         {loading ? (
           <div className="flex min-h-72 items-center justify-center">
             <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
