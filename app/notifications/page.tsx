@@ -76,9 +76,9 @@ function NotificationsContent() {
     if (["offer"].includes(notification.type)) return "offers";
     if (["booking", "payment"].includes(notification.type)) return "bookings";
     if (["message", "new_message"].includes(notification.type)) return "messages";
-    return "all";
+    return "updates";
   };
-  const filtered = notifications.filter((item) => (tab === "all" || (tab === "unread" ? !item.read : tabType(item) === tab)) && (!search || `${item.title} ${item.message}`.toLowerCase().includes(search.toLowerCase())));
+  const filtered = useMemo(() => notifications.filter((item) => (tab === "all" || (tab === "unread" ? !item.read : tabType(item) === tab)) && (!search || `${item.title} ${item.message} ${item.type}`.toLowerCase().includes(search.trim().toLowerCase()))), [notifications, search, tab]);
   const togglePreference = (key: string) => setPreferences((current) => {
     const next = { ...current, [key]: !current[key] };
     window.localStorage.setItem(`easy-ride:notification-preferences:${profile?.id ?? "guest"}`, JSON.stringify(next));
@@ -115,7 +115,7 @@ function NotificationsContent() {
             </button>}<a href="#notification-preferences" className="inline-flex items-center gap-2 rounded-xl border border-[#DCE6E0] bg-white px-4 py-3 text-sm font-semibold"><Settings size={17}/>Settings</a></div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><NotificationMetric icon={Bell} label="Total notifications" value={notifications.length}/><NotificationMetric icon={CheckCheck} label="Unread" value={unreadNotifications.length}/><NotificationMetric icon={BadgeDollarSign} label="Offer updates" value={notifications.filter((n)=>n.type==="offer").length}/><NotificationMetric icon={CalendarDays} label="Booking updates" value={notifications.filter((n)=>["booking","payment"].includes(n.type)).length}/></div>
-        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]"><div className="space-y-4"><div className="flex flex-col gap-3 rounded-2xl border border-[#E5ECE8] bg-white p-3 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1">{[["all","All"],["unread","Unread"],["offers","Offers"],["bookings","Bookings"],["messages","Messages"]].map(([key,label])=><button key={key} onClick={()=>setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-bold ${tab===key?"bg-[#07543D] text-white":"text-[#687970]"}`}>{label} ({key==="all"?notifications.length:key==="unread"?unreadNotifications.length:notifications.filter((n)=>tabType(n)===key).length})</button>)}</div><div className="relative min-w-40 flex-1"><Search className="absolute left-3 top-3 text-[#718179]" size={17}/><input value={search} onChange={(e)=>setSearch(e.target.value)} className="h-10 w-full rounded-lg border border-[#E1E9E4] pl-9 pr-3 text-sm outline-none" placeholder="Search notifications"/></div></div>
+        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]"><div className="space-y-4"><div className="flex flex-col gap-3 rounded-2xl border border-[#E5ECE8] bg-white p-3 sm:flex-row sm:items-center"><div className="flex flex-wrap gap-1">{[["all","All"],["unread","Unread"],["offers","Offers"],["bookings","Bookings"],["messages","Messages"],["updates","Other updates"]].map(([key,label])=><button key={key} onClick={()=>setTab(key)} className={`rounded-lg px-3 py-2 text-sm font-bold ${tab===key?"bg-[#07543D] text-white":"text-[#687970]"}`}>{label} ({key==="all"?notifications.length:key==="unread"?unreadNotifications.length:notifications.filter((n)=>tabType(n)===key).length})</button>)}</div><div className="relative min-w-40 flex-1"><Search className="absolute left-3 top-3 text-[#718179]" size={17}/><input value={search} onChange={(e)=>setSearch(e.target.value)} className="h-10 w-full rounded-lg border border-[#E1E9E4] pl-9 pr-3 text-sm outline-none" placeholder="Search notifications"/></div></div>
 
         {filtered.length === 0 ? (
           <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-14 text-center">

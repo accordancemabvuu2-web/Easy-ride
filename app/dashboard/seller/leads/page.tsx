@@ -1,6 +1,6 @@
 "use client";
 
-import DashboardShell from "@/Components/DashboardShell";
+import DashboardShell, { useDashboardSearch } from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,7 @@ export default function SellerLeadsPage() {
 
 function LeadsContent() {
   const { profile } = useAuth();
+  const dashboardSearch = useDashboardSearch();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [offers, setOffers] = useState<VehicleOffer[]>([]);
   const [search, setSearch] = useState("");
@@ -58,9 +59,10 @@ function LeadsContent() {
 
   const filtered = useMemo(() => conversations.filter((conversation) => {
     const text = `${conversation.buyerName} ${conversation.listingTitle} ${conversation.lastMessage}`.toLowerCase();
+    const searchTerm = (search || dashboardSearch).toLowerCase();
     const unread = conversation.unreadBy?.includes(profile?.id ?? "") ?? false;
-    return text.includes(search.toLowerCase()) && (tab === "all" || (tab === "unread" ? unread : !unread));
-  }), [conversations, profile?.id, search, tab]);
+    return text.includes(searchTerm) && (tab === "all" || (tab === "unread" ? unread : !unread));
+  }), [conversations, dashboardSearch, profile?.id, search, tab]);
   const selected = filtered.find((conversation) => conversation.id === selectedId) ?? filtered[0] ?? null;
   const unreadCount = conversations.filter((conversation) => conversation.unreadBy?.includes(profile?.id ?? "")).length;
   const pendingOffers = offers.filter((offer) => ["pending", "countered"].includes(offer.status)).length;

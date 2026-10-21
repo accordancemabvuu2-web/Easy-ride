@@ -1,6 +1,6 @@
 "use client";
 
-import DashboardShell from "@/Components/DashboardShell";
+import DashboardShell, { useDashboardSearch } from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,7 @@ export default function SellerInventoryPage() {
 
 function InventoryContent() {
   const { profile } = useAuth();
+  const dashboardSearch = useDashboardSearch();
   const [listings, setListings] = useState<InventoryListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<InventoryTab>("all");
@@ -77,10 +78,11 @@ function InventoryContent() {
   }), [listings]);
   const filtered = useMemo(() => listings.filter((item) => {
     const status = resolvedStatus(item);
-    const searchMatch = `${item.make} ${item.model} ${item.year} ${item.stockNumber} ${item.location.city}`.toLowerCase().includes(query.toLowerCase());
+    const searchTerm = (query || dashboardSearch).toLowerCase();
+    const searchMatch = `${item.make} ${item.model} ${item.year} ${item.stockNumber} ${item.location.city} ${item.location.country} ${status}`.toLowerCase().includes(searchTerm);
     const tabMatch = tab === "all" || (tab === "attention" ? Boolean(item.attention) : tab === "draft" ? status === "draft" : tab === "review" ? status === "pending" : tab === "live" ? status === "active" : status === tab);
     return searchMatch && tabMatch && (statusFilter === "all" || status === statusFilter) && (makeFilter === "all" || item.make === makeFilter) && (locationFilter === "all" || item.location.city === locationFilter);
-  }).sort((a, b) => sort === "price-asc" ? a.price - b.price : sort === "price-desc" ? b.price - a.price : sort === "performance" ? (b.views + b.favoritesCount + b.enquiries) - (a.views + a.favoritesCount + a.enquiries) : (b.updatedAt ?? b.createdAt ?? "").localeCompare(a.updatedAt ?? a.createdAt ?? "")), [listings, query, tab, statusFilter, makeFilter, locationFilter, sort]);
+  }).sort((a, b) => sort === "price-asc" ? a.price - b.price : sort === "price-desc" ? b.price - a.price : sort === "performance" ? (b.views + b.favoritesCount + b.enquiries) - (a.views + a.favoritesCount + a.enquiries) : (b.updatedAt ?? b.createdAt ?? "").localeCompare(a.updatedAt ?? a.createdAt ?? "")), [dashboardSearch, listings, query, tab, statusFilter, makeFilter, locationFilter, sort]);
 
   const updateStatus = async (listing: InventoryListing, status: ListingStatus) => {
     try { await updateListingStatus(listing.id, status); toast.success("Listing updated."); await load(); setSelected(null); }

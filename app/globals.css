@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8f5;
-  --foreground: #17201d;
-  --primary: #0b5d3b;
-  --primary-hover: #084b30;
+  --background: #f5f7f4;
+  --foreground: #17231d;
+  --primary: #07543d;
+  --primary-hover: #064632;
   --gold: #c9a227;
-  --border: #e4e9e5;
-  --easy-deep: #052e16;
-  --easy-green: #0b4a32;
-  --easy-black: #02140b;
-  --easy-gold-light: #e5be42;
-  --dashboard-bg: #090d10;
+  --border: #dce5df;
+  --easy-deep: #063f2c;
+  --easy-green: #07543d;
+  --easy-black: #17221c;
+  --easy-gold-light: #e6c66f;
+  --dashboard-bg: #f5f7f4;
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-bg: rgba(255, 255, 255, 0.035);
 }
@@ -108,13 +108,23 @@ a {
 }
 
 button:focus-visible,
-a:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(7, 84, 61, 0.55);
+  outline-offset: 3px;
+}
+
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(201, 162, 39, 0.45);
-  outline-offset: 3px;
+  outline: none;
 }
+
+input[type="search"],
+input[aria-label*="search" i],
+input[placeholder*="search" i] { outline: none; }
+input[type="search"]:focus,
+input[aria-label*="search" i]:focus,
+input[placeholder*="search" i]:focus { outline: none; box-shadow: none; }
 
 .input {
   @apply w-full rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 outline-none transition focus:border-[#0B5D3B];
@@ -125,9 +135,91 @@ textarea:focus-visible {
 }
 
 .dashboard-shell {
+  background: var(--dashboard-bg);
+}
+
+/* Shared dashboard colors also cover older subpages that still use slate utilities. */
+.dashboard-theme {
+  --dashboard-ink: #17231d;
+  --dashboard-muted: #53645b;
+  --dashboard-border: #dce5df;
+  --dashboard-soft: #eaf2ed;
+  isolation: isolate;
+}
+
+@keyframes dashboard-content-enter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes dashboard-pop-enter {
+  from { opacity: 0; transform: translate3d(0, 5px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.dashboard-sidebar {
   background:
-    radial-gradient(circle at 20% 0%, rgba(11, 74, 50, 0.22), transparent 34%),
-    var(--dashboard-bg);
+    radial-gradient(ellipse at 5% 0%, rgba(23, 120, 77, .26), transparent 42%),
+    linear-gradient(165deg, #063f2c 0%, #052f22 58%, #04271c 100%);
+}
+.dashboard-nav-link { position: relative; transition: background-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease; }
+.dashboard-nav-link::before { content: ""; position: absolute; inset-block: 22%; left: 0; width: 3px; border-radius: 0 4px 4px 0; background: #c9a227; transform: scaleY(0); transition: transform .22s ease; }
+.dashboard-nav-link:hover { transform: translateX(2px); }
+.dashboard-nav-active { background: #c9a227 !important; border-color: #c9a227 !important; color: #17221c !important; animation: dashboard-pop-enter .22s ease-out both; }
+.dashboard-nav-active::before { transform: scaleY(1); }
+.dashboard-content > :not(.mb-8) { animation: dashboard-content-enter .32s ease-out both; }
+.dashboard-theme :is(button, a) { transition-timing-function: cubic-bezier(.2,.75,.25,1); }
+.dashboard-theme :is(button, a):active:not(:disabled) { transform: scale(.985); }
+.dashboard-theme :is(article, [class*="rounded-2xl"][class*="bg-white"]) { transition: box-shadow .22s ease, border-color .22s ease; }
+.dashboard-welcome-hero { box-shadow: 0 18px 44px -34px rgba(6, 63, 44, .52); }
+.dashboard-theme :is(input, select, textarea):focus-visible { outline: none; }
+.dashboard-theme :is(button, a):focus-visible { outline: 3px solid rgba(7, 84, 61, .55); outline-offset: 3px; }
+
+@keyframes landing-rise-in {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.landing-hero-copy { animation: landing-rise-in .65s cubic-bezier(.2,.75,.25,1) both; }
+.landing-search-panel { animation: landing-rise-in .65s .12s cubic-bezier(.2,.75,.25,1) both; }
+.landing-vehicle-card {
+  animation: landing-rise-in .45s calc(var(--landing-card-index, 0) * 70ms) cubic-bezier(.2,.75,.25,1) both;
+  transition: transform .28s cubic-bezier(.2,.75,.25,1), border-color .25s ease, box-shadow .25s ease !important;
+}
+.landing-vehicle-card:hover { transform: translateY(-4px); border-color: #b9cdbf; box-shadow: 0 18px 36px -28px rgba(6,63,44,.48); }
+.landing-vehicle-card img { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
+.landing-vehicle-card:hover img { transform: scale(1.035); }
+.landing-motion :is(button, a) { transition-timing-function: cubic-bezier(.2,.75,.25,1); }
+.landing-motion :is(button, a):active:not(:disabled) { transform: scale(.985); }
+
+.dashboard-theme :is(.text-slate-400, .text-gray-400) { color: #6b7b72; }
+.dashboard-theme :is(.text-slate-500, .text-gray-500) { color: var(--dashboard-muted); }
+.dashboard-theme :is(.text-slate-600, .text-gray-600) { color: #43534a; }
+.dashboard-theme :is(.text-slate-700, .text-gray-700) { color: #34443b; }
+.dashboard-theme :is(.border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200) { border-color: var(--dashboard-border); }
+.dashboard-theme :is(.bg-slate-50, .bg-gray-50) { background-color: #f4f7f4; }
+.dashboard-theme :is(.bg-slate-100, .bg-gray-100) { background-color: #eaf0ec; }
+.dashboard-theme :is(.text-emerald-700, .text-emerald-800, .text-emerald-900) { color: #07543d; }
+.dashboard-theme :is(.bg-emerald-50, .bg-emerald-100) { background-color: #e7f2eb; }
+.dashboard-theme :is(.border-emerald-100, .border-emerald-200) { border-color: #b8d4c4; }
+.dashboard-theme :is(.bg-amber-50, .bg-amber-100) { background-color: #fbf6e8; }
+.dashboard-theme :is(.text-amber-700, .text-amber-800, .text-amber-900) { color: #624d12; }
+.dashboard-theme :is(.border-amber-100, .border-amber-200) { border-color: #e2d3a8; }
+.dashboard-theme :is(.bg-blue-50, .bg-blue-100) { background-color: #edf3f6; }
+.dashboard-theme :is(.text-blue-700, .text-blue-800, .text-blue-900) { color: #365d75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-copy, .landing-search-panel, .landing-vehicle-card {
+    animation: none !important;
+  }
+  .landing-motion *, .landing-motion *::before, .landing-motion *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+  .dashboard-theme *, .dashboard-theme *::before, .dashboard-theme *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
 }
 
 .glass-panel {

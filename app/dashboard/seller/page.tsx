@@ -1,6 +1,6 @@
 "use client";
 
-import DashboardShell from "@/Components/DashboardShell";
+import DashboardShell, { useDashboardSearch } from "@/Components/DashboardShell";
 import DashboardWelcomeHero from "@/Components/DashboardWelcomeHero";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
@@ -31,6 +31,7 @@ export default function SellerDashboardPage() {
 
 function SellerDashboardContent() {
   const { profile, loading: authLoading } = useAuth();
+  const dashboardSearch = useDashboardSearch();
   const [listings, setListings] = useState<Vehicle[]>([]);
   const [offerCount, setOfferCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
@@ -76,6 +77,10 @@ function SellerDashboardContent() {
     views: listings.reduce((total, listing) => total + (listing.views ?? 0), 0),
     enquiries: offerCount + bookingCount,
   }), [bookingCount, listings, offerCount]);
+  const visibleListings = useMemo(() => {
+    const term = dashboardSearch.trim().toLowerCase();
+    return listings.filter((listing) => !term || `${listing.make} ${listing.model} ${listing.year} ${listing.location.city} ${listing.location.country} ${listing.status}`.toLowerCase().includes(term));
+  }, [dashboardSearch, listings]);
 
   const markUnavailable = async (listing: Vehicle) => {
     try {
@@ -128,18 +133,18 @@ function SellerDashboardContent() {
             </div>
             <p className="mt-5 text-sm text-gray-500">Views and enquiries are shown from your listings and current marketplace activity.</p>
           </section>
-          <section className="rounded-[28px] border border-[#063F2F] bg-[#063F2F] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/dashboard/seller/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/dashboard/seller/add-vehicle" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
+          <section className="rounded-[28px] border border-[#DCE5DF] bg-[#FBFCFB] p-6 text-[#17221C] shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#07543D]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl border border-[#E1E9E4] bg-white p-3 text-sm font-semibold hover:border-[#8DB49D] hover:bg-[#F5F8F5]"><MessageCircle size={18} className="text-[#07543D]" /> View buyer leads</Link><Link href="/dashboard/seller/bookings" className="flex items-center gap-3 rounded-2xl border border-[#E1E9E4] bg-white p-3 text-sm font-semibold hover:border-[#8DB49D] hover:bg-[#F5F8F5]"><CalendarDays size={18} className="text-[#07543D]" /> Manage rentals</Link><Link href="/dashboard/seller/add-vehicle" className="flex items-center gap-3 rounded-2xl border border-[#E1E9E4] bg-white p-3 text-sm font-semibold hover:border-[#8DB49D] hover:bg-[#F5F8F5]"><Store size={18} className="text-[#07543D]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-[#C9A227] px-5 py-3 text-sm font-bold text-[#17221C] hover:bg-[#D8B84E]">View enquiries</Link></section>
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller/inventory" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
 
-        {listings.length === 0 ? <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><CarEmpty /><h2 className="mt-4 text-xl font-bold">No vehicles listed yet</h2><p className="mt-2 text-gray-500">Add your first vehicle and start receiving interest.</p><Link href="/dashboard/seller/add-vehicle" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Add a vehicle</Link></div> : <div className="mt-5 space-y-4">{listings.slice(0, 6).map((listing) => <ListingRow key={listing.id} listing={listing} onMarkUnavailable={markUnavailable} onDelete={removeListing} />)}</div>}
+        {visibleListings.length === 0 ? <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><CarEmpty /><h2 className="mt-4 text-xl font-bold">{dashboardSearch ? "No listings match your search" : "No vehicles listed yet"}</h2><p className="mt-2 text-gray-500">{dashboardSearch ? "Try a different make, model, location, or status." : "Add your first vehicle and start receiving interest."}</p>{!dashboardSearch && <Link href="/dashboard/seller/add-vehicle" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Add a vehicle</Link>}</div> : <div className="mt-5 space-y-4">{visibleListings.slice(0, 6).map((listing) => <ListingRow key={listing.id} listing={listing} onMarkUnavailable={markUnavailable} onDelete={removeListing} />)}</div>}
       </section>
     </DashboardShell>
   );
 }
 
-function SellerMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) { return <div className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></div>; }
+function SellerMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) { return <div className="rounded-2xl border border-[#DCE5DF] bg-[#FBFCFB] p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm text-[#53645B]">{label}</p><p className="mt-2 text-3xl font-black text-[#17231D]">{value}</p></div><div className="rounded-xl bg-[#EAF2ED] p-2">{icon}</div></div></div>; }
 
 function ListingRow({ listing, onMarkUnavailable, onDelete }: { listing: Vehicle; onMarkUnavailable: (listing: Vehicle) => void; onDelete: (listing: Vehicle) => void }) { return <article className="grid gap-4 rounded-2xl border border-[#DCE5DF] bg-white p-4 shadow-sm sm:grid-cols-[140px_1fr_auto]"><div className="relative h-28 overflow-hidden rounded-xl"><Image src={listing.coverImage} alt={`${listing.make} ${listing.model}`} fill className="object-cover" sizes="140px" /></div><div><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-black">{listing.make} {listing.model} {listing.year}</h3><StatusBadge status={listing.status} /></div><p className="mt-2 font-bold text-[#063F2C]">{listing.currency} {listing.price.toLocaleString()} <span className="text-sm font-medium text-gray-500">· {listing.location.city}</span></p><p className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500"><span className="flex items-center gap-1"><Eye size={14} /> {listing.views ?? 0} views</span><span className="flex items-center gap-1"><Users size={14} /> Enquiries tracked</span></p>{listing.status === "pending" && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-amber-700"><AlertCircle size={15} /> Awaiting verification</p>}</div><div className="flex flex-row gap-2 sm:flex-col"><Link href={`/vehicle/${listing.id}`} className="rounded-full border border-[#DCE5DF] px-4 py-2 text-center text-xs font-bold">View</Link>{listing.status === "active" && <button type="button" onClick={() => onMarkUnavailable(listing)} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark {listing.listingType === "buy" ? "sold" : "rented"}</button>}<button type="button" onClick={() => onDelete(listing)} className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-600"><Trash2 className="mx-auto" size={15} /></button></div></article>; }
 

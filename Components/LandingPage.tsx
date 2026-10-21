@@ -71,6 +71,7 @@ export default function LandingPage() {
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [showAllFeatured, setShowAllFeatured] = useState(false);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -123,16 +124,12 @@ export default function LandingPage() {
       if (seenListings.has(identity)) return false;
       seenListings.add(identity);
       return true;
-    }).slice(0, 4);
+    });
   }, [mode, vehicles]);
   const marketplaceHref = mode === "buy" ? "/marketplace?type=buy" : "/marketplace?type=rent";
 
   const browseVehicles = () => {
-    const query = new URLSearchParams({ type: mode === "buy" ? "buy" : "rent" });
-    if (location !== "All Locations") query.set("location", location);
-    if (make !== "Any Make") query.set("make", make);
-    if (model !== "Any Model") query.set("model", model);
-    window.location.href = `/marketplace?${query.toString()}#vehicles`;
+    document.getElementById("featured-vehicles")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -164,7 +161,7 @@ export default function LandingPage() {
         </nav>}
       </header>
 
-      <section id="home" className="relative isolate w-full overflow-hidden bg-[#06110f] text-white">
+      <section id="home" className="landing-motion relative isolate w-full overflow-hidden bg-[#06110f] text-white">
         <video
           ref={heroVideoRef}
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_58%]"
@@ -180,12 +177,12 @@ export default function LandingPage() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/74 to-[#06110f]/20" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
         <div className="mx-auto flex min-h-[min(736px,calc(100svh-76px))] w-full max-w-[1440px] flex-col justify-center gap-9 px-4 pb-12 pt-24 sm:px-8 sm:pb-16 sm:pt-28 lg:min-h-[696px] lg:px-12 xl:min-h-[756px]">
-          <div className="max-w-[800px]">
+          <div className="landing-hero-copy max-w-[800px]">
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.19em] text-emerald-300"><ShieldCheck size={14} /> Zimbabwe&#39;s trusted vehicle marketplace</p>
             <h1 className="text-[clamp(2.8rem,7.4vw,5.6rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">The right road<br /><span className="text-emerald-300">starts right here.</span></h1>
             <p className="mt-6 max-w-[510px] text-base leading-7 text-slate-200 sm:text-lg">Find your next car, meet verified sellers and make your move with confidence. Buy or rent, all in one place.</p>
           </div>
-          <div className="w-full max-w-[920px]">
+          <div className="landing-search-panel w-full max-w-[920px]">
             <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/20 bg-[#06110f]/35 p-2.5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-2xl">
               <SearchSelect label="Location" icon={<MapPin size={17} />} value={location} onChange={setLocation} options={locations} dark />
               <SearchSelect label="Make" icon={<CarFront size={17} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} dark />
@@ -210,17 +207,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="featured-vehicles" className="mx-auto w-full max-w-[1440px] px-5 py-10 sm:px-8 sm:py-12 lg:px-12">
+      <section id="featured-vehicles" className="mx-auto w-full max-w-[1440px] scroll-mt-24 px-5 py-10 sm:px-8 sm:py-12 lg:px-12">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#0B5D3B]">Featured vehicles</p><h2 className="mt-1.5 text-[28px] font-bold tracking-tight text-slate-900 sm:text-[32px]">Popular Listings</h2></div>
-          <Link href={marketplaceHref} className="mb-1 hidden items-center gap-1.5 text-sm font-semibold text-[#0B5D3B] hover:text-[#063F2C] sm:flex">View All Vehicles <ArrowRight size={16} /></Link>
+          <button type="button" onClick={() => showAllFeatured ? window.location.assign(marketplaceHref) : setShowAllFeatured(true)} className="mb-1 hidden items-center gap-1.5 text-sm font-semibold text-[#0B5D3B] hover:text-[#063F2C] sm:flex">{showAllFeatured ? "View Marketplace" : "View All Vehicles"} <ArrowRight size={16} /></button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {featuredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
+          {featuredVehicles.slice(0, showAllFeatured ? undefined : 4).map((vehicle, index) => <VehicleCard key={vehicle.id} vehicle={vehicle} index={index} />)}
           {loadingVehicles && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-[330px] animate-pulse rounded-xl border border-slate-200 bg-slate-50" />)}
           {!loadingVehicles && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href={marketplaceHref} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
         </div>
-        <Link href={marketplaceHref} className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>
+        <button type="button" onClick={() => showAllFeatured ? window.location.assign(marketplaceHref) : setShowAllFeatured(true)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">{showAllFeatured ? "View Marketplace" : "View All Vehicles"} <ArrowRight size={16} /></button>
       </section>
 
       <section className="bg-[#f5f8fc]">
@@ -261,9 +258,9 @@ function TrustItem({ icon, title, text }: { icon: ReactNode; title: string; text
   return <div className="flex items-center gap-3 px-3 py-3 first:pl-0 last:pr-0 sm:px-5 lg:px-7"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#0B5D3B]">{icon}</span><span><span className="block text-xs font-bold text-slate-900 sm:text-sm">{title}</span><span className="mt-0.5 hidden text-xs text-slate-500 sm:block">{text}</span></span></div>;
 }
 
-function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+function VehicleCard({ vehicle, index }: { vehicle: Vehicle; index: number }) {
   const image = vehicle.coverImage || vehicle.images?.[0] || "/images/easy-ride-hero.svg";
-  return <article className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
+  return <article className="landing-vehicle-card group relative overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70" style={{ "--landing-card-index": index } as React.CSSProperties}>
     <Link href={`/vehicle/${vehicle.id}`} className="flex h-full flex-col" aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}>
       <div className="relative aspect-[16/10] overflow-hidden bg-slate-100"><Image src={image} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} fill loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-105" /><span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-bold text-white ${vehicle.listingType === "rent" ? "bg-[#0B5D3B]" : "bg-emerald-600"}`}>For {vehicle.listingType === "rent" ? "Rent" : "Sale"}</span></div>
       <div className="flex flex-1 flex-col p-3.5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-slate-900 group-hover:text-[#0B5D3B]">{vehicle.make} {vehicle.model} <span className="font-normal text-slate-500">{vehicle.year}</span></h3>{vehicle.verified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-[#0B5D3B]"><ShieldCheck size={12} /> Verified</span>}</div><p className="mt-1 text-lg font-bold text-slate-900">{vehicle.currency === "USD" ? "$" : `${vehicle.currency} `}{vehicle.price.toLocaleString()}{vehicle.listingType === "rent" && <span className="text-xs font-medium text-slate-500"> / {vehicle.priceLabel || "day"}</span>}</p><p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500"><MapPin size={13} />{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500"><span className="flex items-center gap-1"><Gauge size={13} />{vehicle.mileage.toLocaleString()} km</span><span className="flex items-center gap-1"><CarFront size={14} />{vehicle.transmission}</span><span className="flex items-center gap-1"><Fuel size={13} />{vehicle.fuelType}</span><span>{vehicle.bodyType || "Vehicle"}</span></div><span className="mt-auto pt-4 text-sm font-bold text-[#0B5D3B]">View Vehicle <ArrowRight size={15} className="ml-1 inline" /></span></div>

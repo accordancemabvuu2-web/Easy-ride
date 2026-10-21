@@ -1,7 +1,9 @@
 "use client";
 
-import DashboardShell from "@/Components/DashboardShell";
+import DashboardShell, { useDashboardSearch } from "@/Components/DashboardShell";
 import DashboardWelcomeHero from "@/Components/DashboardWelcomeHero";
+import VehicleDetailsModal from "@/Components/VehicleDetailsModal";
+import OfferForm from "@/Components/OfferForm";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import { vehicles as demoVehicles } from "@/Data/vehicles";
@@ -52,6 +54,7 @@ function DashboardRouter() {
 
 function PersonalDashboard() {
   const { profile } = useAuth();
+  const dashboardSearch = useDashboardSearch();
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode") === "rent" ? "rent" : "buy";
@@ -60,6 +63,8 @@ function PersonalDashboard() {
   const [offerCount, setOfferCount] = useState(0);
   const [bookingCount, setBookingCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [detailsVehicle, setDetailsVehicle] = useState<Vehicle|null>(null);
+  const visibleVehicles = vehicles.filter((vehicle) => !dashboardSearch.trim() || `${vehicle.make} ${vehicle.model} ${vehicle.year} ${vehicle.location.city} ${vehicle.bodyType ?? ""}`.toLowerCase().includes(dashboardSearch.trim().toLowerCase()));
 
   useEffect(() => {
     if (!profile) return;
@@ -114,7 +119,7 @@ function PersonalDashboard() {
           ))}
         </div>
 
-        <Link href={`/marketplace?mode=${mode}`} className="mt-7 flex h-14 max-w-2xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 text-gray-400 shadow-sm transition hover:border-[#08784D]"><Search size={20} /><span>{mode === "rent" ? "Find a vehicle to rent..." : "Search vehicles..."}</span></Link>
+        <label className="mt-7 flex h-14 max-w-2xl items-center gap-3 rounded-2xl border border-[#DCE5DF] bg-white px-4 text-gray-500 shadow-sm transition focus-within:border-[#08784D]"><Search size={20} className="text-[#08784D]" /><input value={dashboardSearch} readOnly placeholder={mode === "rent" ? "Search vehicles to rent..." : "Search vehicles..."} aria-label="Search vehicles in this dashboard" className="w-full bg-transparent text-[#17231D] outline-none placeholder:text-gray-500" /></label>
 
         <div className="mt-7 grid gap-4 sm:grid-cols-3">
           <DashboardMetric icon={<Heart className="text-red-500" />} label="Favorites" value={savedCount} href="/favorites" emptyCta="Browse vehicles to add favorites" emptyCtaHref={`/marketplace?mode=${mode}`} />
@@ -126,12 +131,15 @@ function PersonalDashboard() {
 
         {vehicles.length === 0 ? (
           <div className="mt-5 rounded-xl border border-[#CEDBD0] bg-white p-10 text-center"><Search className="mx-auto text-gray-300" size={38} /><h2 className="mt-4 text-xl font-bold">{mode === "rent" ? "Find a vehicle to rent" : "Start exploring vehicles"}</h2><Link href={`/marketplace?mode=${mode}`} className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Browse marketplace</Link></div>
+        ) : visibleVehicles.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-[#CEDBD0] bg-white p-10 text-center"><Search className="mx-auto text-gray-300" size={38} /><h2 className="mt-4 text-xl font-bold">No vehicles match your search</h2><p className="mt-2 text-sm text-gray-500">Try another make, model, year, location, or body type.</p></div>
         ) : (
-          <div className="mt-5 grid gap-5 md:grid-cols-3">{vehicles.map((vehicle) => <Link key={vehicle.id} href={`/vehicle/${vehicle.id}`} className="group overflow-hidden rounded-2xl border border-[#DCE5DF] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]"><Image src={vehicle.coverImage} alt={`${vehicle.make} ${vehicle.model}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" /></div><div className="p-4"><h3 className="font-bold group-hover:text-[#08784D]">{vehicle.make} {vehicle.model} {vehicle.year}</h3><p className="mt-2 font-black text-[#063F2C]">{vehicle.currency} {vehicle.price.toLocaleString()}</p><p className="mt-1 text-sm text-gray-500">{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p></div></Link>)}</div>
+          <div className="mt-5 grid gap-5 md:grid-cols-3">{visibleVehicles.map((vehicle) => <button type="button" key={vehicle.id} onClick={()=>setDetailsVehicle(vehicle)} className="group overflow-hidden rounded-2xl border border-[#DCE5DF] bg-white text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><div className="relative aspect-[4/3] overflow-hidden bg-[#EEF4F0]"><Image src={vehicle.coverImage} alt={`${vehicle.make} ${vehicle.model}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" /></div><div className="p-4"><h3 className="font-bold group-hover:text-[#08784D]">{vehicle.make} {vehicle.model} {vehicle.year}</h3><p className="mt-2 font-black text-[#063F2C]">{vehicle.currency} {vehicle.price.toLocaleString()}</p><p className="mt-1 text-sm text-gray-500">{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p><span className="mt-3 block text-sm font-bold text-[#07543D]">View details</span></div></button>)}</div>
         )}
 
         <div className="mt-10 flex flex-col gap-4 rounded-3xl bg-[#063F2C] p-6 text-white sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Grow with Easy Ride</p><h2 className="mt-2 text-xl font-black">{mode === "rent" ? "Have a vehicle to rent?" : "Interested in selling vehicles?"}</h2><p className="mt-1 text-sm text-white/70">List vehicles, manage enquiries and grow your Easy Ride activity from one account.</p></div><Link href="/create-listing" className="inline-flex shrink-0 rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">{mode === "rent" ? "List a rental" : "Add a vehicle"}</Link></div>
       </section>
+      {detailsVehicle&&<VehicleDetailsModal vehicle={detailsVehicle} onClose={()=>setDetailsVehicle(null)} actions={detailsVehicle.listingType === "buy" ? <OfferForm vehicle={detailsVehicle}/> : undefined}/>}
     </DashboardShell>
   );
 }

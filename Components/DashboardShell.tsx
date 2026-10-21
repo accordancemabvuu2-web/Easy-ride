@@ -23,8 +23,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useContext, useState, type ReactNode } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 
 type DashboardRole = "personal" | "buyer" | "seller";
 
@@ -32,6 +32,9 @@ interface DashboardShellProps {
   role: DashboardRole;
   children: ReactNode;
 }
+
+const DashboardSearchContext = createContext("");
+export function useDashboardSearch() { return useContext(DashboardSearchContext); }
 
 const buyerLinks = [
   { label: "Dashboard", href: "/dashboard/buyer", icon: LayoutDashboard },
@@ -78,7 +81,6 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const { profile, logout } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -91,10 +93,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const links = activeRole === "personal" ? personalLinks : activeRole === "buyer" ? buyerLinks : sellerLinks;
   const displayName = profile?.name?.trim() || "Guest";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const value = search.trim();
-    router.push(value ? `/marketplace?q=${encodeURIComponent(value)}` : "/marketplace");
   };
 
   const closeMobile = () => setMobileOpen(false);
@@ -102,8 +102,8 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   if (insidePersistentSellerShell) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-[#F4F7F3] text-[#17251E]">
-      <header className="sticky top-0 z-40 border-b border-[#E4EAE6] bg-white/95 backdrop-blur lg:hidden">
+    <div className="dashboard-theme min-h-screen bg-[#F5F7F4] text-[#17231D]">
+      <header className="sticky top-0 z-40 border-b border-[#DCE5DF] bg-[#F9FBF9]/95 backdrop-blur lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2 font-black text-[#063F2C]">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#063F2C] text-sm text-white">ER</span>
@@ -121,11 +121,11 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
       </header>
 
       <div className="relative min-h-screen w-full lg:pl-[270px]">
-        <aside className={`${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-xl border border-[#063F2F] bg-[#063F2F] p-4 text-white shadow-xl lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:h-screen lg:w-[270px] lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-[#063F2F] lg:shadow-none`}>
+        <aside className={`dashboard-sidebar ${mobileOpen ? "fixed inset-x-3 top-[72px] z-50" : "hidden"} w-auto shrink-0 rounded-xl border border-[#063F2F] bg-[#063F2F] p-4 text-white shadow-xl lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:h-screen lg:w-[270px] lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-[#063F2F] lg:shadow-none`}>
           <div className="hidden items-center gap-3 px-3 py-4 lg:flex">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#C9A227] font-black text-[#17221C]">ER</span>
             <div>
-              <p className="font-black tracking-tight">EASY<span className="text-[#E7B319]">RIDE</span></p>
+              <p className="font-black tracking-tight">EASY<span className="text-[#D9B84F]">RIDE</span></p>
               <p className="text-xs text-white/60">{activeRole === "personal" ? "Personal account" : activeRole === "buyer" ? "Marketplace" : "Seller studio"}</p>
             </div>
           </div>
@@ -137,7 +137,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
                 {activeRole === "personal" ? <UserRound size={16} /> : activeRole === "buyer" ? <Search size={16} /> : <Store size={16} />}
                 {activeRole === "personal" ? "Personal" : activeRole === "buyer" ? "Buyer" : "Seller"}
               </span>
-              {activeRole === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">Become a Dealer</Link> : null}
+              {activeRole === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E6C66F] hover:underline">Become a Dealer</Link> : null}
             </div>
           </div>
 
@@ -160,7 +160,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
                   key={link.label}
                   href={link.href}
                   onClick={closeMobile}
-                  className={`flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[#A8E6C3] bg-white text-[#063F2C] shadow-sm" : "border-transparent text-white/75 hover:bg-white/10 hover:text-white"}`}
+                  className={`dashboard-nav-link flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${active ? "dashboard-nav-active border-[#C9A227] bg-[#C9A227] text-[#17221C] shadow-sm" : "border-transparent text-white/85 hover:bg-white/10 hover:text-white"}`}
                 >
                   <Icon size={18} />
                   {link.label}
@@ -182,10 +182,10 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
           </div>
         </aside>
 
-        <main className="min-h-screen min-w-0 bg-[#F4F7F3] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 xl:px-10">
-          <div className="mx-auto max-w-[1440px]">
+        <main className="min-h-screen min-w-0 bg-[#F5F7F4] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 xl:px-10">
+          <div className="dashboard-content mx-auto max-w-[1440px]">
             <div className="mb-8 hidden items-center justify-between gap-5 lg:flex">
-              <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm focus-within:border-[#08784D] focus-within:ring-2 focus-within:ring-[#08784D]/10">
+              <form onSubmit={submitSearch} className="flex h-11 min-w-0 max-w-xl flex-1 items-center gap-3 rounded-xl border border-[#DCE5DF] bg-white px-4 shadow-sm">
                 <Search size={17} className="shrink-0 text-[#7A8A82]" />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA8A1]" placeholder="Search for make, model, or location..." aria-label="Search marketplace" />
               </form>
@@ -205,7 +205,7 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
                 </div>
               </div>
             </div>
-            {children}
+            <DashboardSearchContext.Provider value={search}>{children}</DashboardSearchContext.Provider>
           </div>
         </main>
       </div>

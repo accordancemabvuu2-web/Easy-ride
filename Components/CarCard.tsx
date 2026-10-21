@@ -1,11 +1,13 @@
 "use client";
 
 import FavoriteButton from "@/Components/FavoriteButton";
+import VehicleDetailsModal from "@/Components/VehicleDetailsModal";
+import OfferForm from "@/Components/OfferForm";
+import BookingForm from "@/Components/BookingForm";
 import type { Vehicle } from "@/Types/vehicle";
 import { BadgeCheck, Fuel, Gauge, MapPin, Settings2 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 interface CarCardProps {
   vehicle: Vehicle;
@@ -13,23 +15,18 @@ interface CarCardProps {
 }
 
 export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
-  const searchParams = useSearchParams();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const formattedPrice = new Intl.NumberFormat("en-US").format(vehicle.price);
   const isList = layout === "list";
-  const pickupDate = searchParams.get("pickupDate");
-  const returnDate = searchParams.get("returnDate");
-  const detailHref = vehicle.listingType === "rent" && (pickupDate || returnDate)
-    ? `/vehicle/${vehicle.id}?pickupDate=${encodeURIComponent(pickupDate ?? "")}&returnDate=${encodeURIComponent(returnDate ?? "")}`
-    : `/vehicle/${vehicle.id}`;
-
   return (
+    <>
     <article
       className={`group overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg ${
         isList ? "md:grid md:grid-cols-[320px_1fr]" : ""
       }`}
     >
       <div className={`relative overflow-hidden ${isList ? "h-60 md:h-full" : "h-56"}`}>
-        <Link href={detailHref} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
+        <button type="button" onClick={() => setDetailsOpen(true)} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
           <Image
             src={vehicle.coverImage}
             alt={`${vehicle.make} ${vehicle.model}`}
@@ -37,7 +34,7 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
             className="object-cover transition duration-500 group-hover:scale-105"
             sizes="(max-width: 768px) 100vw, 33vw"
           />
-        </Link>
+        </button>
 
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-[#0B5D3B] px-3 py-1 text-xs font-bold text-white">
@@ -60,9 +57,9 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-xl font-bold text-[#121212]">
-              <Link href={detailHref} className="hover:text-[#0B5D3B]">
+              <button type="button" onClick={() => setDetailsOpen(true)} className="text-left hover:text-[#0B5D3B]">
               {vehicle.make} {vehicle.model} {vehicle.year}
-              </Link>
+              </button>
             </h3>
             <p className="mt-1 flex items-center gap-2 text-sm text-gray-500">
               <MapPin size={16} />
@@ -115,14 +112,17 @@ export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
             {vehicle.condition}
           </span>
 
-          <Link
-            href={detailHref}
+          <button
+            type="button"
+            onClick={() => setDetailsOpen(true)}
             className="rounded-full bg-[#0B5D3B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#084B30]"
           >
             View Details
-          </Link>
+          </button>
         </div>
       </div>
     </article>
+    {detailsOpen && <VehicleDetailsModal vehicle={vehicle} onClose={() => setDetailsOpen(false)} actions={vehicle.listingType === "buy" ? <OfferForm vehicle={vehicle}/> : <BookingForm vehicle={vehicle}/>}/>}
+    </>
   );
 }

@@ -34,6 +34,7 @@ function BookingsContent() {
   const [tab, setTab] = useState("upcoming");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [detailsBooking, setDetailsBooking] = useState<RentalBooking|null>(null);
 
   const loadBookings = useCallback(async () => {
     if (!profile) {
@@ -130,7 +131,7 @@ function BookingsContent() {
           </div>
 
           <Link
-            href="/dashboard/seller/rentals"
+            href={isSeller ? "/dashboard/seller/rentals" : "/marketplace?type=rent"}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#07543D] px-5 py-3 font-semibold text-white"
           >
             <CalendarDays size={18} />
@@ -201,12 +202,7 @@ function BookingsContent() {
                         Complete payment
                       </Link>
                     )}
-                    <Link
-                      href={`/bookings/${booking.id}`}
-                      className="rounded-full border border-[#E5E7EB] px-5 py-3 text-center text-sm font-semibold"
-                    >
-                      Details
-                    </Link>
+                    <button type="button" onClick={()=>setDetailsBooking(booking)} className="rounded-full border border-[#E5E7EB] px-5 py-3 text-center text-sm font-semibold">View details</button>
 
                     {isOwner && booking.status === "pending" && (
                       <>
@@ -244,8 +240,10 @@ function BookingsContent() {
             })}
           </div>
         )}
-      </section></DashboardShell>
+      </section>{detailsBooking&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDetailsBooking(null);}}><section role="dialog" aria-modal="true" className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-[#07543D]">Booking details</p><h2 className="mt-1 text-2xl font-black">{detailsBooking.listingTitle}</h2></div><button onClick={()=>setDetailsBooking(null)} aria-label="Close booking details" className="rounded-full border p-2"><X size={19}/></button></div><div className="relative mt-5 h-56 overflow-hidden rounded-2xl"><Image src={detailsBooking.listingImage} alt={detailsBooking.listingTitle} fill className="object-cover" sizes="(max-width:640px) 100vw,560px"/></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><BookingDetail label="Status" value={detailsBooking.status.replaceAll("_"," ")}/><BookingDetail label="Dates" value={`${detailsBooking.pickupDate} to ${detailsBooking.returnDate}`}/><BookingDetail label="Duration" value={`${detailsBooking.totalDays} days`}/><BookingDetail label="Total" value={`${detailsBooking.currency} ${detailsBooking.totalAmount.toFixed(2)}`}/><BookingDetail label={isSeller?"Renter":"Owner"} value={isSeller?detailsBooking.renterName:detailsBooking.ownerName}/><BookingDetail label="Payment" value={detailsBooking.paymentStatus.replaceAll("_"," ")}/></div>{detailsBooking.renterMessage&&<p className="mt-4 rounded-xl bg-[#F6F9F7] p-4 text-sm leading-6">{detailsBooking.renterMessage}</p>}</section></div>}</DashboardShell>
   );
 }
+
+function BookingDetail({label,value}:{label:string;value:string}) { return <div className="rounded-xl bg-[#F6F9F7] p-3"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 font-bold capitalize">{value}</p></div>; }
 
 function BookingMetric({label,value}:{label:string;value:number}) { return <div className="flex items-center gap-4 rounded-2xl border border-[#E5ECE8] bg-white p-4"><span className="rounded-xl bg-[#EAF5EF] p-3 text-[#07543D]"><CalendarDays size={20}/></span><div><p className="text-sm text-[#718179]">{label}</p><p className="text-2xl font-black">{value}</p><p className="text-xs text-[#718179]">Reservations</p></div></div>; }
