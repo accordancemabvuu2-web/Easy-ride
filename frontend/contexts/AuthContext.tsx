@@ -100,6 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+    if (demoMode) {
+      const cachedProfile = readCachedProfile();
+      if (cachedProfile) {
+        const normalized = normalizeProfile(cachedProfile);
+        setProfile(normalized);
+        setFirebaseUser({ uid: normalized.id });
+      }
+    }
     void fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : null)
       .then((result) => {
@@ -113,7 +122,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, []);
 
-  const continueWithLocalRole = (_role: UserRole) => { throw new Error("Sign in with your Easy Ride account to continue."); };
+  const continueWithLocalRole = (role: UserRole) => {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+      throw new Error("Sign in with your Easy Ride account to continue.");
+    }
+    const localProfile = normalizeProfile({
+      id: `demo-${role}`,
+      name: `Demo ${role.charAt(0).toUpperCase()}${role.slice(1)}`,
+      email: `${role}@easyride.demo`,
+      phone: "",
+      role,
+      roles: [role],
+      capabilities: capabilitiesForRole(role),
+      photoURL: "",
+    });
+    writeCachedProfile(localProfile);
+    setProfile(localProfile);
+    setFirebaseUser({ uid: localProfile.id });
+  };
 
   const register = async ({
     name,

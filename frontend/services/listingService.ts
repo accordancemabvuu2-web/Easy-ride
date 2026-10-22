@@ -61,9 +61,20 @@ function mapMongoListing(row: MongoListing): Vehicle {
   const price = row.listing_type === "rent" ? row.rent_day_price : row.sale_price;
   return normalizeListing({ id:String(row.id),ownerId:row.owner_id,ownerName:row.owner_name||"Easy Ride seller",ownerPhone:row.owner_phone||"",ownerEmail:"",listingType:row.listing_type==="sale_and_rent"?"buy":row.listing_type,status:row.status==="pending_review"?"pending":row.status,make:row.make,model:row.model,year:row.year,price:Number(price||row.price||0),currency:row.currency||"USD",transmission:row.transmission||"Manual",fuelType:row.fuel_type||"Petrol",mileage:row.mileage_km||0,condition:(row.condition||"used") as Vehicle["condition"],bodyType:row.body_type,color:row.exterior_color,description:row.description||"",location:{address:row.address_label||"",city:row.city||"",country:row.country_code||"",latitude:row.latitude||0,longitude:row.longitude||0},images,coverImage:images[0]||"",sellerType:row.dealer_id?"Dealer":"Private Seller",verified:Boolean(row.dealer_id),featured:Boolean(row.featured),views:row.views||0,favoritesCount:row.favorites_count||0,createdAt:row.created_at,updatedAt:row.updated_at});
 }
-async function fetchMongoListings(filters:ListingPageFilters,offset=0){const p=new URLSearchParams({page:String(Math.floor(offset/20)+1),pageSize:"20"});if(filters.listingType&&filters.listingType!=="all")p.set("mode",filters.listingType);for(const [key,value] of [["city",filters.location],["make",filters.make],["model",filters.model]] as const)if(value&&value!=="all")p.set(key,value);const response=await fetch(`/api/vehicles?${p}`,{cache:"no-store"});if(!response.ok)throw new Error("Could not load vehicle listings.");const result=await response.json();return{listings:(result.data as MongoListing[]).map(mapMongoListing),hasMore:result.page*result.pageSize<result.total};}
+async function fetchMongoListings(filters:ListingPageFilters,offset=0){const p=new URLSearchParams({page:String(Math.floor(offset/20)+1),pageSize:"20"});if(filters.listingType&&filters.listingType!=="all")p.set("mode",filters.listingType);for(const [key,value] of [["city",filters.location],["make",filters.make],["model",filters.model]] as const)if(value&&value!=="all")p.set(key,value);const response=await fetch(`/api/vehicles?${p}`,{cache:"no-store"});if(!response.ok){const result=await response.json().catch(()=>null);throw new Error(result?.error||"Could not load vehicle listings.");}const result=await response.json();return{listings:(result.data as MongoListing[]).map(mapMongoListing),hasMore:result.page*result.pageSize<result.total};}
+
+function getDemoListingPage(filters: ListingPageFilters = {}, offset = 0): ListingPage {
+  const filtered = seedVehicles.filter((listing) => matchesListingFilters(listing, filters));
+  const listings = filtered.slice(offset, offset + 20).map(normalizeListing);
+  return {
+    listings,
+    lastDocument: listings.length ? { source: "mongo", offset: offset + listings.length } : null,
+    hasMore: offset + listings.length < filtered.length,
+  };
+}
 
 export async function getActiveListings(): Promise<Vehicle[]> {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return seedVehicles.map(normalizeListing);
   const result = await fetchMongoListings({});
   return result.listings;
 }
@@ -73,6 +84,7 @@ export async function getActiveListingPage(
   lastDocument?: MongoListingCursor | null,
 ): Promise<ListingPage> {
   const offset=lastDocument?.offset??0;
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return getDemoListingPage(filters, offset);
   const result=await fetchMongoListings(filters,offset);
   return {
     listings:result.listings,
