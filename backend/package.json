@@ -1,0 +1,9 @@
+{
+  "name": "easy-ride-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node src/server.mjs",
+    "start": "node src/server.mjs"
+  }
+}

@@ -1,48 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Easy Ride workspace
 
-## Firebase setup
+Easy Ride is organized as two folders:
 
-Easy Ride uses Firebase Authentication, Firestore, and Storage for shared marketplace data. Copy `.env.local.example` to `.env.local`, fill in the Firebase values, enable Email/Password or Google sign-in in Firebase Authentication, and deploy `firestore.rules`.
+- `frontend/`: the existing Next.js 16 application, including its UI and current `/api/*` Route Handlers.
+- `backend/`: a separate Node.js/Express service boundary on port 4000, currently providing `GET /health`. Existing marketplace/authentication APIs remain in Next.js to avoid duplicated routes and a breaking client migration.
 
-Admin access is controlled by a Firebase custom claim, not only by the profile role stored in Firestore. Set `GOOGLE_APPLICATION_CREDENTIALS` to a Firebase service-account JSON path and `ADMIN_EMAIL` to an existing Firebase user, then run:
+## Run locally (Windows PowerShell)
 
-```bash
-npm run set-admin
-```
+Install and start the Next.js application:
 
-The user must sign out and sign in again after the claim is assigned. Buyer and seller payments are arranged directly between them; Easy Ride does not process those payments.
-
-## Getting Started
-
-First, run the development server:
-
-```bash
+```powershell
+cd frontend
+npm install
+Copy-Item .env.local.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Next.js app runs at `http://localhost:3000`. In another terminal, start the dependency-free health service:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+cd backend
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Frontend: `http://localhost:3000`  
+Current Next API routes: `http://localhost:3000/api/*`  
+Separate backend health check: `http://localhost:4000/health`
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Configure `MONGODB_URI` and `AUTH_SECRET` in `frontend/.env.local` for existing Next server routes. `backend/.env` is private to the separate service and uses its own `MONGODB_URI` when database routes are added. Do not commit either environment file. The current backend is a service boundary and does not duplicate the Next API implementation.
