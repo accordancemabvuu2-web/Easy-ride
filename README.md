@@ -1,12 +1,12 @@
 # Easy Ride workspace
 
-Easy Ride is a two-project workspace. The split is organizational; the Next.js server remains the production API boundary for the existing app.
+Easy Ride is a two-project workspace. The Next.js app remains the active API boundary for the existing UI while a separate Express/MongoDB API is being introduced for staged integration.
 
 ## Architecture
 
 - `frontend/` is the Next.js 16 App Router application. It contains the UI, same-origin `/api/*` Route Handlers, MongoDB models, and server-side authentication. Route Handlers use `MONGODB_URI` and `AUTH_SECRET`; keep both private in `frontend/.env.local`.
-- `backend/` is a standalone Node HTTP service on port 4000. It currently exposes only `GET /health`. It does not own marketplace or auth routes and does not connect to MongoDB.
-- Browser calls to `/api/*` stay same-origin with Next.js. The backend's `FRONTEND_ORIGIN` setting applies only if a future browser client calls that service directly.
+- `backend/` is a TypeScript Express API on port 5000 with MongoDB-backed auth, users, vehicle, saved vehicle, and booking foundations under `/api/v1`.
+- The current frontend still calls the existing Next.js `/api/*` handlers. Backend auth uses a new user schema and JWT contract, so traffic must not be switched until accounts and API clients are migrated deliberately.
 - Firebase and Google Maps browser configuration uses `NEXT_PUBLIC_*` values. Never put database credentials, auth secrets, or Firebase service account credentials in a `NEXT_PUBLIC_*` variable.
 
 ## Run locally (PowerShell)
@@ -20,22 +20,23 @@ npm install
 npm run dev
 ```
 
-The Next.js app runs at `http://localhost:3000`. Set `MONGODB_URI` and an `AUTH_SECRET` of at least 32 characters in `frontend/.env.local` for database-backed API routes. Firebase, Maps, and admin-script values are optional unless you use those features.
+The Next.js app runs at `http://localhost:3000`. Set `MONGODB_URI` and an `AUTH_SECRET` of at least 32 characters in `frontend/.env.local` for its existing database-backed API routes. Firebase, Maps, and admin-script values are optional unless you use those features.
 
-In a second terminal, if you need the separate health service:
+In a second terminal, configure the dedicated API and start it:
 
 ```powershell
 cd backend
+Copy-Item .env.example .env # first run only; set MongoDB URI and both JWT secrets
 npm run dev
 ```
 
-The health endpoint is `http://localhost:4000/health`. `PORT` and `FRONTEND_ORIGIN` can override its defaults.
+The dedicated API listens on `http://localhost:5000`; it waits for MongoDB before binding. Liveness and readiness are at `/health/live` and `/health/ready`.
 
 Root-level convenience commands are `npm run dev:frontend`, `npm run dev:backend`, `npm run build:frontend`, `npm run lint:frontend`, and `npm run typecheck:frontend`.
 
 ## Safe change boundary
 
-Keep existing `/api/*` handlers in Next.js unless performing a planned API migration that also updates clients, auth/session handling, deployment, CORS, and environment configuration. Do not duplicate routes in the standalone backend. Keep secrets in server-only env files; `.env*` files are ignored by Git, with only env examples intended for commit.
+Keep secrets in server-only env files; `.env*` files are ignored by Git, with only env examples intended for commit. Do not point the frontend at the new API until the endpoint contracts, authentication/session flow, and legacy collection migration have been implemented and verified.
 
 ## Database indexes
 

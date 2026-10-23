@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { z } from "zod";
+import { UserModel } from "../models/User.js";
+import { authenticate } from "../middleware/auth.js";
+import { HttpError } from "../middleware/errors.js";
+import { Types } from "mongoose";
+import { ReviewModel } from "../models/Review.js";
+const router=Router();
+router.get("/me",authenticate,async(req,res)=>{const user=await UserModel.findById(req.auth!.userId).select("-passwordHash").lean();if(!user)throw new HttpError(404,"NOT_FOUND","Account not found.");res.json({success:true,data:user,meta:{}});});
+router.patch("/me",authenticate,async(req,res)=>{const p=z.object({firstName:z.string().trim().min(1).max(80).optional(),lastName:z.string().trim().max(80).optional(),phoneNumber:z.string().trim().min(5).max(32).optional(),preferredCurrency:z.string().length(3).optional(),preferredLanguage:z.string().max(16).optional(),avatarUrl:z.string().url().max(2048).optional()}).strict().parse(req.body);const user=await UserModel.findByIdAndUpdate(req.auth!.userId,{$set:p},{new:true,runValidators:true}).select("-passwordHash").lean();if(!user)throw new HttpError(404,"NOT_FOUND","Account not found.");res.json({success:true,data:user,meta:{}});});
+router.delete("/me",authenticate,async(req,res)=>{await UserModel.updateOne({_id:req.auth!.userId},{$set:{accountStatus:"deleted",deletedAt:new Date()},$unset:{email:1,phoneNumber:1,passwordHash:1}});res.json({success:true,data:{deleted:true},meta:{}});});
+router.get("/:id/reviews",async(req,res)=>{const id=String(req.params.id);if(!Types.ObjectId.isValid(id))throw new HttpError(400,"INVALID_ID","User ID is invalid.");const p=z.object({page:z.coerce.number().int().min(1).default(1),pageSize:z.coerce.number().int().min(1).max(100).default(20)}).parse(req.query);const filter={reviewedUserId:id,moderationStatus:"approved"};const[data,total]=await Promise.all([ReviewModel.find(filter).select("reviewerId vehicleId rating comment sellerResponse sellerRespondedAt createdAt").sort({createdAt:-1,_id:-1}).skip((p.page-1)*p.pageSize).limit(p.pageSize).lean(),ReviewModel.countDocuments(filter)]);res.json({success:true,data,meta:{page:p.page,pageSize:p.pageSize,total}});});
+export default router;

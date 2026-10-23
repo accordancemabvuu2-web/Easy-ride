@@ -1,0 +1,4 @@
+import mongoose,{Schema,model} from "mongoose";
+const schema=new Schema({reviewerId:{type:Schema.Types.ObjectId,ref:"User",required:true,index:true},reviewedUserId:{type:Schema.Types.ObjectId,ref:"User",index:true},dealerId:{type:Schema.Types.ObjectId,ref:"DealerProfile",index:true},vehicleId:{type:Schema.Types.ObjectId,ref:"Vehicle",index:true},bookingId:{type:Schema.Types.ObjectId,ref:"Booking"},rating:{type:Number,required:true,min:1,max:5},comment:{type:String,maxlength:4000},sellerResponse:{type:String,maxlength:2000},sellerRespondedAt:Date,moderationStatus:{type:String,enum:["pending","approved","rejected"],default:"pending"}},{timestamps:true});
+schema.index({bookingId:1,reviewerId:1},{unique:true,sparse:true});
+export const ReviewModel=mongoose.models.Review??model("Review",schema);
