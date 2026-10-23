@@ -31,7 +31,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function VehiclePage() {
   const { id } = useParams<{ id: string }>();
@@ -422,7 +422,7 @@ export default function VehiclePage() {
             </p>
 
             <div className="mt-6 space-y-4">
-              {vehicle.listingType === "rent" && <BookingForm vehicle={vehicle} />}
+              {vehicle.listingType === "rent" && <Suspense fallback={<div className="h-72 animate-pulse rounded-3xl border border-[#E5E7EB] bg-white" aria-label="Loading rental booking form" />}><BookingForm vehicle={vehicle} /></Suspense>}
               {vehicle.listingType === "buy" && <OfferForm vehicle={vehicle} />}
             </div>
           </aside>

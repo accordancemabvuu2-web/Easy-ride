@@ -24,9 +24,10 @@ import {
   Users,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, Suspense, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 type DashboardRole = "personal" | "buyer" | "seller";
 
@@ -37,6 +38,25 @@ interface DashboardShellProps {
 
 const DashboardSearchContext = createContext("");
 export function useDashboardSearch() { return useContext(DashboardSearchContext); }
+
+type DashboardLink = { label: string; href: string; icon: LucideIcon };
+const dashboardNavLinkClass = "dashboard-nav-link flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition";
+
+function DashboardNavLink({ link, pathname, hasQuerySiblings, onNavigate }: { link: DashboardLink; pathname: string; hasQuerySiblings: boolean; onNavigate: () => void }) {
+  const searchParams = useSearchParams();
+  const Icon = link.icon;
+  const linkPath = link.href.split("?")[0];
+  const linkQuery = new URLSearchParams(link.href.split("?")[1] ?? "");
+  const queryMatches = [...linkQuery.entries()].every(([key, value]) => searchParams.get(key) === value);
+  const active = pathname === linkPath && linkPath !== "/" && (linkQuery.size ? queryMatches : !hasQuerySiblings || searchParams.size === 0);
+
+  return (
+    <Link href={link.href} onClick={onNavigate} className={`${dashboardNavLinkClass} ${active ? "dashboard-nav-active border-[#C9A227] bg-[#C9A227] text-[#17221C] shadow-sm" : "border-transparent text-white/85 hover:bg-white/10 hover:text-white"}`}>
+      <Icon size={18} />
+      {link.label}
+    </Link>
+  );
+}
 
 const buyerLinks = [
   { label: "Dashboard", href: "/dashboard/buyer", icon: LayoutDashboard },
@@ -82,7 +102,6 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const insidePersistentSellerShell = useContext(SellerRouteContext);
   const { profile, logout } = useAuth();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -166,26 +185,14 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             {visibleLinks.map((link) => {
               const Icon = link.icon;
               const linkPath = link.href.split("?")[0];
-              const linkQuery = new URLSearchParams(link.href.split("?")[1] ?? "");
               const hasQuerySiblings = links.some((candidate) => {
                 const candidateQuery = new URLSearchParams(candidate.href.split("?")[1] ?? "");
                 return candidate.href.split("?")[0] === linkPath && candidateQuery.toString().length > 0;
               });
-              const queryMatches = [...linkQuery.entries()].every(([key, value]) => searchParams.get(key) === value);
-              const active = pathname === linkPath && linkPath !== "/" && (
-                linkQuery.size ? queryMatches : !hasQuerySiblings || searchParams.size === 0
-              );
-
               return (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  onClick={closeMobile}
-                  className={`dashboard-nav-link flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${active ? "dashboard-nav-active border-[#C9A227] bg-[#C9A227] text-[#17221C] shadow-sm" : "border-transparent text-white/85 hover:bg-white/10 hover:text-white"}`}
-                >
-                  <Icon size={18} />
-                  {link.label}
-                </Link>
+                <Suspense key={link.label} fallback={<Link href={link.href} onClick={closeMobile} className={`${dashboardNavLinkClass} border-transparent text-white/85`}><Icon size={18} />{link.label}</Link>}>
+                  <DashboardNavLink link={link} pathname={pathname} hasQuerySiblings={hasQuerySiblings} onNavigate={closeMobile} />
+                </Suspense>
               );
             })}
           </nav>
