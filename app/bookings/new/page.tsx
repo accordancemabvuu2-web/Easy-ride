@@ -35,10 +35,22 @@ function BookingLoading() {
   );
 }
 
-export default function NewBookingPage() {
+type NewBookingPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function NewBookingPage({ searchParams }: NewBookingPageProps) {
+  const query = await searchParams;
+  const firstValue = (value: string | string[] | undefined) =>
+    Array.isArray(value) ? value[0] : value;
+
   return (
     <Suspense fallback={<BookingLoading />}>
-      <BookingContent />
+      <BookingContent
+        vehicleId={firstValue(query.vehicle) ?? ""}
+        startDate={firstValue(query.start) ?? firstValue(query.pickupDate) ?? ""}
+        endDate={firstValue(query.end) ?? firstValue(query.returnDate) ?? ""}
+      />
     </Suspense>
   );
 }
