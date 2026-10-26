@@ -4,7 +4,7 @@ import { getListingById } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
 import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Loader2, MapPin, ShieldCheck } from "lucide-react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 function calculateDays(start: string, end: string) {
@@ -18,17 +18,13 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
 }
 
-type BookingContentProps = {
-  vehicleId: string;
-  startDate: string;
-  endDate: string;
-};
-
-export default function BookingContent({ vehicleId, startDate: initialStartDate, endDate: initialEndDate }: BookingContentProps) {
+export default function BookingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const vehicleId = searchParams.get("vehicle") ?? "";
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [startDate, setStartDate] = useState(initialStartDate);
-  const [endDate, setEndDate] = useState(initialEndDate);
+  const [startDate, setStartDate] = useState(searchParams.get("start") ?? searchParams.get("pickupDate") ?? "");
+  const [endDate, setEndDate] = useState(searchParams.get("end") ?? searchParams.get("returnDate") ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +35,7 @@ export default function BookingContent({ vehicleId, startDate: initialStartDate,
     }
 
     void getListingById(vehicleId).then(setVehicle).finally(() => setLoading(false));
-  }, [vehicleId]);
+  }, [searchParams, vehicleId]);
 
   const days = useMemo(() => calculateDays(startDate, endDate), [startDate, endDate]);
   const subtotal = vehicle ? days * vehicle.price : 0;
