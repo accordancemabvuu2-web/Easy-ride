@@ -6,18 +6,40 @@ import { BadgeCheck, Fuel, Gauge, MapPin, Settings2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 interface CarCardProps {
   vehicle: Vehicle;
   layout?: "grid" | "list";
 }
 
-export default function CarCard({ vehicle, layout = "grid" }: CarCardProps) {
+export default function CarCard(props: CarCardProps) {
+  return (
+    <Suspense fallback={<CarCardBody {...props} pickupDate={null} returnDate={null} />}>
+      <CarCardWithSearchParams {...props} />
+    </Suspense>
+  );
+}
+
+function CarCardWithSearchParams(props: CarCardProps) {
   const searchParams = useSearchParams();
+  return (
+    <CarCardBody
+      {...props}
+      pickupDate={searchParams.get("pickupDate")}
+      returnDate={searchParams.get("returnDate")}
+    />
+  );
+}
+
+function CarCardBody({
+  vehicle,
+  layout = "grid",
+  pickupDate,
+  returnDate,
+}: CarCardProps & { pickupDate: string | null; returnDate: string | null }) {
   const formattedPrice = new Intl.NumberFormat("en-US").format(vehicle.price);
   const isList = layout === "list";
-  const pickupDate = searchParams.get("pickupDate");
-  const returnDate = searchParams.get("returnDate");
   const detailHref = vehicle.listingType === "rent" && (pickupDate || returnDate)
     ? `/vehicle/${vehicle.id}?pickupDate=${encodeURIComponent(pickupDate ?? "")}&returnDate=${encodeURIComponent(returnDate ?? "")}`
     : `/vehicle/${vehicle.id}`;

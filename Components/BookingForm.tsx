@@ -6,18 +6,44 @@ import { CalendarDays, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function BookingForm({ vehicle }: { vehicle: Vehicle }) {
+  return (
+    <Suspense fallback={<BookingFormBody vehicle={vehicle} pickupDate="" returnDate="" />}>
+      <BookingFormWithSearchParams vehicle={vehicle} />
+    </Suspense>
+  );
+}
+
+function BookingFormWithSearchParams({ vehicle }: { vehicle: Vehicle }) {
+  const searchParams = useSearchParams();
+  return (
+    <BookingFormBody
+      vehicle={vehicle}
+      pickupDate={searchParams.get("pickupDate") ?? ""}
+      returnDate={searchParams.get("returnDate") ?? ""}
+    />
+  );
+}
+
+function BookingFormBody({
+  vehicle,
+  pickupDate: initialPickupDate,
+  returnDate: initialReturnDate,
+}: {
+  vehicle: Vehicle;
+  pickupDate: string;
+  returnDate: string;
+}) {
   const { firebaseUser, profile } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const [pickupDate, setPickupDate] = useState(() => searchParams.get("pickupDate") ?? "");
-  const [returnDate, setReturnDate] = useState(() => searchParams.get("returnDate") ?? "");
+  const [pickupDate, setPickupDate] = useState(initialPickupDate);
+  const [returnDate, setReturnDate] = useState(initialReturnDate);
   const [message, setMessage] = useState(
     `Hello, I would like to rent this ${vehicle.make} ${vehicle.model}.`,
   );
