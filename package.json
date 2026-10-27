@@ -20,7 +20,7 @@
     "@supabase/supabase-js": "^2.117.3",
     "date-fns": "^4.4.0",
     "firebase": "^12.16.0",
-    "firebase-admin": "^13.5.0",
+    "firebase-admin": "^14.5.0",
     "lucide-react": "^1.24.0",
     "next": "16.4.3",
     "react": "19.2.4",
@@ -40,5 +40,11 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.152.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6",
+    "@node-minify/core": {
+      "glob": "10.5.0"
+    }
   }
 }
