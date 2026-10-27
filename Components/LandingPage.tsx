@@ -173,7 +173,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section aria-label="Why choose Easy Ride" className="border-b border-slate-100 bg-white">
+      <section aria-label="Why TELONE choose Easy Ride" className="border-b border-slate-100 bg-white">
         <div className="mx-auto grid max-w-[1440px] grid-cols-2 divide-x divide-slate-100 px-5 py-3 sm:px-8 lg:grid-cols-4 lg:px-12 lg:py-4">
           <TrustItem icon={<ShieldCheck />} title="Trusted Sellers" text="Verified dealers & private sellers" />
           <TrustItem icon={<ShieldCheck />} title="Seller Verification" text="Verified badges mark reviewed sellers" />
