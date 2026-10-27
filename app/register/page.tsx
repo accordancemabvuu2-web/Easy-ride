@@ -29,6 +29,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nextTarget, setNextTarget] = useState("/");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -37,13 +38,11 @@ export default function RegisterPage() {
     intent: null as Intent | null,
   });
 
-  const nextPath = () => {
-    const next = new URLSearchParams(window.location.search).get("next");
-    return next?.startsWith("/") && !next.startsWith("//") ? next : "/";
-  };
-
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get("next");
+    if (next?.startsWith("/") && !next.startsWith("//")) {
+      setNextTarget(next);
+    }
     if (next?.startsWith("/create-listing")) {
       setForm((current) => ({ ...current, intent: "seller" }));
     }
@@ -187,7 +186,7 @@ export default function RegisterPage() {
                   {error && <ErrorMessage message={error} />}
                   <SubmitButton loading={loading}>Continue</SubmitButton>
                 </form>
-                <p className="mt-6 text-center text-sm text-slate-500">Already have an account? <Link href={`/login?next=${encodeURIComponent(nextPath())}`} className="font-bold text-[#0B5D3B] hover:underline">Log in</Link></p>
+                <p className="mt-6 text-center text-sm text-slate-500">Already have an account? <Link href={`/login?next=${encodeURIComponent(nextTarget)}`} className="font-bold text-[#0B5D3B] hover:underline">Log in</Link></p>
               </div>
             )}
 
