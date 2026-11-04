@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
@@ -63,6 +64,7 @@ const steps = [
 ];
 
 export default function LandingPage() {
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mode, setMode] = useState<ListingMode>("buy");
@@ -114,7 +116,7 @@ export default function LandingPage() {
     if (location !== "All Locations") query.set("location", location);
     if (make !== "Any Make") query.set("make", make);
     if (model !== "Any Model") query.set("model", model);
-    window.location.href = `/marketplace?${query.toString()}#vehicles`;
+    router.push(`/marketplace?${query.toString()}#vehicles`);
   };
 
   return (
@@ -148,7 +150,17 @@ export default function LandingPage() {
       </header>
 
       <section id="home" className="relative isolate w-full overflow-hidden bg-[#06110f] text-white">
-        <Image src="/images/pexels-dilrubasaricimen-7534335.jpg" alt="Vehicle on an open mountain road" fill priority sizes="100vw" className="-z-20 object-cover object-[62%_58%]" />
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster="/images/screenshot-hero.jpg"
+          aria-hidden="true"
+          className="-z-20 absolute inset-0 h-full w-full object-cover object-[62%_58%]"
+        >
+          <source src="/15259702_2160_3840_30fps.mp4" type="video/mp4" />
+        </video>
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
         <div className="mx-auto flex min-h-[min(650px,calc(100svh-72px))] w-full max-w-[1440px] flex-col justify-center gap-8 px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
@@ -158,7 +170,7 @@ export default function LandingPage() {
             <p className="mt-5 max-w-[450px] text-[15px] leading-6 text-slate-200 sm:text-base">Discover quality vehicles, connect with trusted sellers, and find the perfect ride — whether you’re buying, selling or renting.</p>
           </div>
           <div className="w-full max-w-[920px]">
-            <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/15 bg-[#06151a]/80 p-2 shadow-[0_14px_45px_rgba(0,0,0,0.35)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-full lg:p-2">
+            <div className="grid w-full grid-cols-1 items-center gap-1 rounded-[1.4rem] border border-white/15 bg-transparent p-2 shadow-[0_14px_45px_rgba(0,0,0,0.35)] backdrop-blur-md min-[480px]:grid-cols-2 min-[480px]:gap-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:rounded-full lg:p-2">
               <SearchSelect label="Location" icon={<MapPin size={17} />} value={location} onChange={setLocation} options={locations} dark />
               <SearchSelect label="Make" icon={<CarFront size={17} />} value={make} onChange={(value) => { setMake(value); setModel("Any Model"); }} options={makes} dark />
               <SearchSelect label="Model" icon={<CarFront size={17} />} value={model} onChange={setModel} options={models} dark />

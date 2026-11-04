@@ -6,46 +6,14 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 export default function AdminGuard({ children }: { children: ReactNode }) {
-  const { firebaseUser, profile, loading, firebaseEnabled } = useAuth();
-  const [claimUserId, setClaimUserId] = useState<string | null>(null);
-  const [hasAdminClaim, setHasAdminClaim] = useState(false);
+  const { user, profile, loading, isAdmin } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!firebaseEnabled || !firebaseUser) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void firebaseUser
-      .getIdTokenResult()
-      .then((token) => {
-        if (!cancelled) {
-          setHasAdminClaim(token.claims.admin === true);
-          setClaimUserId(firebaseUser.uid);
-        }
-      })
-
-    return () => {
-      cancelled = true;
-    };
-  }, [firebaseEnabled, firebaseUser]);
-
-  const claimLoading = firebaseEnabled && Boolean(firebaseUser) && claimUserId !== firebaseUser?.uid;
-
-  // During hydration, render children to match server. Auth checks happen after.
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
-  if (loading || claimLoading) {
+  if (!mounted || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA]">
         <Loader2 className="animate-spin text-[#0B5D3B]" size={36} />
@@ -53,9 +21,8 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  const hasAccess =
-    profile?.role === "admin" &&
-    (firebaseEnabled ? Boolean(firebaseUser) && hasAdminClaim : true);
+  const activeUser = user || profile;
+  const hasAccess = Boolean(activeUser && (isAdmin || activeUser.role === "admin"));
 
   if (!hasAccess) {
     return (
@@ -64,14 +31,22 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
           <ShieldAlert className="mx-auto text-red-600" size={48} />
           <h1 className="mt-5 text-3xl font-bold">Administrator access required</h1>
           <p className="mt-3 leading-7 text-gray-500">
-            Your account does not have permission to access the Easy Ride administration portal.
+            Your account does not possess the administrative privileges required to access the Easy Ride administration portal.
           </p>
-          <Link
-            href="/"
-            className="mt-7 inline-flex rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white"
-          >
-            Return Home
-          </Link>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Return Home
+            </Link>
+            <Link
+              href="/login?next=/admin"
+              className="inline-flex items-center justify-center rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white hover:bg-[#094c30]"
+            >
+              Sign In as Admin
+            </Link>
+          </div>
         </section>
       </main>
     );

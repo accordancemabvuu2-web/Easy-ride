@@ -1,5 +1,6 @@
 # Copy to .dev.vars for local OpenNext / Wrangler development.
 # Do not put production secrets in git.
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4567/api/v1
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=

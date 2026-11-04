@@ -8,24 +8,31 @@ import { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
-  const { login, loginWithGoogle, firebaseEnabled } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
 
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [needs2FA, setNeeds2FA] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
 
     try {
       setSubmitting(true);
-      await login(email, password);
+      await login(email, password, needs2FA ? twoFactorCode : undefined);
 
       toast.success("Welcome back.");
       router.replace(getNextPath());
-    } catch {
-      toast.error("Incorrect email address or password.");
+    } catch (err: any) {
+      if (err.code === "2FA_REQUIRED") {
+        setNeeds2FA(true);
+        toast("Please enter your two-factor authentication code.", { icon: "🔐" });
+      } else {
+        toast.error(err.message || "Incorrect email address or password.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -36,8 +43,8 @@ export default function LoginPage() {
       await loginWithGoogle();
       toast.success("Welcome back.");
       router.replace(getNextPath());
-    } catch {
-      toast.error("Google login failed.");
+    } catch (err: any) {
+      toast.error(err.message || "Google login failed.");
     }
   };
 
@@ -64,7 +71,7 @@ export default function LoginPage() {
 
           <h1 className="mt-6 text-3xl font-bold">Welcome back</h1>
           <p className="mt-2 text-gray-500">
-            Log in to manage vehicles and saved listings.
+            Log in to manage vehicles and your marketplace activity.
           </p>
 
           <form onSubmit={submit} className="mt-8 space-y-4">
@@ -73,7 +80,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="input"
+              className="w-full rounded-2xl border border-[#E5E7EB] px-5 py-3.5 text-base outline-none transition focus:border-[#0B5D3B]"
               placeholder="Email address"
             />
 
@@ -82,13 +89,39 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="input"
+              className="w-full rounded-2xl border border-[#E5E7EB] px-5 py-3.5 text-base outline-none transition focus:border-[#0B5D3B]"
               placeholder="Password"
             />
 
+            {needs2FA && (
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">
+                  Two-Factor Authentication Code
+                </label>
+                <input
+                  required
+                  type="text"
+                  maxLength={6}
+                  value={twoFactorCode}
+                  onChange={(event) => setTwoFactorCode(event.target.value)}
+                  className="w-full rounded-2xl border border-[#E5E7EB] px-5 py-3.5 text-center text-lg font-mono tracking-widest outline-none transition focus:border-[#0B5D3B]"
+                  placeholder="000000"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Link
+                href="/forgot-password"
+                className="text-sm font-semibold text-[#0B5D3B] hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <button
               disabled={submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white transition hover:bg-[#094c30] disabled:opacity-60"
             >
               {submitting && <Loader2 className="animate-spin" size={19} />}
               Log In
@@ -98,26 +131,24 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={googleLogin}
-            className="mt-3 w-full rounded-full border border-[#E5E7EB] px-6 py-4 font-semibold"
+            className="mt-3 w-full rounded-full border border-[#E5E7EB] px-6 py-4 font-semibold transition hover:bg-gray-50"
           >
             Continue with Google
           </button>
 
-          {!firebaseEnabled && (
-            <div className="mt-5 rounded-2xl border border-[#C9A227]/30 bg-[#FFF9E8] p-4 text-sm text-[#5B4700]">
-              <p className="font-semibold">Local admin test account</p>
-              <p className="mt-1">
-                Email: <span className="font-bold">admin@easyride.local</span>
-              </p>
-              <p>
-                Password: <span className="font-bold">admin123</span>
-              </p>
-            </div>
-          )}
-
           <p className="mt-6 text-center text-sm text-gray-500">
             New to Easy Ride?{" "}
-            <Link href="/register" onClick={(event) => { const next = new URLSearchParams(window.location.search).get("next"); if (next) { event.preventDefault(); router.push(`/register?next=${encodeURIComponent(next)}`); } }} className="font-bold text-[#0B5D3B]">
+            <Link
+              href="/register"
+              onClick={(event) => {
+                const next = new URLSearchParams(window.location.search).get("next");
+                if (next) {
+                  event.preventDefault();
+                  router.push(`/register?next=${encodeURIComponent(next)}`);
+                }
+              }}
+              className="font-bold text-[#0B5D3B] hover:underline"
+            >
               Create an account
             </Link>
           </p>

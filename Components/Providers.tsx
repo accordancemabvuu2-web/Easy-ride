@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthProvider } from "@/contexts/AuthContext";
+import BackendHealthStatus from "@/Components/BackendHealthStatus";
 import { Toaster } from "react-hot-toast";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -15,6 +16,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       {children}
+      <BackendHealthStatus />
       {mounted && (
         <Toaster
           position="top-right"

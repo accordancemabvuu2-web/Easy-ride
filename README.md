@@ -1,6 +1,15 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Easy Ride is an independently deployed Next.js frontend for the vehicle
+marketplace.
 
-## Firebase setup
+## API configuration
+
+Copy `.env.local.example` to `.env.local` and set
+`NEXT_PUBLIC_API_BASE_URL` to the backend URL including `/api/v1`. The frontend
+uses `lib/apiClient.ts` for all HTTP API calls and sends credentials for future
+HTTP-only cookie authentication. See
+[docs/API_INTEGRATION.md](docs/API_INTEGRATION.md) for the integration contract.
+
+## Existing Firebase setup
 
 Easy Ride uses Firebase Authentication, Firestore, and Storage for shared marketplace data. Copy `.env.local.example` to `.env.local`, fill in the Firebase values, enable Email/Password or Google sign-in in Firebase Authentication, and deploy `firestore.rules`.
 

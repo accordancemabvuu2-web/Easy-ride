@@ -1,19 +1,13 @@
 "use client";
 
-import { auth, db, firebaseReady } from "@/lib/firebase";
-import type { EasyRideUser, UserCapability, UserRole } from "@/Types/user";
-import {
-  GoogleAuthProvider,
-  User,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  sendEmailVerification,
-  updateProfile,
-} from "firebase/auth";
-import { Timestamp, doc, getDoc, setDoc } from "firebase/firestore";
+import { api, setAccessToken } from "@/lib/apiClient";
+import type {
+  AdminSubRole,
+  DealershipMembership,
+  DealershipSummary,
+  EasyRideUser,
+  UserRole,
+} from "@/Types/user";
 import {
   createContext,
   useContext,
@@ -24,7 +18,38 @@ import {
   type ReactNode,
 } from "react";
 
-interface RegisterInput {
+export interface FirebaseUserShim {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  getIdTokenResult?: () => Promise<{ claims: Record<string, unknown> }>;
+}
+
+export interface BackendUserPayload {
+  id?: string;
+  _id?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  role?: UserRole;
+  capabilities?: string[];
+  adminRole?: AdminSubRole | null;
+  accountStatus?: "pending" | "active" | "suspended" | "deleted";
+  emailVerified?: boolean;
+  emailVerifiedAt?: string | null;
+  preferredCurrency?: string;
+  preferredLanguage?: string;
+  avatarUrl?: string;
+  createdAt?: string;
+}
+
+export interface BackendAuthMeExtra {
+  dealership?: DealershipSummary | null;
+  memberships?: DealershipMembership[];
+}
+
+export interface RegisterInput {
   name: string;
   email: string;
   password: string;
@@ -32,370 +57,297 @@ interface RegisterInput {
   role?: "buyer" | "seller";
 }
 
-interface AuthContextValue {
-  firebaseUser: User | null;
+export interface AuthContextValue {
+  user: EasyRideUser | null;
   profile: EasyRideUser | null;
   loading: boolean;
+  isAuthenticated: boolean;
+  isSeller: boolean;
+  isDealer: boolean;
+  isAdmin: boolean;
+  firebaseUser: FirebaseUserShim | null;
   firebaseEnabled: boolean;
   register: (input: RegisterInput) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, twoFactorCode?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   updateAccountRole: (role: "buyer" | "seller", phone?: string) => Promise<void>;
+  activateSeller: () => Promise<void>;
+  verifyEmail: (token: string, email?: string) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
+  resendVerification: (email?: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
   checkEmailVerification: () => Promise<boolean>;
 }
 
-const AUTH_CACHE_KEY = "easy-ride:auth-profile";
-const AUTH_SESSION_KEY = "easy-ride:auth-session";
-const DEMO_ADMIN_EMAIL = "admin@easyride.local";
-const DEMO_ADMIN_PASSWORD = "admin123";
-const DEMO_ADMIN_PROFILE: EasyRideUser = {
-  id: "local-admin",
-  name: "Easy Ride Admin",
-  email: DEMO_ADMIN_EMAIL,
-  phone: "",
-  role: "admin",
-  roles: ["admin"],
-  capabilities: ["buy", "rent", "sell", "dealer"],
-  photoURL: "",
-  createdAt: new Date().toISOString(),
-};
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function capabilitiesForRole(role: UserRole): UserCapability[] {
-  if (role === "admin" || role === "dealer") {
-    return ["buy", "rent", "sell", "dealer"];
-  }
+function mapBackendUserToProfile(
+  backendUser: BackendUserPayload,
+  extra?: BackendAuthMeExtra
+): EasyRideUser {
+  const firstName = backendUser.firstName || "";
+  const lastName = backendUser.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim() || backendUser.email;
+  const capabilities = Array.isArray(backendUser.capabilities)
+    ? backendUser.capabilities
+    : ["buy"];
 
-  return role === "seller" ? ["buy", "rent", "sell"] : ["buy", "rent"];
-}
-
-function normalizeProfile(profile: EasyRideUser): EasyRideUser {
   return {
-    ...profile,
-    roles: profile.roles?.length ? profile.roles : [profile.role],
-    capabilities: profile.capabilities?.length
-      ? profile.capabilities
-      : capabilitiesForRole(profile.role),
+    id: backendUser.id || backendUser._id || "",
+    name: fullName,
+    firstName: backendUser.firstName,
+    lastName: backendUser.lastName,
+    email: backendUser.email,
+    phone: backendUser.phoneNumber || "",
+    phoneNumber: backendUser.phoneNumber || "",
+    role: backendUser.role || "user",
+    roles: [backendUser.role || "user"],
+    capabilities,
+    adminRole: backendUser.adminRole || null,
+    accountStatus: backendUser.accountStatus || "active",
+    emailVerified: Boolean(backendUser.emailVerified || backendUser.emailVerifiedAt),
+    emailVerifiedAt: backendUser.emailVerifiedAt,
+    preferredCurrency: backendUser.preferredCurrency || "USD",
+    preferredLanguage: backendUser.preferredLanguage || "en",
+    dealership: extra?.dealership || null,
+    memberships: extra?.memberships || [],
+    photoURL: backendUser.avatarUrl || "",
+    avatarUrl: backendUser.avatarUrl || "",
+    createdAt: backendUser.createdAt || new Date().toISOString(),
   };
-}
-
-function readCachedProfile(): EasyRideUser | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = window.localStorage.getItem(AUTH_CACHE_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as EasyRideUser;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedProfile(profile: EasyRideUser | null) {
-  if (typeof window === "undefined") return;
-
-  if (!profile) {
-    window.localStorage.removeItem(AUTH_CACHE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(profile));
-}
-
-function readSessionProfile(): EasyRideUser | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.sessionStorage.getItem(AUTH_SESSION_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as EasyRideUser;
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionProfile(profile: EasyRideUser | null) {
-  if (typeof window === "undefined") return;
-  if (!profile) {
-    window.sessionStorage.removeItem(AUTH_SESSION_KEY);
-    return;
-  }
-  window.sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(profile));
-}
-
-async function loadProfile(user: User): Promise<EasyRideUser | null> {
-  if (!db) {
-    return readCachedProfile();
-  }
-
-  const snapshot = await getDoc(doc(db, "users", user.uid));
-
-  if (!snapshot.exists()) {
-    return null;
-  }
-
-  return normalizeProfile({
-    id: snapshot.id,
-    ...(snapshot.data() as Omit<EasyRideUser, "id">),
-  });
-}
-
-async function persistFallbackProfile(profile: EasyRideUser) {
-  writeCachedProfile(profile);
-  writeSessionProfile(profile);
-  return profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<EasyRideUser | null>(() =>
-    auth ? null : readSessionProfile(),
-  );
-  const [loading, setLoading] = useState(() => Boolean(auth));
+  const [user, setUser] = useState<EasyRideUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!auth) {
-      return;
-    }
-
-    return onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-
-      if (user) {
-        const userProfile = await loadProfile(user);
-        setProfile(userProfile);
+  // Restore authenticated session on initial mount
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await api.get<{
+        user: BackendUserPayload;
+        dealership?: DealershipSummary | null;
+        memberships?: DealershipMembership[];
+      }>("/auth/me");
+      if (res.success && res.data?.user) {
+        const mapped = mapBackendUserToProfile(res.data.user, res.data);
+        setUser(mapped);
       } else {
-        setProfile(null);
+        setUser(null);
       }
-
+    } catch {
+      setUser(null);
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
 
-  const register = async ({
-    name,
-    email,
-    password,
-    phone = "",
-    role = "buyer",
-  }: RegisterInput) => {
-    if (!auth || !db) {
-      const fallbackProfile: EasyRideUser = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        phone,
-        role,
-        roles: [role],
-        capabilities: capabilitiesForRole(role),
-        photoURL: "",
-        createdAt: new Date().toISOString(),
-      };
+  useEffect(() => {
+    void refreshUser();
+  }, [refreshUser]);
 
-      await persistFallbackProfile(fallbackProfile);
-      setProfile(fallbackProfile);
-      return;
-    }
+  const register = useCallback(
+    async (input: RegisterInput) => {
+      setLoading(true);
+      try {
+        const parts = input.name.trim().split(" ");
+        const firstName = parts[0] || input.name;
+        const lastName = parts.slice(1).join(" ") || "";
 
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
+        const res = await api.post<{ user: BackendUserPayload }>("/auth/register", {
+          firstName,
+          lastName,
+          email: input.email.trim().toLowerCase(),
+          password: input.password,
+          phoneNumber: input.phone,
+          intent: input.role === "seller" ? "seller" : "buyer",
+        });
 
-    await updateProfile(credential.user, {
-      displayName: name,
-    });
-    await sendEmailVerification(credential.user);
-
-    const userProfile: Omit<EasyRideUser, "id"> = {
-      name,
-      email,
-      phone,
-      role,
-      roles: [role],
-      capabilities: capabilitiesForRole(role),
-      photoURL: credential.user.photoURL ?? "",
-      createdAt: Timestamp.now().toDate().toISOString(),
-    };
-
-    await setDoc(doc(db, "users", credential.user.uid), userProfile);
-
-    setProfile({
-      id: credential.user.uid,
-        ...userProfile,
-    });
-  };
-
-  const login = async (email: string, password: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedPassword = password.trim();
-
-    if (
-      normalizedEmail === DEMO_ADMIN_EMAIL &&
-      normalizedPassword === DEMO_ADMIN_PASSWORD
-    ) {
-      await persistFallbackProfile(DEMO_ADMIN_PROFILE);
-      setProfile(DEMO_ADMIN_PROFILE);
-      return;
-    }
-
-    if (!auth || !db) {
-      const cached = readCachedProfile();
-      if (!cached || cached.email.toLowerCase() !== normalizedEmail) {
-        throw new Error(
-          "Firebase is not configured yet. Set your .env.local values to enable email login."
-        );
+        if (res.success && res.data?.user) {
+          const profile = mapBackendUserToProfile(res.data.user);
+          setUser(profile);
+        }
+      } finally {
+        setLoading(false);
       }
-
-      writeSessionProfile(cached);
-      setProfile(cached);
-      return;
-    }
-
-    await signInWithEmailAndPassword(auth, email, password);
-    const user = auth.currentUser;
-    if (user) {
-      setProfile(await loadProfile(user));
-    }
-  };
-
-  const loginWithGoogle = async () => {
-    if (!auth || !db) {
-      const fallbackProfile: EasyRideUser = {
-        id: crypto.randomUUID(),
-        name: "Easy Ride User",
-        email: "guest@easyride.local",
-        phone: "",
-        role: "buyer",
-        roles: ["buyer"],
-        capabilities: capabilitiesForRole("buyer"),
-        photoURL: "",
-        createdAt: new Date().toISOString(),
-      };
-
-      await persistFallbackProfile(fallbackProfile);
-      setProfile(fallbackProfile);
-      return;
-    }
-
-    const provider = new GoogleAuthProvider();
-    const credential = await signInWithPopup(auth, provider);
-
-    const userReference = doc(db, "users", credential.user.uid);
-    const snapshot = await getDoc(userReference);
-
-    if (!snapshot.exists()) {
-      await setDoc(userReference, {
-        name: credential.user.displayName ?? "Easy Ride User",
-        email: credential.user.email ?? "",
-        phone: "",
-        role: "buyer" as UserRole,
-        roles: ["buyer"] as UserRole[],
-        capabilities: capabilitiesForRole("buyer"),
-        photoURL: credential.user.photoURL ?? "",
-        createdAt: Timestamp.now().toDate().toISOString(),
-      });
-    }
-
-    setProfile(await loadProfile(credential.user));
-  };
-
-  const logout = async () => {
-    if (!auth) {
-      writeCachedProfile(null);
-      writeSessionProfile(null);
-      setProfile(null);
-      window.location.replace("/");
-      return;
-    }
-
-    await signOut(auth);
-    writeCachedProfile(null);
-    setProfile(null);
-    window.location.replace("/");
-  };
-
-  const refreshProfile = async () => {
-    if (!auth || !auth.currentUser) {
-      setProfile(readSessionProfile());
-      return;
-    }
-
-    setProfile(await loadProfile(auth.currentUser));
-  };
-
-  const updateAccountRole = useCallback(
-    async (role: "buyer" | "seller", phone?: string) => {
-      if (!profile) {
-        throw new Error("Your account profile is not ready yet.");
-      }
-
-      const updatedProfile: EasyRideUser = normalizeProfile({
-        ...profile,
-        ...(phone === undefined ? {} : { phone }),
-        role,
-        roles: [role],
-        capabilities: capabilitiesForRole(role),
-      });
-
-      if (db && auth?.currentUser) {
-        await setDoc(
-          doc(db, "users", auth.currentUser.uid),
-          {
-            role,
-            roles: [role],
-            capabilities: capabilitiesForRole(role),
-            ...(phone === undefined ? {} : { phone }),
-          },
-          { merge: true },
-        );
-      }
-
-      await persistFallbackProfile(updatedProfile);
-      setProfile(updatedProfile);
     },
-    [profile],
+    []
   );
 
-  const sendVerificationEmail = async () => {
-    if (auth?.currentUser && !auth.currentUser.emailVerified) {
-      await sendEmailVerification(auth.currentUser);
+  const login = useCallback(
+    async (email: string, password: string, twoFactorCode?: string) => {
+      setLoading(true);
+      try {
+        const res = await api.post<{ user: BackendUserPayload; accessToken: string }>("/auth/login", {
+          email: email.trim().toLowerCase(),
+          password,
+          twoFactorCode,
+        });
+
+        if (res.success && res.data) {
+          setAccessToken(res.data.accessToken);
+          // Load full account context
+          await refreshUser();
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [refreshUser]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      setAccessToken(null);
+      setUser(null);
     }
-  };
+  }, []);
 
-  const checkEmailVerification = async () => {
-    if (!auth?.currentUser) return true;
-    await auth.currentUser.reload();
-    return auth.currentUser.emailVerified;
-  };
+  const activateSeller = useCallback(async () => {
+    const res = await api.post<{ user: BackendUserPayload; accessToken?: string }>("/auth/activate-seller");
+    if (res.success && res.data?.user) {
+      if (res.data.accessToken) {
+        setAccessToken(res.data.accessToken);
+      }
+      await refreshUser();
+    }
+  }, [refreshUser]);
 
-  const value = useMemo(
+  const updateAccountRole = useCallback(
+    async (role: "buyer" | "seller") => {
+      if (role === "seller") {
+        await activateSeller();
+      }
+    },
+    [activateSeller]
+  );
+
+  const verifyEmail = useCallback(
+    async (token: string, email?: string) => {
+      await api.post("/auth/verify-email", { token, email });
+      await refreshUser();
+    },
+    [refreshUser]
+  );
+
+  const resendVerification = useCallback(
+    async (targetEmail?: string) => {
+      const email = targetEmail || user?.email;
+      if (!email) throw new Error("Email address is required to resend verification.");
+      await api.post("/auth/resend-verification", { email });
+    },
+    [user?.email]
+  );
+
+  const forgotPassword = useCallback(async (email: string) => {
+    await api.post("/auth/forgot-password", { email });
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    await api.post("/auth/reset-password", { token, newPassword });
+  }, []);
+
+  const checkEmailVerification = useCallback(async () => {
+    await refreshUser();
+    return Boolean(user?.emailVerified);
+  }, [refreshUser, user?.emailVerified]);
+
+  const loginWithGoogle = useCallback(async () => {
+    throw new Error(
+      "Google Sign-In requires an active OAuth client ID. Please sign in with your email and password."
+    );
+  }, []);
+
+  const isAuthenticated = Boolean(user);
+  const isSeller = Boolean(
+    user?.role === "seller" ||
+    user?.role === "dealer" ||
+    user?.role === "admin" ||
+    user?.capabilities?.includes("sell")
+  );
+  const isDealer = Boolean(
+    user?.role === "dealer" ||
+    user?.dealership?.verificationStatus === "verified" ||
+    user?.memberships?.some((m) => m.role === "owner" || m.role === "manager")
+  );
+  const isAdmin = user?.role === "admin";
+
+  const firebaseUserShim = useMemo<FirebaseUserShim | null>(() => {
+    if (!user) return null;
+    return {
+      uid: user.id,
+      email: user.email,
+      displayName: user.name,
+      getIdTokenResult: async () => ({
+        claims: { admin: user.role === "admin" },
+      }),
+    };
+  }, [user]);
+
+  const contextValue = useMemo<AuthContextValue>(
     () => ({
-      firebaseUser,
-      profile,
+      user,
+      profile: user,
       loading,
-      firebaseEnabled: firebaseReady,
+      isAuthenticated,
+      isSeller,
+      isDealer,
+      isAdmin,
+      firebaseUser: firebaseUserShim,
+      firebaseEnabled: false,
       register,
       login,
       loginWithGoogle,
       logout,
-      refreshProfile,
+      refreshProfile: refreshUser,
+      refreshUser,
       updateAccountRole,
-      sendVerificationEmail,
+      activateSeller,
+      verifyEmail,
+      sendVerificationEmail: resendVerification,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
       checkEmailVerification,
     }),
-    [firebaseUser, profile, loading, updateAccountRole]
+    [
+      user,
+      loading,
+      isAuthenticated,
+      isSeller,
+      isDealer,
+      isAdmin,
+      firebaseUserShim,
+      register,
+      login,
+      loginWithGoogle,
+      logout,
+      refreshUser,
+      updateAccountRole,
+      activateSeller,
+      verifyEmail,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
+      checkEmailVerification,
+    ]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-
   if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-
   return context;
 }
