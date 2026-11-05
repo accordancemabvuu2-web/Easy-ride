@@ -3,6 +3,7 @@
 import FavoriteButton from "@/Components/FavoriteButton";
 import Footer from "@/Components/Footer";
 import type { Vehicle } from "@/Types/vehicle";
+import { getMediaUrl } from "@/lib/media";
 import {
   ArrowRight,
   BadgeCheck,
@@ -159,7 +160,7 @@ export default function LandingPage() {
           aria-hidden="true"
           className="-z-20 absolute inset-0 h-full w-full object-cover object-[62%_58%]"
         >
-          <source src="/15259702_2160_3840_30fps.mp4" type="video/mp4" />
+          <source src={getMediaUrl("15259702_2160_3840_30fps.mp4")} type="video/mp4" />
         </video>
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />

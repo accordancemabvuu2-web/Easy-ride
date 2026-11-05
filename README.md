@@ -21,6 +21,29 @@ npm run set-admin
 
 The user must sign out and sign in again after the claim is assigned. Buyer and seller payments are arranged directly between them; Easy Ride does not process those payments.
 
+## Hero video hosting
+
+The hero video is hosted outside the Worker in Cloudflare R2. The configured
+bucket is `easy-ride-media`, exposed through the R2 public development domain
+or an R2 custom domain such as `media.example.com`. Upload the two video files
+to the bucket root:
+
+```bash
+npx wrangler r2 object put easy-ride-media/15259702_2160_3840_30fps.mp4 --file=path/to/15259702_2160_3840_30fps.mp4
+npx wrangler r2 object put easy-ride-media/16672410_3840_2160_60fps.mp4 --file=path/to/16672410_3840_2160_60fps.mp4
+```
+
+The original files are intentionally no longer in `public`; upload them from
+your source archive or Git LFS checkout before deploying.
+
+Set `NEXT_PUBLIC_MEDIA_BASE_URL=https://media.example.com` in the environment
+used to build the Next.js application. The value is a public URL only; do not
+put R2 access keys in any `NEXT_PUBLIC_*` variable or frontend source. R2
+serves byte-range requests for the `<video>` element, so no Worker proxy is
+needed. Configure the R2 custom domain to allow `GET` and `HEAD` from the
+deployed frontend origin if the domain is different from the application
+origin.
+
 ## Getting Started
 
 First, run the development server:
