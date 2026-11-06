@@ -36,13 +36,14 @@ npx wrangler r2 object put easy-ride-media/16672410_3840_2160_60fps.mp4 --file=p
 The original files are intentionally no longer in `public`; upload them from
 your source archive or Git LFS checkout before deploying.
 
-Set `NEXT_PUBLIC_MEDIA_BASE_URL=https://media.example.com` in the environment
-used to build the Next.js application. The value is a public URL only; do not
-put R2 access keys in any `NEXT_PUBLIC_*` variable or frontend source. R2
-serves byte-range requests for the `<video>` element, so no Worker proxy is
-needed. Configure the R2 custom domain to allow `GET` and `HEAD` from the
-deployed frontend origin if the domain is different from the application
-origin.
+Set `NEXT_PUBLIC_MEDIA_BASE_URL=https://pub-9c95999dffa64e63a418ca19ce18d047.r2.dev`
+in the environment used to build the Next.js application. The application
+also uses this R2 public domain as its safe default when the build environment
+does not provide the variable. The value is a public URL only; do not put R2
+access keys in any `NEXT_PUBLIC_*` variable or frontend source. R2 serves
+byte-range requests for the `<video>` element, so no Worker proxy is needed.
+Configure the R2 custom domain to allow `GET` and `HEAD` from the deployed
+frontend origin if the domain is different from the application origin.
 
 ## Getting Started
 

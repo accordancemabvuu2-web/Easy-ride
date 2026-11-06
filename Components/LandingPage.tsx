@@ -24,7 +24,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type ListingMode = "buy" | "rent";
 
@@ -74,6 +74,7 @@ export default function LandingPage() {
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const updateScrolled = () => setScrolled(window.scrollY > 24);
@@ -94,6 +95,27 @@ export default function LandingPage() {
         if (active) setLoadingVehicles(false);
       });
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+
+    const attemptPlayback = () => {
+      if (!video.paused) return;
+      void video.play().catch((error: unknown) => {
+        console.warn("Hero video autoplay was blocked:", error);
+      });
+    };
+
+    video.addEventListener("loadeddata", attemptPlayback);
+    video.addEventListener("canplay", attemptPlayback);
+    attemptPlayback();
+
+    return () => {
+      video.removeEventListener("loadeddata", attemptPlayback);
+      video.removeEventListener("canplay", attemptPlayback);
+    };
   }, []);
 
   const makes = useMemo(() => ["Any Make", ...new Set(vehicles.map((vehicle) => vehicle.make).sort())], [vehicles]);
@@ -152,19 +174,19 @@ export default function LandingPage() {
 
       <section id="home" className="relative isolate w-full overflow-hidden bg-[#06110f] text-white">
         <video
+          ref={heroVideoRef}
           autoPlay
           loop
           muted
           playsInline
-          poster="/images/screenshot-hero.jpg"
           aria-hidden="true"
-          className="-z-20 absolute inset-0 h-full w-full object-cover object-[62%_58%]"
+          className="absolute inset-0 z-0 h-full w-full object-cover object-[62%_58%]"
         >
           <source src={getMediaUrl("15259702_2160_3840_30fps.mp4")} type="video/mp4" />
         </video>
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
-        <div className="mx-auto flex min-h-[min(650px,calc(100svh-72px))] w-full max-w-[1440px] flex-col justify-center gap-8 px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
+        <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#06110f]/95 via-[#06110f]/80 to-[#06110f]/25" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#06110f]/65 via-transparent to-[#06110f]/25" />
+        <div className="relative z-20 mx-auto flex min-h-[min(650px,calc(100svh-72px))] w-full max-w-[1440px] flex-col justify-center gap-8 px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:min-h-[620px] lg:px-12 xl:min-h-[650px]">
           <div className="max-w-[610px]">
             <p className="mb-4 text-sm font-semibold tracking-[0.2em] text-emerald-400">BUY <span className="px-1">•</span> SELL <span className="px-1">•</span> RENT</p>
             <h1 className="text-[clamp(2.5rem,7vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.045em] text-white">Your Next Ride<br /><span className="text-emerald-400">Is Just a Click Away.</span></h1>
