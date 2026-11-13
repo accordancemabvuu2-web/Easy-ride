@@ -39,6 +39,7 @@ export class ApiError extends Error {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 let accessToken: string | null = null;
 let isRefreshing = false;
 let refreshQueue: Array<(token: string | null) => void> = [];
@@ -50,8 +51,33 @@ export function setAuthFailureHandler(handler: AuthFailureHandler | null): void 
   authFailureHandler = handler;
 }
 
+export interface ApiConfigurationDiagnostic {
+  configured: boolean;
+  valid: boolean;
+}
+
+export function getApiConfigurationDiagnostic(): ApiConfigurationDiagnostic {
+  const configuredUrl = configuredApiBaseUrl?.trim();
+  if (!configuredUrl) {
+    return { configured: false, valid: false };
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+    const pathname = url.pathname.replace(/\/+$/, "");
+    return {
+      configured: true,
+      valid:
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        pathname.endsWith("/api/v1"),
+    };
+  } catch {
+    return { configured: true, valid: false };
+  }
+}
+
 function getConfiguredBaseUrl(): string {
-  const configuredUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  const configuredUrl = configuredApiBaseUrl?.trim();
 
   if (!configuredUrl) {
     throw new ApiError(

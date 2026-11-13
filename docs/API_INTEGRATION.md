@@ -15,10 +15,29 @@ do not commit environment files or credentials. The frontend validates this
 value at request time and reports a configuration error when it is missing or
 does not include `/api/v1`.
 
-For Cloudflare GitHub builds, configure this as a build environment variable in
-the Cloudflare Pages/Workers project settings. A runtime Worker variable does
-not replace a `NEXT_PUBLIC_*` value because Next.js embeds public variables
-during `next build`.
+For the GitHub-connected Cloudflare Workers build, use these exact settings:
+
+1. Open **Cloudflare Dashboard → Workers & Pages → easy-ride2**.
+2. Open **Settings → Builds → Variables and secrets**.
+3. Under **Production**, define:
+
+   ```text
+   Name: NEXT_PUBLIC_API_BASE_URL
+   Value: https://easy-ride-backend-adyr.onrender.com/api/v1
+   ```
+
+4. Save the variable and trigger a new deployment from the `main` branch.
+
+The project root is `/`, the build command is
+`npx opennextjs-cloudflare build`, and `wrangler.jsonc` sets the Worker name
+to `easy-ride2`. A runtime Worker variable does not replace a
+`NEXT_PUBLIC_*` value because Next.js embeds public variables during
+`next build`.
+
+For local builds, `.env.local` has higher precedence than `.env.production`.
+Do not use a local development value when validating a production build; set
+`NEXT_PUBLIC_API_BASE_URL` in the build command environment or remove the
+conflicting local value first.
 
 ## Client behavior
 
