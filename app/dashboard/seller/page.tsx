@@ -109,10 +109,17 @@ function SellerDashboardContent() {
         <div className="mt-8 grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-3xl border border-[#DCE5DF] bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#08784D]">Performance</p><h2 className="mt-1 text-xl font-black">Listing views</h2></div><BarChart3 className="text-[#08784D]" /></div>
-            <div className="mt-8 flex h-40 items-end gap-3 border-b border-l border-[#DCE5DF] px-4 pb-0">
-              {[38, 55, 44, 72, 64, 88, 76].map((height, index) => <div key={index} className="group flex h-full flex-1 items-end"><div className="w-full rounded-t-lg bg-[#08784D] transition group-hover:bg-[#E7B319]" style={{ height: `${height}%` }} /></div>)}
-            </div>
-            <div className="mt-3 flex justify-between pl-4 text-xs text-gray-400"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            {listings.length === 0 ? (
+              <div className="mt-8 rounded-2xl border border-dashed border-[#DCE5DF] p-8 text-center text-sm text-gray-500">Listing performance will appear after you add a vehicle.</div>
+            ) : (
+              <div className="mt-8 flex h-40 items-end gap-3 border-b border-l border-[#DCE5DF] px-4 pb-0">
+                {listings.slice(0, 7).map((listing) => {
+                  const maximumViews = Math.max(...listings.map((item) => item.views ?? 0), 1);
+                  const height = Math.max(8, ((listing.views ?? 0) / maximumViews) * 100);
+                  return <div key={listing.id} className="group flex h-full flex-1 items-end" title={`${listing.make} ${listing.model}: ${listing.views ?? 0} views`}><div className="w-full rounded-t-lg bg-[#08784D] transition group-hover:bg-[#E7B319]" style={{ height: `${height}%` }} /></div>;
+                })}
+              </div>
+            )}
           </section>
           <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/create-listing" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>

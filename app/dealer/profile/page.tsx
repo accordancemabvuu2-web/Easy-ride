@@ -25,7 +25,7 @@ export default function DealerProfilePage() {
 }
 
 function DealerProfileContent() {
-  const { profile } = useAuth();
+  const { profile, isPendingDealer } = useAuth();
   const [dealer, setDealer] = useState<Dealer | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -129,7 +129,11 @@ function DealerProfileContent() {
                 </p>
               </div>
 
-              <form onSubmit={submit} className="mt-6 grid gap-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:grid-cols-2">
+              {isPendingDealer ? (
+                <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                  Your dealership application is already pending backend verification. You do not need to submit another application.
+                </div>
+              ) : <form onSubmit={submit} className="mt-6 grid gap-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:grid-cols-2">
                 <input name="businessName" className="input" placeholder="Business name" defaultValue={dealer?.businessName} />
                 <input name="registrationNumber" className="input" placeholder="Registration number" defaultValue={dealer?.registrationNumber} />
                 <input name="email" className="input" placeholder="Business email" defaultValue={dealer?.email ?? profile?.email} />
@@ -152,7 +156,7 @@ function DealerProfileContent() {
                   {submitting && <Loader2 className="animate-spin" size={18} />}
                   Submit Dealer Profile
                 </button>
-              </form>
+              </form>}
             </>
           )}
         </div>

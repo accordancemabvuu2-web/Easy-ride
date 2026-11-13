@@ -33,6 +33,7 @@ export interface BackendUserPayload {
   lastName?: string;
   phoneNumber?: string;
   role?: string;
+  accountType?: "buyer" | "seller" | "dealer";
   capabilities?: string[];
   adminRole?: AdminSubRole | null;
   accountStatus?: "pending" | "active" | "suspended" | "deleted";
@@ -42,6 +43,7 @@ export interface BackendUserPayload {
   preferredLanguage?: string;
   avatarUrl?: string;
   createdAt?: string;
+  dealerVerificationStatus?: "pending" | "under_review" | "verified" | "rejected" | "suspended" | null;
 }
 
 export interface BackendAuthMeExtra {
@@ -54,7 +56,17 @@ export interface RegisterInput {
   email: string;
   password: string;
   phone?: string;
-  role?: "buyer" | "seller";
+  accountType?: "buyer" | "seller" | "dealer";
+  businessName?: string;
+  businessRegistrationNumber?: string;
+  dealerDescription?: string;
+}
+
+export interface RegisterResult {
+  user?: BackendUserPayload;
+  accessToken?: string;
+  refreshToken?: string;
+  sessionCreated?: boolean;
 }
 
 export interface AuthContextValue {
@@ -65,11 +77,13 @@ export interface AuthContextValue {
   isBuyer: boolean;
   isSeller: boolean;
   isDealer: boolean;
+  isPendingDealer: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   firebaseUser: FirebaseUserShim | null;
   firebaseEnabled: boolean;
-  register: (input: RegisterInput) => Promise<void>;
-  login: (email: string, password: string, twoFactorCode?: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<RegisterResult>;
+  login: (email: string, password: string, rememberMe?: boolean, twoFactorCode?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -98,15 +112,14 @@ function mapBackendUserToProfile(
     : ["buy"];
 
   let mappedRole: UserRole = "buyer";
-  if (backendUser.role === "admin" || backendUser.adminRole) {
+  if (backendUser.role === "super_admin" || backendUser.adminRole === "super_admin") {
+    mappedRole = "super_admin";
+  } else if (backendUser.role === "admin" || backendUser.adminRole) {
     mappedRole = "admin";
-  } else if (
-    backendUser.role === "dealer" ||
-    extra?.dealership?.verificationStatus === "verified" ||
-    extra?.memberships?.some((m) => m.role === "owner" || m.role === "manager")
-  ) {
+  } else if (backendUser.role === "dealer") {
     mappedRole = "dealer";
   } else if (
+    backendUser.accountType === "seller" ||
     capabilities.includes("sell") ||
     backendUser.role === "seller"
   ) {
@@ -124,6 +137,8 @@ function mapBackendUserToProfile(
     phone: backendUser.phoneNumber || "",
     phoneNumber: backendUser.phoneNumber || "",
     role: mappedRole,
+    accountType: backendUser.accountType || "buyer",
+    dealerVerificationStatus: backendUser.dealerVerificationStatus ?? extra?.dealership?.verificationStatus ?? null,
     roles: [mappedRole],
     capabilities,
     adminRole: backendUser.adminRole || null,
@@ -192,7 +207,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           payload.phoneNumber = input.phone.trim();
         }
 
-        await api.post<{ user: BackendUserPayload }>("/auth/register", payload);
+        if (input.accountType) {
+          payload.accountType = input.accountType;
+        }
+        if (input.accountType === "dealer") {
+          payload.businessName = input.businessName;
+          payload.businessRegistrationNumber = input.businessRegistrationNumber;
+          payload.dealerDescription = input.dealerDescription;
+        }
+
+        const response = await api.post<RegisterResult>("/auth/register", payload);
+        if (response.data?.accessToken) {
+          setAccessToken(response.data.accessToken);
+        }
+        return response.data ?? {};
       } finally {
         setLoading(false);
       }
@@ -201,17 +229,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const login = useCallback(
-    async (email: string, password: string, twoFactorCode?: string) => {
+    async (email: string, password: string, rememberMe = false, twoFactorCode?: string) => {
       setLoading(true);
       try {
-        const res = await api.post<{ user: BackendUserPayload; accessToken: string }>("/auth/login", {
+        const res = await api.post<{ user: BackendUserPayload; accessToken?: string }>("/auth/login", {
           email: email.trim().toLowerCase(),
           password,
+          rememberMe,
           twoFactorCode,
         });
 
         if (res.success && res.data) {
-          setAccessToken(res.data.accessToken);
+          if (res.data.accessToken) {
+            setAccessToken(res.data.accessToken);
+          }
           // Load full account context
           await refreshUser();
         }
@@ -289,11 +320,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isAuthenticated = Boolean(user);
-  const isAdmin = Boolean(user?.role === "admin" || user?.adminRole !== null);
+  const isSuperAdmin = user?.role === "super_admin" || user?.adminRole === "super_admin";
+  const isAdmin = Boolean(
+    user?.role === "admin" || isSuperAdmin || Boolean(user?.adminRole)
+  );
+  const isPendingDealer = Boolean(
+    user?.accountType === "dealer" &&
+      ["pending", "under_review"].includes(user.dealerVerificationStatus || "")
+  );
   const isDealer = Boolean(
-    user?.role === "dealer" ||
-    user?.dealership?.verificationStatus === "verified" ||
-    user?.memberships?.some((m) => m.role === "owner" || m.role === "manager")
+    !isPendingDealer &&
+      user?.role === "dealer" &&
+      (user.dealerVerificationStatus === "verified" ||
+        user.dealership?.verificationStatus === "verified" ||
+        user.memberships?.some((m) => m.role === "owner" || m.role === "manager"))
   );
   const isSeller = Boolean(
     user?.role === "seller" ||
@@ -324,7 +364,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBuyer,
       isSeller,
       isDealer,
+      isPendingDealer,
       isAdmin,
+      isSuperAdmin,
       firebaseUser: firebaseUserShim,
       firebaseEnabled: false,
       register,
@@ -349,7 +391,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBuyer,
       isSeller,
       isDealer,
+      isPendingDealer,
       isAdmin,
+      isSuperAdmin,
       firebaseUserShim,
       register,
       login,

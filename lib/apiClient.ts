@@ -17,6 +17,7 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: ApiErrorPayload;
   meta?: Record<string, unknown>;
+  requires2FA?: boolean;
 }
 
 export class ApiError extends Error {
@@ -255,6 +256,13 @@ export async function apiRequest<T = unknown>(
   }
 
   const json = await parseResponse<T>(response);
+  if (response.ok && json.requires2FA) {
+    throw new ApiError(
+      "Two-factor authentication code is required.",
+      "2FA_REQUIRED",
+      response.status,
+    );
+  }
   if (!response.ok || json.success === false) {
     const error = json.error ?? {
       code: "REQUEST_FAILED",

@@ -30,6 +30,7 @@ function LoginContent() {
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [needs2FA, setNeeds2FA] = useState(false);
@@ -69,7 +70,7 @@ function LoginContent() {
 
     try {
       setSubmitting(true);
-      await login(trimmedEmail, password, needs2FA ? twoFactorCode.trim() : undefined);
+      await login(trimmedEmail, password, rememberMe, needs2FA ? twoFactorCode.trim() : undefined);
 
       toast.success("Welcome back.");
       router.replace(getNextPath());
@@ -202,7 +203,16 @@ function LoginContent() {
               </div>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="accent-[#0B5D3B]"
+                />
+                Remember me
+              </label>
               <Link
                 href="/forgot-password"
                 className="text-sm font-semibold text-[#0B5D3B] hover:underline"

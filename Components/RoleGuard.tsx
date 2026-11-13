@@ -15,7 +15,7 @@ interface RoleGuardProps {
 }
 
 export default function RoleGuard({ children, allowedRoles, label }: RoleGuardProps) {
-  const { profile, loading, activateSeller, isSeller, isDealer, isAdmin } = useAuth();
+  const { profile, loading, activateSeller, isBuyer, isSeller, isDealer, isAdmin } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activating, setActivating] = useState(false);
 
@@ -34,7 +34,7 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
   // Check role or capability matching
   const hasAccess =
     allowedRoles.includes(profile.role) ||
-    (allowedRoles.includes("buyer") && Boolean(profile)) ||
+    (allowedRoles.includes("buyer") && isBuyer) ||
     (allowedRoles.includes("seller") && isSeller) ||
     (allowedRoles.includes("dealer") && isDealer) ||
     (allowedRoles.includes("admin") && isAdmin);

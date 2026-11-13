@@ -15,7 +15,7 @@ export default function DashboardPage() {
 }
 
 function DashboardRoleRedirect() {
-  const { profile, loading, isAdmin, isDealer, isSeller } = useAuth();
+  const { profile, loading, isAdmin, isDealer, isPendingDealer, isSeller } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -23,6 +23,8 @@ function DashboardRoleRedirect() {
 
     if (isAdmin) {
       router.replace("/admin");
+    } else if (isPendingDealer) {
+      router.replace("/dashboard/dealer/pending");
     } else if (isDealer) {
       router.replace("/dashboard/dealer");
     } else if (isSeller) {
@@ -30,7 +32,7 @@ function DashboardRoleRedirect() {
     } else {
       router.replace("/dashboard/buyer");
     }
-  }, [loading, profile, isAdmin, isDealer, isSeller, router]);
+  }, [loading, profile, isAdmin, isDealer, isPendingDealer, isSeller, router]);
 
   return (
     <main

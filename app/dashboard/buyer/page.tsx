@@ -9,6 +9,7 @@ import { getUserFavoriteListings } from "@/services/favoriteService";
 import { getActiveListings } from "@/services/listingService";
 import { getUserOffers } from "@/services/offerService";
 import { getUserBookings } from "@/services/bookingService";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import type { Vehicle } from "@/Types/vehicle";
 import { BadgeDollarSign, CalendarDays, Heart, Loader2, MessageCircle, Search, Sparkles } from "lucide-react";
 import Image from "next/image";
@@ -33,6 +34,7 @@ function BuyerDashboardContent() {
   const [bookingCount, setBookingCount] = useState(0);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const unreadMessages = useUnreadMessages();
 
   useEffect(() => {
     if (!profile) return;
@@ -89,7 +91,7 @@ function BuyerDashboardContent() {
           <BuyerMetric icon={<Heart className="text-red-500" />} label="Saved Vehicles" value={savedCount} href="/favorites" />
           <BuyerMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Active Offers" value={offerCount} href="/offers" />
           <BuyerMetric icon={<CalendarDays className="text-[#08784D]" />} label="Upcoming Bookings" value={bookingCount} href="/bookings" />
-          <BuyerMetric icon={<MessageCircle className="text-blue-500" />} label="Unread Messages" value="4" href="/messages" />
+          <BuyerMetric icon={<MessageCircle className="text-blue-500" />} label="Unread Messages" value={unreadMessages} href="/messages" />
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4">

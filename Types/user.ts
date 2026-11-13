@@ -1,4 +1,4 @@
-export type UserRole = "user" | "buyer" | "seller" | "dealer" | "admin";
+export type UserRole = "user" | "buyer" | "seller" | "dealer" | "admin" | "super_admin";
 export type UserCapability = "buy" | "rent" | "sell" | "dealer";
 export type AdminSubRole = "super_admin" | "operations" | "verification" | "support";
 
@@ -27,6 +27,8 @@ export interface EasyRideUser {
   phone?: string;
   phoneNumber?: string;
   role: UserRole;
+  accountType?: "buyer" | "seller" | "dealer";
+  dealerVerificationStatus?: "pending" | "under_review" | "verified" | "rejected" | "suspended" | null;
   roles?: UserRole[];
   capabilities: string[];
   adminRole?: AdminSubRole | null;
