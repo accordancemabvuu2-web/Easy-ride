@@ -25,12 +25,23 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-type DashboardRole = "personal" | "buyer" | "seller";
+type DashboardRole = "personal" | "buyer" | "seller" | "dealer";
 
 interface DashboardShellProps {
   role: DashboardRole;
   children: ReactNode;
 }
+
+const dealerLinks = [
+  { label: "Dashboard", href: "/dashboard/dealer", icon: LayoutDashboard },
+  { label: "Inventory", href: "/dealer/inventory", icon: CarFront },
+  { label: "Add Vehicle", href: "/create-listing", icon: Plus },
+  { label: "Analytics", href: "/dealer/analytics", icon: BarChart3 },
+  { label: "Dealership Profile", href: "/dealer/profile", icon: Store },
+  { label: "Messages", href: "/messages", icon: MessageCircle },
+  { label: "Bookings", href: "/bookings", icon: CalendarDays },
+  { label: "Support", href: "/support", icon: ShieldCheck },
+];
 
 const buyerLinks = [
   { label: "Dashboard", href: "/dashboard/buyer", icon: LayoutDashboard },
@@ -76,7 +87,14 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const links = role === "personal" ? personalLinks : role === "buyer" ? buyerLinks : sellerLinks;
+  const links =
+    role === "personal"
+      ? personalLinks
+      : role === "buyer"
+      ? buyerLinks
+      : role === "dealer"
+      ? dealerLinks
+      : sellerLinks;
   const displayName = profile?.name?.trim() || "Guest";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
@@ -112,7 +130,15 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7B319] font-black text-[#063F2C]">ER</span>
             <div>
               <p className="font-black tracking-tight">EASY<span className="text-[#E7B319]">RIDE</span></p>
-              <p className="text-xs text-white/60">{role === "personal" ? "Personal account" : role === "buyer" ? "Marketplace" : "Seller studio"}</p>
+              <p className="text-xs text-white/60">
+                {role === "personal"
+                  ? "Personal account"
+                  : role === "buyer"
+                  ? "Marketplace"
+                  : role === "dealer"
+                  ? "Dealership studio"
+                  : "Seller studio"}
+              </p>
             </div>
           </div>
 
@@ -120,10 +146,26 @@ export default function DashboardShell({ role, children }: DashboardShellProps) 
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#A8E6C3]">Current mode</p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-bold">
-                {role === "personal" ? <UserRound size={16} /> : role === "buyer" ? <Search size={16} /> : <Store size={16} />}
-                {role === "personal" ? "Personal" : role === "buyer" ? "Buyer" : "Seller"}
+                {role === "personal" ? (
+                  <UserRound size={16} />
+                ) : role === "buyer" ? (
+                  <Search size={16} />
+                ) : (
+                  <Store size={16} />
+                )}
+                {role === "personal"
+                  ? "Personal"
+                  : role === "buyer"
+                  ? "Buyer"
+                  : role === "dealer"
+                  ? "Dealer"
+                  : "Seller"}
               </span>
-              {role === "personal" ? <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">Become a Dealer</Link> : null}
+              {role === "personal" || role === "buyer" ? (
+                <Link href="/dealer/apply" onClick={closeMobile} className="text-xs font-bold text-[#E7B319] hover:underline">
+                  Become a Dealer
+                </Link>
+              ) : null}
             </div>
           </div>
 

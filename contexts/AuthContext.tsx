@@ -1,6 +1,6 @@
 "use client";
 
-import { api, setAccessToken } from "@/lib/apiClient";
+import { api, setAccessToken, setAuthFailureHandler } from "@/lib/apiClient";
 import type {
   AdminSubRole,
   DealershipMembership,
@@ -32,7 +32,7 @@ export interface BackendUserPayload {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
-  role?: UserRole;
+  role?: string;
   capabilities?: string[];
   adminRole?: AdminSubRole | null;
   accountStatus?: "pending" | "active" | "suspended" | "deleted";
@@ -62,6 +62,7 @@ export interface AuthContextValue {
   profile: EasyRideUser | null;
   loading: boolean;
   isAuthenticated: boolean;
+  isBuyer: boolean;
   isSeller: boolean;
   isDealer: boolean;
   isAdmin: boolean;
@@ -96,6 +97,24 @@ function mapBackendUserToProfile(
     ? backendUser.capabilities
     : ["buy"];
 
+  let mappedRole: UserRole = "buyer";
+  if (backendUser.role === "admin" || backendUser.adminRole) {
+    mappedRole = "admin";
+  } else if (
+    backendUser.role === "dealer" ||
+    extra?.dealership?.verificationStatus === "verified" ||
+    extra?.memberships?.some((m) => m.role === "owner" || m.role === "manager")
+  ) {
+    mappedRole = "dealer";
+  } else if (
+    capabilities.includes("sell") ||
+    backendUser.role === "seller"
+  ) {
+    mappedRole = "seller";
+  } else {
+    mappedRole = "buyer";
+  }
+
   return {
     id: backendUser.id || backendUser._id || "",
     name: fullName,
@@ -104,8 +123,8 @@ function mapBackendUserToProfile(
     email: backendUser.email,
     phone: backendUser.phoneNumber || "",
     phoneNumber: backendUser.phoneNumber || "",
-    role: backendUser.role || "user",
-    roles: [backendUser.role || "user"],
+    role: mappedRole,
+    roles: [mappedRole],
     capabilities,
     adminRole: backendUser.adminRole || null,
     accountStatus: backendUser.accountStatus || "active",
@@ -147,30 +166,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setAuthFailureHandler(() => {
+      setUser(null);
+      setLoading(false);
+    });
     void refreshUser();
+    return () => setAuthFailureHandler(null);
   }, [refreshUser]);
 
   const register = useCallback(
     async (input: RegisterInput) => {
       setLoading(true);
       try {
-        const parts = input.name.trim().split(" ");
-        const firstName = parts[0] || input.name;
+        const parts = input.name.trim().split(/\s+/);
+        const firstName = parts[0] || input.name.trim();
         const lastName = parts.slice(1).join(" ") || "";
 
-        const res = await api.post<{ user: BackendUserPayload }>("/auth/register", {
+        const payload: Record<string, unknown> = {
           firstName,
           lastName,
           email: input.email.trim().toLowerCase(),
           password: input.password,
-          phoneNumber: input.phone,
-          intent: input.role === "seller" ? "seller" : "buyer",
-        });
-
-        if (res.success && res.data?.user) {
-          const profile = mapBackendUserToProfile(res.data.user);
-          setUser(profile);
+        };
+        if (input.phone && input.phone.trim()) {
+          payload.phoneNumber = input.phone.trim();
         }
+
+        await api.post<{ user: BackendUserPayload }>("/auth/register", payload);
       } finally {
         setLoading(false);
       }
@@ -267,18 +289,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isAuthenticated = Boolean(user);
-  const isSeller = Boolean(
-    user?.role === "seller" ||
-    user?.role === "dealer" ||
-    user?.role === "admin" ||
-    user?.capabilities?.includes("sell")
-  );
+  const isAdmin = Boolean(user?.role === "admin" || user?.adminRole !== null);
   const isDealer = Boolean(
     user?.role === "dealer" ||
     user?.dealership?.verificationStatus === "verified" ||
     user?.memberships?.some((m) => m.role === "owner" || m.role === "manager")
   );
-  const isAdmin = user?.role === "admin";
+  const isSeller = Boolean(
+    user?.role === "seller" ||
+    user?.capabilities?.includes("sell") ||
+    isDealer ||
+    isAdmin
+  );
+  const isBuyer = Boolean(user);
 
   const firebaseUserShim = useMemo<FirebaseUserShim | null>(() => {
     if (!user) return null;
@@ -298,6 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile: user,
       loading,
       isAuthenticated,
+      isBuyer,
       isSeller,
       isDealer,
       isAdmin,
@@ -322,6 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       isAuthenticated,
+      isBuyer,
       isSeller,
       isDealer,
       isAdmin,

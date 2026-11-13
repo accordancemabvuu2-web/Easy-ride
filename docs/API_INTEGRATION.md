@@ -7,13 +7,18 @@ HTTP. Set `NEXT_PUBLIC_API_BASE_URL` to the backend origin plus the versioned
 prefix:
 
 ```text
-NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
+NEXT_PUBLIC_API_BASE_URL=https://easy-ride-backend-adyr.onrender.com/api/v1
 ```
 
 Use the local, staging, and production values in each deployment environment;
 do not commit environment files or credentials. The frontend validates this
 value at request time and reports a configuration error when it is missing or
 does not include `/api/v1`.
+
+For Cloudflare GitHub builds, configure this as a build environment variable in
+the Cloudflare Pages/Workers project settings. A runtime Worker variable does
+not replace a `NEXT_PUBLIC_*` value because Next.js embeds public variables
+during `next build`.
 
 ## Client behavior
 
@@ -92,7 +97,16 @@ Confirmed by the existing frontend integration record:
 - `/health/ready` for backend readiness.
 - Dealer and admin routes listed in `PROJECT_STATUS.md`.
 
-Awaiting backend OpenAPI confirmation before new frontend feature work:
+The following existing frontend features do not yet call the Render API and
+must remain unchanged until their backend contracts are confirmed:
+
+- Vehicle listings, listing creation, and image uploads currently use the
+  existing Firebase/Supabase/local-storage fallback paths.
+- Bookings, favorites, offers, messaging, notifications, payments, support,
+  reviews, reports, dealer, verification, and admin services use their
+  existing Firebase/local-storage paths.
+
+Awaiting backend OpenAPI confirmation before migrating those features:
 
 - Vehicle marketplace search, filters, pagination, and listing mutations.
 - Rental-specific resources and availability contracts.

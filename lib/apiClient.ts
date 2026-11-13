@@ -43,12 +43,19 @@ let accessToken: string | null = null;
 let isRefreshing = false;
 let refreshQueue: Array<(token: string | null) => void> = [];
 
+type AuthFailureHandler = () => void;
+let authFailureHandler: AuthFailureHandler | null = null;
+
+export function setAuthFailureHandler(handler: AuthFailureHandler | null): void {
+  authFailureHandler = handler;
+}
+
 function getConfiguredBaseUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
   if (!configuredUrl) {
     throw new ApiError(
-      "NEXT_PUBLIC_API_BASE_URL is not configured. Copy .env.example to .env.local and set the API URL.",
+      "NEXT_PUBLIC_API_BASE_URL is not configured. Set NEXT_PUBLIC_API_BASE_URL in your build environment or environment variables.",
       "CONFIGURATION_ERROR",
       0
     );
@@ -108,7 +115,7 @@ function settleRefreshQueue(token: string | null): void {
   refreshQueue = [];
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   if (isRefreshing) {
     return new Promise((resolve) => refreshQueue.push(resolve));
   }
@@ -125,6 +132,7 @@ async function refreshAccessToken(): Promise<string | null> {
     if (!response.ok) {
       setAccessToken(null);
       settleRefreshQueue(null);
+      authFailureHandler?.();
       return null;
     }
 
@@ -132,10 +140,14 @@ async function refreshAccessToken(): Promise<string | null> {
     const newToken = payload.data?.accessToken ?? null;
     setAccessToken(newToken);
     settleRefreshQueue(newToken);
+    if (!newToken) {
+      authFailureHandler?.();
+    }
     return newToken;
   } catch {
     setAccessToken(null);
     settleRefreshQueue(null);
+    authFailureHandler?.();
     return null;
   } finally {
     isRefreshing = false;

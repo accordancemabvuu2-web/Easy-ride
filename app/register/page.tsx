@@ -1,247 +1,344 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/apiClient";
 import {
   ArrowLeft,
   ArrowRight,
   CarFront,
   Check,
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  Phone,
   ShieldCheck,
+  User,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import toast from "react-hot-toast";
 
-type Intent = "buyer" | "seller";
-type Step = 1 | 2 | 3;
-
 export default function RegisterPage() {
-  const {
-    register,
-    loginWithGoogle,
-    updateAccountRole,
-    sendVerificationEmail,
-    checkEmailVerification,
-    firebaseEnabled,
-  } = useAuth();
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#F8F9FA]">
+          <Loader2 className="animate-spin text-[#0B5D3B]" size={36} />
+        </main>
+      }
+    >
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
+  const { register } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<Step>(1);
+  const searchParams = useSearchParams();
+  const nextTarget = searchParams.get("next") || "/dashboard";
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [nextTarget, setNextTarget] = useState("/");
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-    intent: null as Intent | null,
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  useEffect(() => {
-    const next = new URLSearchParams(window.location.search).get("next");
-    if (next?.startsWith("/") && !next.startsWith("//")) {
-      setNextTarget(next);
-    }
-    if (next?.startsWith("/create-listing")) {
-      setForm((current) => ({ ...current, intent: "seller" }));
-    }
-  }, []);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const update = (field: keyof typeof form, value: string | Intent | null) => {
-    setForm((current) => ({ ...current, [field]: value }));
-    setError("");
-  };
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleGoogle = async () => {
-    try {
-      setLoading(true);
-      await loginWithGoogle();
-      setStep(3);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Google sign-up failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createAccount = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) {
-      setError("Please enter your name and email address.");
+    setError(null);
+    setFieldErrors({});
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName) {
+      setError("Please enter your full name.");
       return;
     }
-    if (form.password.length < 8) {
-      setError("Your password must contain at least 8 characters.");
+
+    if (!trimmedEmail || !/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
+      setError("Please provide a valid email address.");
+      return;
+    }
+
+    if (password.length < 10) {
+      setError("Your password must be at least 10 characters long.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match. Please re-enter your password confirmation.");
       return;
     }
 
     try {
       setLoading(true);
       await register({
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        phone: form.phone.trim(),
+        name: trimmedName,
+        email: trimmedEmail,
+        password,
+        phone: trimmedPhone || undefined,
         role: "buyer",
       });
-      setStep(firebaseEnabled ? 2 : 3);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Registration failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const continueAfterVerification = async () => {
-    try {
-      setLoading(true);
-      if (firebaseEnabled && !(await checkEmailVerification())) {
-        setError("Please verify your email using the link we sent, then try again.");
-        return;
+      toast.success("Account created successfully! Please sign in.", { duration: 5000 });
+      router.push(`/login?registered=true&email=${encodeURIComponent(trimmedEmail)}&next=${encodeURIComponent(nextTarget)}`);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.code === "EMAIL_IN_USE") {
+          setError("An account with this email address already exists. Please sign in instead.");
+        } else if (err.code === "VALIDATION_ERROR" && err.details && typeof err.details === "object") {
+          const details = err.details as { fieldErrors?: Record<string, string[]>; formErrors?: string[] };
+          if (details.fieldErrors && Object.keys(details.fieldErrors).length > 0) {
+            setFieldErrors(details.fieldErrors);
+            const firstKey = Object.keys(details.fieldErrors)[0];
+            const firstMsg = details.fieldErrors[firstKey]?.[0];
+            setError(firstMsg || err.message);
+          } else {
+            setError(err.message);
+          }
+        } else {
+          setError(err.message || "Registration failed. Please try again.");
+        }
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred during registration.");
       }
-      setStep(3);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Verification failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const finish = async () => {
-    if (!form.intent) {
-      setError("Choose whether you want to buy or rent, or sell a vehicle.");
-      return;
-    }
-    if (form.intent === "seller" && !form.phone.trim()) {
-      setError("Sellers need a phone or WhatsApp number so buyers can contact them.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await updateAccountRole(form.intent, form.phone.trim());
-      toast.success("Your Easy Ride account is ready.");
-      router.replace(
-        form.intent === "seller" ? "/dashboard/seller" : "/dashboard?mode=buy",
-      );
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not finish setup.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7f6] px-5 py-8 text-slate-900 sm:px-8 lg:py-14">
-      <div className="mx-auto max-w-6xl">
-        <Link href="/" className="inline-flex items-center gap-2 font-semibold text-[#0B5D3B]">
-          <ArrowLeft size={18} /> Home
+    <main className="min-h-screen bg-[#f5f7f6] px-4 py-8 text-slate-900 sm:px-6 lg:py-12">
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 font-semibold text-[#0B5D3B] hover:underline"
+        >
+          <ArrowLeft size={18} /> Return home
         </Link>
 
-        <section className="mt-6 grid overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.10)] lg:grid-cols-[0.85fr_1.15fr]">
-          <aside className="hidden bg-[#0B5D3B] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+        <section className="mt-6 grid overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.8fr_1.2fr]">
+          {/* Brand showcase sidebar */}
+          <aside className="hidden bg-[#063F2C] p-10 text-white lg:flex lg:flex-col lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
-                <CarFront size={20} /> <span className="font-semibold">Easy Ride</span>
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5">
+                <CarFront className="text-[#E7B319]" size={22} />
+                <span className="font-extrabold tracking-tight">EASY<span className="text-[#E7B319]">RIDE</span></span>
               </div>
-              <h1 className="mt-12 max-w-md text-5xl font-extrabold leading-tight">
-                Your next journey starts here.
+
+              <h1 className="mt-12 text-4xl font-extrabold leading-tight">
+                Your journey starts with a trusted account.
               </h1>
-              <p className="mt-6 max-w-md text-lg leading-8 text-emerald-50/80">
-                One account for discovering vehicles, renting, buying and selling.
+              <p className="mt-5 text-sm leading-6 text-emerald-100/80">
+                Join thousands of verified vehicle buyers and sellers across the marketplace.
               </p>
             </div>
-            <div className="space-y-3 text-sm text-emerald-50">
-              <Benefit icon={<ShieldCheck size={18} />} text="One secure account for every journey" />
-              <Benefit icon={<Check size={18} />} text="Choose your path when you are ready" />
-              <Benefit icon={<ArrowRight size={18} />} text="Become a verified dealer later" />
+
+            <div className="space-y-3.5 text-xs text-emerald-100/90">
+              <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                <ShieldCheck className="text-[#E7B319]" size={20} />
+                <span>Verified profiles and secure direct enquiries</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                <Check className="text-[#E7B319]" size={20} />
+                <span>Default buyer privileges with one-click seller upgrade</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                <ArrowRight className="text-[#E7B319]" size={20} />
+                <span>Full access to listings, saved cars, and bookings</span>
+              </div>
             </div>
           </aside>
 
-          <div className="px-5 py-8 sm:px-10 sm:py-12">
-            <div className="mb-10">
-              <div className="flex justify-between text-xs font-semibold text-slate-400">
-                {["Account", "Verify", "Personalize"].map((label, index) => (
-                  <span key={label} className={step > index ? "text-[#0B5D3B]" : ""}>{label}</span>
-                ))}
+          {/* Form container */}
+          <div className="p-6 sm:p-10">
+            <div>
+              <div className="inline-block rounded-lg bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#0B5D3B]">
+                New Account
               </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-[#0B5D3B] transition-all" style={{ width: `${step * 33.33}%` }} />
-              </div>
+              <h2 className="mt-3 text-3xl font-extrabold text-slate-950">
+                Create your Easy Ride account
+              </h2>
+              <p className="mt-2 text-sm text-gray-500">
+                Register as a vehicle customer. You can activate seller privileges anytime from your dashboard.
+              </p>
             </div>
 
-            {step === 1 && (
-              <div className="mx-auto max-w-xl">
-                <Header eyebrow="Create your account" title="Get started with Easy Ride." />
-                <button type="button" onClick={handleGoogle} disabled={loading} className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 px-4 py-3.5 font-semibold transition hover:bg-slate-50 disabled:opacity-60">
-                  <span className="text-lg font-bold text-[#4285F4]">G</span>
-                  {loading ? "Connecting..." : "Continue with Google"}
-                </button>
-                <div className="my-7 flex items-center gap-4 text-xs text-slate-400"><div className="h-px flex-1 bg-slate-200" /> OR <div className="h-px flex-1 bg-slate-200" /></div>
-                <form onSubmit={createAccount} className="space-y-5">
-                  <Field label="Full name"><input required value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Your full name" className="input" /></Field>
-                  <Field label="Email address"><input required type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="name@example.com" className="input" /></Field>
-                  <Field label="Password"><input required minLength={8} type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="At least 8 characters" className="input" /></Field>
-                  {error && <ErrorMessage message={error} />}
-                  <SubmitButton loading={loading}>Continue</SubmitButton>
-                </form>
-                <p className="mt-6 text-center text-sm text-slate-500">Already have an account? <Link href={`/login?next=${encodeURIComponent(nextTarget)}`} className="font-bold text-[#0B5D3B] hover:underline">Log in</Link></p>
+            {error && (
+              <div
+                role="alert"
+                className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+              >
+                {error}
               </div>
             )}
 
-            {step === 2 && (
-              <div className="mx-auto max-w-md text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-[#0B5D3B]"><ShieldCheck size={30} /></div>
-                <Header eyebrow="Verify your account" title="Check your email." />
-                <p className="mt-4 text-sm leading-6 text-slate-500">We sent a verification link to <strong>{form.email}</strong>. Open it, then return here to continue.</p>
-                {error && <div className="mt-4"><ErrorMessage message={error} /></div>}
-                <button type="button" onClick={continueAfterVerification} disabled={loading} className="mt-8 w-full rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Checking..." : "I verified my email"}</button>
-                <button type="button" onClick={() => sendVerificationEmail().catch((error) => setError(error instanceof Error ? error.message : "Could not resend the email."))} className="mt-5 text-sm font-semibold text-[#0B5D3B] hover:underline">Resend verification email</button>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="mx-auto max-w-xl">
-                <Header eyebrow="Welcome to Easy Ride" title="What brings you here?" />
-                <p className="mt-4 text-center text-sm leading-6 text-slate-500">Choose your main goal. You can change or expand your account later.</p>
-                <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                  <IntentCard selected={form.intent === "buyer"} onClick={() => update("intent", "buyer")} title="Buy or Rent" description="Discover vehicles, save favorites and manage bookings." icon={<CarFront size={23} />} />
-                  <IntentCard selected={form.intent === "seller"} onClick={() => update("intent", "seller")} title="Sell a Vehicle" description="List your vehicle and reach real buyers." icon={<ArrowRight size={23} />} />
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              {/* Full Name */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Full name
+                </label>
+                <div className="relative">
+                  <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    required
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Tendai Moyo"
+                    className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  />
                 </div>
-                {form.intent === "seller" && <div className="mt-5"><Field label="Phone or WhatsApp number"><input required value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+263 77 123 4567" className="input" /></Field></div>}
-                {error && <div className="mt-5"><ErrorMessage message={error} /></div>}
-                <button type="button" onClick={finish} disabled={loading} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Finishing..." : "Continue to Easy Ride"} {!loading && <ArrowRight size={17} />}</button>
-                <p className="mt-5 text-center text-xs text-slate-400">You can apply to become a verified dealer later from your account.</p>
+                {fieldErrors.firstName && (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName[0]}</p>
+                )}
               </div>
-            )}
+
+              {/* Email */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Email address
+                </label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  />
+                </div>
+                {fieldErrors.email && (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.email[0]}</p>
+                )}
+              </div>
+
+              {/* Phone number */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Phone or WhatsApp <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+263 77 123 4567"
+                    className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  />
+                </div>
+                {fieldErrors.phoneNumber && (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.phoneNumber[0]}</p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Password <span className="text-[11px] font-normal text-gray-500">(minimum 10 characters)</span>
+                </label>
+                <div className="relative">
+                  <LockKeyhole size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    required
+                    minLength={10}
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Create a strong password"
+                    className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-12 text-sm outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.password[0]}</p>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Confirm password
+                </label>
+                <div className="relative">
+                  <LockKeyhole size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    required
+                    minLength={10}
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter your password"
+                    className="w-full rounded-2xl border border-slate-200 py-3.5 pl-11 pr-12 text-sm outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B5D3B] px-6 py-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#084B30] disabled:opacity-60"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Creating account...
+                  </>
+                ) : (
+                  <>
+                    Create Account
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <p className="mt-8 text-center text-sm text-gray-600">
+              Already have an Easy Ride account?{" "}
+              <Link
+                href={`/login?next=${encodeURIComponent(nextTarget)}`}
+                className="font-bold text-[#0B5D3B] hover:underline"
+              >
+                Log in here
+              </Link>
+            </p>
           </div>
         </section>
       </div>
     </main>
   );
-}
-
-function Header({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return <div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.22em] text-[#0B5D3B]">{eyebrow}</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">{title}</h2></div>;
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>;
-}
-
-function SubmitButton({ loading, children }: { loading: boolean; children: React.ReactNode }) {
-  return <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0B5D3B] px-5 py-3.5 font-bold text-white disabled:opacity-60">{loading ? "Creating account..." : children}<ArrowRight size={17} /></button>;
-}
-
-function IntentCard({ selected, onClick, title, description, icon }: { selected: boolean; onClick: () => void; title: string; description: string; icon: React.ReactNode }) {
-  return <button type="button" onClick={onClick} className={`rounded-3xl border-2 p-6 text-left transition ${selected ? "border-[#0B5D3B] bg-emerald-50 shadow-lg shadow-emerald-900/5" : "border-slate-200 hover:border-slate-300"}`}><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${selected ? "bg-[#0B5D3B] text-white" : "bg-slate-100 text-slate-600"}`}>{icon}</div><h3 className="mt-5 text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>{selected && <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[#0B5D3B]"><Check size={17} /> Selected</div>}</button>;
-}
-
-function Benefit({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">{icon}</div><span>{text}</span></div>;
-}
-
-function ErrorMessage({ message }: { message: string }) {
-  return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
 }

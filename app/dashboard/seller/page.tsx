@@ -17,7 +17,7 @@ import toast from "react-hot-toast";
 export default function SellerDashboardPage() {
   return (
     <RequireAuth>
-      <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Seller">
+      <RoleGuard allowedRoles={["seller", "dealer", "admin"]} label="Seller">
         <SellerDashboardContent />
       </RoleGuard>
     </RequireAuth>

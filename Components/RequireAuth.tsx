@@ -20,21 +20,16 @@ export default function RequireAuth({ children }: RequireAuthProps) {
   }, []);
 
   useEffect(() => {
-    if (!loading && !profile) {
+    if (mounted && !loading && !profile) {
       const next = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       router.replace(`/login?next=${encodeURIComponent(next)}`);
     }
-  }, [loading, profile, router]);
+  }, [mounted, loading, profile, router]);
 
-  // During hydration, render children. Auth checks happen after.
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
-  if (loading || !profile) {
+  if (!mounted || loading || !profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
+      <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA]" role="status" aria-label="Loading authentication">
+        <Loader2 className="animate-spin text-[#0B5D3B]" size={36} />
       </div>
     );
   }
