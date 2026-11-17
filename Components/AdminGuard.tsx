@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 export default function AdminGuard({ children }: { children: ReactNode }) {
-  const { user, profile, loading, isAdmin } = useAuth();
+  const { user, profile, loading, isAdmin, isSuperAdmin } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -22,7 +22,14 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   }
 
   const activeUser = user || profile;
-  const hasAccess = Boolean(activeUser && (isAdmin || activeUser.role === "admin"));
+  const hasAccess = Boolean(
+    activeUser &&
+      (isAdmin ||
+        isSuperAdmin ||
+        activeUser.role === "admin" ||
+        activeUser.role === "super_admin" ||
+        Boolean(activeUser.adminRole))
+  );
 
   if (!hasAccess) {
     return (

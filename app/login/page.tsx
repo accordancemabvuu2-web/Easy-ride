@@ -2,6 +2,10 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/apiClient";
+import {
+  getDashboardDestination,
+  resolveRedirectDestination,
+} from "@/lib/authNavigation";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,11 +27,12 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [submitting, setSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -36,6 +41,25 @@ function LoginContent() {
   const [needs2FA, setNeeds2FA] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [registeredSuccess, setRegisteredSuccess] = useState(false);
+
+  // If the user is already authenticated, redirect immediately to their dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      const defaultDest = getDashboardDestination(user);
+      const nextParam = searchParams.get("next");
+      const destination = resolveRedirectDestination(nextParam, defaultDest);
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[AuthDiagnostic] User already authenticated on login page", {
+          resolvedAccountType: user.accountType,
+          destination,
+          initiatingNavigation: true,
+        });
+      }
+
+      router.replace(destination);
+    }
+  }, [loading, user, searchParams, router]);
 
   useEffect(() => {
     const isRegistered = searchParams.get("registered") === "true";
@@ -47,11 +71,6 @@ function LoginContent() {
       setEmail(emailParam);
     }
   }, [searchParams]);
-
-  const getNextPath = () => {
-    const next = searchParams.get("next");
-    return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -70,11 +89,34 @@ function LoginContent() {
 
     try {
       setSubmitting(true);
-      await login(trimmedEmail, password, rememberMe, needs2FA ? twoFactorCode.trim() : undefined);
+      const authenticatedUser = await login(
+        trimmedEmail,
+        password,
+        rememberMe,
+        needs2FA ? twoFactorCode.trim() : undefined
+      );
 
-      toast.success("Welcome back.");
-      router.replace(getNextPath());
+      const defaultDest = getDashboardDestination(authenticatedUser);
+      const nextParam = searchParams.get("next");
+      const destination = resolveRedirectDestination(nextParam, defaultDest);
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[AuthDiagnostic] Login navigation initiated", {
+          resolvedRole: authenticatedUser.role,
+          resolvedAccountType: authenticatedUser.accountType,
+          destination,
+          initiatingNavigation: true,
+        });
+      }
+
+      setIsRedirecting(true);
+      toast.success("Login successful, redirecting...");
+      router.replace(destination);
+      router.refresh();
     } catch (err: unknown) {
+      setIsRedirecting(false);
+      setSubmitting(false);
+
       if (err instanceof ApiError) {
         if (err.code === "2FA_REQUIRED") {
           setNeeds2FA(true);
@@ -93,9 +135,15 @@ function LoginContent() {
       } else {
         setErrorMessage("An unexpected authentication error occurred.");
       }
-    } finally {
-      setSubmitting(false);
     }
+  };
+
+  const getRegisterNextUrl = () => {
+    const nextParam = searchParams.get("next");
+    if (nextParam) {
+      return `/register?next=${encodeURIComponent(nextParam)}`;
+    }
+    return "/register";
   };
 
   return (
@@ -155,7 +203,8 @@ function LoginContent() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-2xl border border-[#E5E7EB] py-3.5 pl-11 pr-4 text-base outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  disabled={submitting || isRedirecting}
+                  className="w-full rounded-2xl border border-[#E5E7EB] py-3.5 pl-11 pr-4 text-base outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10 disabled:bg-gray-50"
                   placeholder="name@example.com"
                 />
               </div>
@@ -172,12 +221,14 @@ function LoginContent() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="w-full rounded-2xl border border-[#E5E7EB] py-3.5 pl-11 pr-12 text-base outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  disabled={submitting || isRedirecting}
+                  className="w-full rounded-2xl border border-[#E5E7EB] py-3.5 pl-11 pr-12 text-base outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10 disabled:bg-gray-50"
                   placeholder="Your password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={submitting || isRedirecting}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
@@ -197,7 +248,8 @@ function LoginContent() {
                   maxLength={6}
                   value={twoFactorCode}
                   onChange={(event) => setTwoFactorCode(event.target.value)}
-                  className="w-full rounded-2xl border border-[#E5E7EB] px-5 py-3.5 text-center text-lg font-mono tracking-widest outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10"
+                  disabled={submitting || isRedirecting}
+                  className="w-full rounded-2xl border border-[#E5E7EB] px-5 py-3.5 text-center text-lg font-mono tracking-widest outline-none transition focus:border-[#0B5D3B] focus:ring-2 focus:ring-[#0B5D3B]/10 disabled:bg-gray-50"
                   placeholder="000000"
                 />
               </div>
@@ -209,6 +261,7 @@ function LoginContent() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.target.checked)}
+                  disabled={submitting || isRedirecting}
                   className="accent-[#0B5D3B]"
                 />
                 Remember me
@@ -223,10 +276,14 @@ function LoginContent() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || isRedirecting}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white transition hover:bg-[#094c30] disabled:opacity-60"
             >
-              {submitting ? (
+              {isRedirecting ? (
+                <>
+                  <Loader2 className="animate-spin" size={19} /> Redirecting to dashboard...
+                </>
+              ) : submitting ? (
                 <>
                   <Loader2 className="animate-spin" size={19} /> Signing in...
                 </>
@@ -239,7 +296,7 @@ function LoginContent() {
           <p className="mt-8 text-center text-sm text-gray-500">
             New to Easy Ride?{" "}
             <Link
-              href={`/register?next=${encodeURIComponent(getNextPath())}`}
+              href={getRegisterNextUrl()}
               className="font-bold text-[#0B5D3B] hover:underline"
             >
               Create an account

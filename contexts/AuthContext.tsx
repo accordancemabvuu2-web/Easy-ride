@@ -1,6 +1,10 @@
 "use client";
 
 import { api, setAccessToken, setAuthFailureHandler } from "@/lib/apiClient";
+import {
+  isApprovedDealer,
+  isPendingDealerAccount,
+} from "@/lib/authNavigation";
 import type {
   AdminSubRole,
   DealershipMembership,
@@ -83,11 +87,16 @@ export interface AuthContextValue {
   firebaseUser: FirebaseUserShim | null;
   firebaseEnabled: boolean;
   register: (input: RegisterInput) => Promise<RegisterResult>;
-  login: (email: string, password: string, rememberMe?: boolean, twoFactorCode?: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+    twoFactorCode?: string
+  ) => Promise<EasyRideUser>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshProfile: () => Promise<EasyRideUser | null>;
+  refreshUser: () => Promise<EasyRideUser | null>;
   updateAccountRole: (role: "buyer" | "seller", phone?: string) => Promise<void>;
   activateSeller: () => Promise<void>;
   verifyEmail: (token: string, email?: string) => Promise<void>;
@@ -100,7 +109,7 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function mapBackendUserToProfile(
+export function mapBackendUserToProfile(
   backendUser: BackendUserPayload,
   extra?: BackendAuthMeExtra
 ): EasyRideUser {
@@ -111,22 +120,50 @@ function mapBackendUserToProfile(
     ? backendUser.capabilities
     : ["buy"];
 
+  const dealerVerificationStatus =
+    backendUser.dealerVerificationStatus ??
+    extra?.dealership?.verificationStatus ??
+    null;
+
+  const isDealerAccount =
+    backendUser.role === "dealer" || backendUser.accountType === "dealer";
+
+  const isVerifiedDealer = Boolean(
+    isDealerAccount &&
+      (dealerVerificationStatus === "verified" ||
+        extra?.dealership?.verificationStatus === "verified" ||
+        extra?.memberships?.some((m) => m.role === "owner" || m.role === "manager"))
+  );
+
   let mappedRole: UserRole = "buyer";
   if (backendUser.role === "super_admin" || backendUser.adminRole === "super_admin") {
     mappedRole = "super_admin";
   } else if (backendUser.role === "admin" || backendUser.adminRole) {
     mappedRole = "admin";
-  } else if (backendUser.role === "dealer") {
+  } else if (isVerifiedDealer) {
     mappedRole = "dealer";
   } else if (
     backendUser.accountType === "seller" ||
-    capabilities.includes("sell") ||
-    backendUser.role === "seller"
+    backendUser.role === "seller" ||
+    capabilities.includes("sell")
   ) {
     mappedRole = "seller";
+  } else if (isDealerAccount) {
+    // Keep unverified / pending dealer safe from privileged dealer dashboard access
+    mappedRole = "buyer";
   } else {
     mappedRole = "buyer";
   }
+
+  const rawRole = (backendUser.role as UserRole) || "user";
+  const roles: UserRole[] = [mappedRole];
+  if (rawRole !== mappedRole && !roles.includes(rawRole)) {
+    roles.push(rawRole);
+  }
+
+  const resolvedAccountType: "buyer" | "seller" | "dealer" =
+    backendUser.accountType ||
+    (isDealerAccount ? "dealer" : mappedRole === "seller" ? "seller" : "buyer");
 
   return {
     id: backendUser.id || backendUser._id || "",
@@ -137,9 +174,9 @@ function mapBackendUserToProfile(
     phone: backendUser.phoneNumber || "",
     phoneNumber: backendUser.phoneNumber || "",
     role: mappedRole,
-    accountType: backendUser.accountType || "buyer",
-    dealerVerificationStatus: backendUser.dealerVerificationStatus ?? extra?.dealership?.verificationStatus ?? null,
-    roles: [mappedRole],
+    accountType: resolvedAccountType,
+    dealerVerificationStatus,
+    roles,
     capabilities,
     adminRole: backendUser.adminRole || null,
     accountStatus: backendUser.accountStatus || "active",
@@ -159,22 +196,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<EasyRideUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore authenticated session on initial mount
-  const refreshUser = useCallback(async () => {
+  // Restore authenticated session on initial mount or profile refresh
+  const refreshUser = useCallback(async (): Promise<EasyRideUser | null> => {
     try {
       const res = await api.get<{
         user: BackendUserPayload;
         dealership?: DealershipSummary | null;
         memberships?: DealershipMembership[];
       }>("/auth/me");
+
       if (res.success && res.data?.user) {
         const mapped = mapBackendUserToProfile(res.data.user, res.data);
         setUser(mapped);
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[AuthDiagnostic] Profile refresh successful", {
+            userId: mapped.id,
+            role: mapped.role,
+            accountType: mapped.accountType,
+            dealerStatus: mapped.dealerVerificationStatus,
+          });
+        }
+        return mapped;
       } else {
         setUser(null);
+        return null;
       }
     } catch {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[AuthDiagnostic] Profile refresh unauthenticated or failed");
+      }
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -229,28 +281,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const login = useCallback(
-    async (email: string, password: string, rememberMe = false, twoFactorCode?: string) => {
+    async (
+      email: string,
+      password: string,
+      rememberMe = false,
+      twoFactorCode?: string
+    ): Promise<EasyRideUser> => {
       setLoading(true);
       try {
-        const res = await api.post<{ user: BackendUserPayload; accessToken?: string }>("/auth/login", {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[AuthDiagnostic] Login API request initiated");
+        }
+
+        const res = await api.post<{
+          user: BackendUserPayload;
+          accessToken?: string;
+        }>("/auth/login", {
           email: email.trim().toLowerCase(),
           password,
           rememberMe,
           twoFactorCode,
         });
 
-        if (res.success && res.data) {
-          if (res.data.accessToken) {
-            setAccessToken(res.data.accessToken);
-          }
-          // Load full account context
-          await refreshUser();
+        if (!res.success || !res.data) {
+          throw new Error("Authentication response was invalid.");
         }
+
+        const tokenReceived = Boolean(res.data.accessToken);
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[AuthDiagnostic] Login API success", {
+            tokenReceived,
+            userReceived: Boolean(res.data.user),
+            rawRole: res.data.user?.role,
+            accountType: res.data.user?.accountType,
+          });
+        }
+
+        if (res.data.accessToken) {
+          setAccessToken(res.data.accessToken);
+        }
+
+        // Establish the initial profile directly from the login payload
+        const initialProfile = res.data.user
+          ? mapBackendUserToProfile(res.data.user)
+          : null;
+
+        if (initialProfile) {
+          setUser(initialProfile);
+        }
+
+        // Await profile enrichment via /auth/me to load dealership/memberships details
+        let finalProfile = initialProfile;
+        try {
+          const meRes = await api.get<{
+            user: BackendUserPayload;
+            dealership?: DealershipSummary | null;
+            memberships?: DealershipMembership[];
+          }>("/auth/me");
+
+          if (meRes.success && meRes.data?.user) {
+            finalProfile = mapBackendUserToProfile(meRes.data.user, meRes.data);
+            setUser(finalProfile);
+            if (process.env.NODE_ENV !== "production") {
+              console.log("[AuthDiagnostic] /auth/me status: 200 OK", {
+                resolvedRole: finalProfile.role,
+                resolvedAccountType: finalProfile.accountType,
+                dealerStatus: finalProfile.dealerVerificationStatus,
+              });
+            }
+          }
+        } catch (meError) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn(
+              "[AuthDiagnostic] /auth/me profile enrichment failed; retaining initial login profile",
+              meError
+            );
+          }
+          // Do NOT clear user or fail login if login was successful
+        }
+
+        if (!finalProfile) {
+          throw new Error("Unable to establish authenticated user profile.");
+        }
+
+        return finalProfile;
       } finally {
         setLoading(false);
       }
     },
-    [refreshUser]
+    []
   );
 
   const logout = useCallback(async () => {
@@ -261,6 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setAccessToken(null);
       setUser(null);
+      setLoading(false);
     }
   }, []);
 
@@ -320,28 +440,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isAuthenticated = Boolean(user);
-  const isSuperAdmin = user?.role === "super_admin" || user?.adminRole === "super_admin";
+  const isSuperAdmin = Boolean(
+    user?.role === "super_admin" || user?.adminRole === "super_admin"
+  );
   const isAdmin = Boolean(
     user?.role === "admin" || isSuperAdmin || Boolean(user?.adminRole)
   );
-  const isPendingDealer = Boolean(
-    user?.accountType === "dealer" &&
-      ["pending", "under_review"].includes(user.dealerVerificationStatus || "")
-  );
-  const isDealer = Boolean(
-    !isPendingDealer &&
-      user?.role === "dealer" &&
-      (user.dealerVerificationStatus === "verified" ||
-        user.dealership?.verificationStatus === "verified" ||
-        user.memberships?.some((m) => m.role === "owner" || m.role === "manager"))
-  );
+  const isDealer = Boolean(!isAdmin && isApprovedDealer(user));
+  const isPendingDealer = Boolean(!isAdmin && isPendingDealerAccount(user));
   const isSeller = Boolean(
-    user?.role === "seller" ||
-    user?.capabilities?.includes("sell") ||
-    isDealer ||
-    isAdmin
+    !isAdmin &&
+      (user?.role === "seller" ||
+        user?.accountType === "seller" ||
+        user?.capabilities?.includes("sell") ||
+        isDealer)
   );
-  const isBuyer = Boolean(user);
+  const isBuyer = Boolean(user && !isAdmin);
 
   const firebaseUserShim = useMemo<FirebaseUserShim | null>(() => {
     if (!user) return null;

@@ -2,6 +2,7 @@
 
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
+import { getDashboardDestination } from "@/lib/authNavigation";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -15,24 +16,23 @@ export default function DashboardPage() {
 }
 
 function DashboardRoleRedirect() {
-  const { profile, loading, isAdmin, isDealer, isPendingDealer, isSeller } = useAuth();
+  const { profile, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (loading || !profile) return;
 
-    if (isAdmin) {
-      router.replace("/admin");
-    } else if (isPendingDealer) {
-      router.replace("/dashboard/dealer/pending");
-    } else if (isDealer) {
-      router.replace("/dashboard/dealer");
-    } else if (isSeller) {
-      router.replace("/dashboard/seller");
-    } else {
-      router.replace("/dashboard/buyer");
+    const destination = getDashboardDestination(profile);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[AuthDiagnostic] DashboardClient redirecting to role dashboard", {
+        destination,
+        role: profile.role,
+        accountType: profile.accountType,
+      });
     }
-  }, [loading, profile, isAdmin, isDealer, isPendingDealer, isSeller, router]);
+
+    router.replace(destination);
+  }, [loading, profile, router]);
 
   return (
     <main

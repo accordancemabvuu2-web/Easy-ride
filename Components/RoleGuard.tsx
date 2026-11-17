@@ -15,7 +15,16 @@ interface RoleGuardProps {
 }
 
 export default function RoleGuard({ children, allowedRoles, label }: RoleGuardProps) {
-  const { profile, loading, activateSeller, isBuyer, isSeller, isDealer, isAdmin } = useAuth();
+  const {
+    profile,
+    loading,
+    activateSeller,
+    isBuyer,
+    isSeller,
+    isDealer,
+    isPendingDealer,
+    isAdmin,
+  } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activating, setActivating] = useState(false);
 
@@ -31,7 +40,7 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
     );
   }
 
-  // Check role or capability matching
+  // Authoritative role and capability verification
   const hasAccess =
     allowedRoles.includes(profile.role) ||
     (allowedRoles.includes("buyer") && isBuyer) ||
@@ -41,7 +50,7 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
 
   if (!hasAccess) {
     const isSellerUpgrade = allowedRoles.includes("seller") && !isSeller;
-    const isDealerUpgrade = allowedRoles.includes("dealer") && !isDealer;
+    const isDealerUpgrade = allowedRoles.includes("dealer") && !isDealer && !isPendingDealer;
 
     const handleActivateSeller = async () => {
       try {
@@ -64,8 +73,23 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
           </div>
           <h1 className="mt-5 text-2xl font-black text-slate-900 sm:text-3xl">{label} access required</h1>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Your current account role (<strong>{profile.role}</strong>) does not have access to this workspace.
+            Your current account role (<strong>{profile.accountType || profile.role}</strong>) does not have access to this workspace.
           </p>
+
+          {isPendingDealer && allowedRoles.includes("dealer") && (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-left">
+              <p className="text-xs font-bold text-amber-900">Application Under Review</p>
+              <p className="mt-1 text-xs text-gray-600">
+                Your dealership registration is currently pending review by administrators.
+              </p>
+              <Link
+                href="/dashboard/dealer/pending"
+                className="mt-3 block text-center rounded-xl bg-amber-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-amber-800"
+              >
+                View Dealership Application
+              </Link>
+            </div>
+          )}
 
           {isSellerUpgrade && (
             <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-left">
