@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { markNotificationRead } from "@/services/notificationService";
+import { markNotificationRead } from "@/lib/clientFirebaseServices";
 import { useNotifications } from "@/hooks/useNotifications";
 import { Bell, BadgeDollarSign, CalendarDays, Car, CreditCard, ShieldCheck, Star, MessageCircle, LifeBuoy } from "lucide-react";
 import Link from "next/link";

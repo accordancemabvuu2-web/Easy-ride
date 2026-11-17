@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createListingReport } from "@/services/reportService";
+import { createListingReport } from "@/lib/clientFirebaseServices";
 import type { ReportReason } from "@/Types/report";
 import type { Vehicle } from "@/Types/vehicle";
 import { Flag, Loader2, X } from "lucide-react";

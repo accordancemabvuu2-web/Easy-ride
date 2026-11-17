@@ -5,7 +5,7 @@ import MessageThread from "@/Components/MessageThread";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import { markConversationRead, subscribeToUserConversations } from "@/services/messageService";
+import { markConversationRead, subscribeToUserConversations } from "@/lib/clientFirebaseServices";
 import type { Conversation } from "@/Types/message";
 import { ArrowLeft, Loader2, MessageCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";

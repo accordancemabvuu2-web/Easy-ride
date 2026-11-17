@@ -1,9 +1,9 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAdminListings } from "@/services/adminService";
-import { createNotification } from "@/services/notificationService";
-import { updateListingStatus } from "@/services/listingService";
+import { getAdminListings } from "@/lib/clientFirebaseServices";
+import { createNotification } from "@/lib/clientFirebaseServices";
+import { updateListingStatus } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Check, Loader2, Search, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";

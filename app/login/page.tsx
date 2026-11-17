@@ -49,8 +49,8 @@ function LoginContent() {
       const nextParam = searchParams.get("next");
       const destination = resolveRedirectDestination(nextParam, defaultDest);
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[AuthDiagnostic] User already authenticated on login page", {
+      if (process.env.NODE_ENV === "development") {
+        console.info("[AuthDiagnostic] User already authenticated on login page", {
           resolvedAccountType: user.accountType,
           destination,
           initiatingNavigation: true,
@@ -74,15 +74,26 @@ function LoginContent() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+
+    if (process.env.NODE_ENV === "development") {
+      console.info("[AuthDiagnostic] Login form submit handler invoked");
+    }
+
     setErrorMessage(null);
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
+      if (process.env.NODE_ENV === "development") {
+        console.info("[AuthDiagnostic] Login submission stopped by email validation");
+      }
       setErrorMessage("Please enter your email address.");
       return;
     }
 
     if (!password) {
+      if (process.env.NODE_ENV === "development") {
+        console.info("[AuthDiagnostic] Login submission stopped by password validation");
+      }
       setErrorMessage("Please enter your password.");
       return;
     }
@@ -100,8 +111,8 @@ function LoginContent() {
       const nextParam = searchParams.get("next");
       const destination = resolveRedirectDestination(nextParam, defaultDest);
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[AuthDiagnostic] Login navigation initiated", {
+      if (process.env.NODE_ENV === "development") {
+        console.info("[AuthDiagnostic] Login navigation initiated", {
           resolvedRole: authenticatedUser.role,
           resolvedAccountType: authenticatedUser.accountType,
           destination,

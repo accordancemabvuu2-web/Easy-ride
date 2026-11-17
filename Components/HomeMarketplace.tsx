@@ -2,7 +2,8 @@
 
 import CarCard from "@/Components/CarCard";
 import VehicleFilters from "@/Components/VehicleFilters";
-import { getActiveListingPage, type ListingPage, type ListingPageFilters } from "@/services/listingService";
+import { getActiveListingPage } from "@/lib/clientFirebaseServices";
+import type { ListingPage, ListingPageFilters } from "@/services/listingService";
 import type { ListingType, Vehicle } from "@/Types/vehicle";
 import { Grid2X2, List, Loader2, Map, Search } from "lucide-react";
 import Link from "next/link";

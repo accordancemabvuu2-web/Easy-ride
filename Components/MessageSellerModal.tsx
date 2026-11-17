@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { startConversation } from "@/services/messageService";
+import { startConversation } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, MessageCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";

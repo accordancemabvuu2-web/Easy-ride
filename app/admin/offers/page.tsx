@@ -1,7 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAllOffers } from "@/services/offerService";
+import { getAllOffers } from "@/lib/clientFirebaseServices";
 import type { VehicleOffer } from "@/Types/offer";
 import { Loader2, Handshake, Search } from "lucide-react";
 import Image from "next/image";

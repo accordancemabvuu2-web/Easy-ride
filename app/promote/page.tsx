@@ -4,7 +4,7 @@ import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { getMyListings } from "@/services/listingService";
+import { getMyListings } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, Megaphone } from "lucide-react";
 import Link from "next/link";

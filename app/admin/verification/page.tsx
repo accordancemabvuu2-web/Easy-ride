@@ -1,10 +1,10 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { createAuditLog } from "@/services/auditService";
-import { createNotification } from "@/services/notificationService";
-import { getDealers, updateDealerStatus } from "@/services/dealerService";
-import { reviewVerificationRequest, getVerificationRequests } from "@/services/verificationService";
+import { createAuditLog } from "@/lib/clientFirebaseServices";
+import { createNotification } from "@/lib/clientFirebaseServices";
+import { getDealers, updateDealerStatus } from "@/lib/clientFirebaseServices";
+import { reviewVerificationRequest, getVerificationRequests } from "@/lib/clientFirebaseServices";
 import { updateUserRole } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Dealer } from "@/Types/dealer";

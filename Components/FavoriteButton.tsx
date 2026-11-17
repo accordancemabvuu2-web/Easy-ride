@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { addFavorite, isFavorite, removeFavorite } from "@/services/favoriteService";
 import { Heart, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +29,7 @@ export default function FavoriteButton({
       }
 
       try {
+        const { isFavorite } = await import("@/services/favoriteService");
         setFavorite(await isFavorite(profile.id, listingId));
       } finally {
         setChecking(false);
@@ -50,10 +50,12 @@ export default function FavoriteButton({
       setLoading(true);
 
       if (favorite) {
+        const { removeFavorite } = await import("@/services/favoriteService");
         await removeFavorite(profile.id, listingId);
         setFavorite(false);
         toast.success("Removed from favorites.");
       } else {
+        const { addFavorite } = await import("@/services/favoriteService");
         await addFavorite(profile.id, listingId);
         setFavorite(true);
         toast.success("Saved to favorites.");

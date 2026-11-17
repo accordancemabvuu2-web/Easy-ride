@@ -1,14 +1,10 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { createAuditLog } from "@/services/auditService";
-import { createNotification } from "@/services/notificationService";
-import { getListingById, updateListingStatus } from "@/services/listingService";
-import {
-  getListingReports,
-  getReportsForListing,
-  resolveListingReport,
-} from "@/services/reportService";
+import { createAuditLog } from "@/lib/clientFirebaseServices";
+import { createNotification } from "@/lib/clientFirebaseServices";
+import { getListingById, updateListingStatus } from "@/lib/clientFirebaseServices";
+import { getListingReports, getReportsForListing, resolveListingReport } from "@/lib/clientFirebaseServices";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ListingReport } from "@/Types/report";
 import type { Vehicle } from "@/Types/vehicle";

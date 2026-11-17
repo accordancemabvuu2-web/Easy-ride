@@ -5,10 +5,6 @@ import FavoriteButton from "@/Components/FavoriteButton";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserFavoriteListings } from "@/services/favoriteService";
-import { getActiveListings } from "@/services/listingService";
-import { getUserOffers } from "@/services/offerService";
-import { getUserBookings } from "@/services/bookingService";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import type { Vehicle } from "@/Types/vehicle";
 import { BadgeDollarSign, CalendarDays, Heart, Loader2, MessageCircle, Search, Sparkles } from "lucide-react";
@@ -42,11 +38,17 @@ function BuyerDashboardContent() {
 
     async function loadDashboard() {
       try {
+        const [listingService, favoriteService, offerService, bookingService] = await Promise.all([
+          import("@/services/listingService"),
+          import("@/services/favoriteService"),
+          import("@/services/offerService"),
+          import("@/services/bookingService"),
+        ]);
         const [activeListings, favorites, offers, bookings] = await Promise.all([
-          getActiveListings(),
-          getUserFavoriteListings(userId),
-          getUserOffers(userId),
-          getUserBookings(userId),
+          listingService.getActiveListings(),
+          favoriteService.getUserFavoriteListings(userId),
+          offerService.getUserOffers(userId),
+          bookingService.getUserBookings(userId),
         ]);
         setVehicles(activeListings.slice(0, 8));
         setSavedCount(favorites.length);

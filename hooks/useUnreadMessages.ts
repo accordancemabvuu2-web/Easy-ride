@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeToUserConversations } from "@/services/messageService";
 import { useEffect, useState } from "react";
 
 export function useUnreadMessages() {
@@ -9,18 +8,34 @@ export function useUnreadMessages() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
     if (!firebaseUser) {
       setCount(0);
-      return;
+      return () => {
+        active = false;
+      };
     }
 
-    return subscribeToUserConversations(firebaseUser.uid, (conversations) => {
-      const unreadCount = conversations.filter((conversation) =>
-        conversation.unreadBy?.includes(firebaseUser.uid),
-      ).length;
+    void import("@/services/messageService").then(({ subscribeToUserConversations }) => {
+      if (!active) return;
 
-      setCount(unreadCount);
+      unsubscribe = subscribeToUserConversations(firebaseUser.uid, (conversations) => {
+        const unreadCount = conversations.filter((conversation) =>
+          conversation.unreadBy?.includes(firebaseUser.uid),
+        ).length;
+
+        setCount(unreadCount);
+      });
+    }).catch(() => {
+      if (active) setCount(0);
     });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [firebaseUser]);
 
   return count;

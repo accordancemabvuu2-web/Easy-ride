@@ -1,6 +1,6 @@
 "use client";
 
-import { getListingById } from "@/services/listingService";
+import { getListingById } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Loader2, MapPin, ShieldCheck } from "lucide-react";
 import Image from "next/image";

@@ -3,7 +3,7 @@
 import Footer from "@/Components/Footer";
 import LandingNavbar from "@/Components/LandingNavbar";
 import { useAuth } from "@/contexts/AuthContext";
-import { createSupportTicket } from "@/services/supportService";
+import { createSupportTicket } from "@/lib/clientFirebaseServices";
 import type { SupportCategory } from "@/Types/support";
 import {
   Check,

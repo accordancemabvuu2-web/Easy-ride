@@ -11,8 +11,8 @@ import Navbar from "@/Components/Navbar";
 import OfferForm from "@/Components/OfferForm";
 import ReportListingModal from "@/Components/ReportListingModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { recordContactClick, recordListingView } from "@/services/analyticsService";
-import { getActiveListings, getListingById } from "@/services/listingService";
+import { recordContactClick, recordListingView } from "@/lib/clientFirebaseServices";
+import { getActiveListings, getListingById } from "@/lib/clientFirebaseServices";
 import { createWhatsAppUrl } from "@/utils/whatsapp";
 import type { Vehicle } from "@/Types/vehicle";
 import {

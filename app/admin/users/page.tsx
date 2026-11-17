@@ -1,7 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAdminUsers } from "@/services/adminService";
+import { getAdminUsers } from "@/lib/clientFirebaseServices";
 import type { EasyRideUser } from "@/Types/user";
 import { Loader2, Search, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

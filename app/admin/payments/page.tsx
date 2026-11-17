@@ -1,7 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAllPayments } from "@/services/paymentService";
+import { getAllPayments } from "@/lib/clientFirebaseServices";
 import type { EasyRidePayment } from "@/Types/payment";
 import { Banknote, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -13,7 +13,7 @@ export default function AdminPaymentsPage() {
   useEffect(() => {
     void (async () => {
       try {
-        setPayments(getAllPayments());
+        setPayments(await getAllPayments());
       } finally {
         setLoading(false);
       }

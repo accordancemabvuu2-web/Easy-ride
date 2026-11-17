@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createSupportTicket } from "@/services/supportService";
+import { createSupportTicket } from "@/lib/clientFirebaseServices";
 import { SupportCategory } from "@/Types/support";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";

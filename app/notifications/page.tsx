@@ -4,7 +4,7 @@ import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/hooks/useNotifications";
-import { markAllNotificationsRead, markNotificationRead } from "@/services/notificationService";
+import { markAllNotificationsRead, markNotificationRead } from "@/lib/clientFirebaseServices";
 import {
   BadgeDollarSign,
   Bell,

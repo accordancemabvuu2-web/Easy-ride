@@ -5,8 +5,9 @@ import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSellerAnalytics, type SellerAnalytics } from "@/services/analyticsService";
-import { getMyListings } from "@/services/listingService";
+import { getSellerAnalytics } from "@/lib/clientFirebaseServices";
+import type { SellerAnalytics } from "@/services/analyticsService";
+import { getMyListings } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import {
   BarChart3,

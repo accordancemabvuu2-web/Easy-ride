@@ -5,7 +5,7 @@ import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { getMyListings } from "@/services/listingService";
+import { getMyListings } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { CarFront, Loader2, Plus } from "lucide-react";
 import Image from "next/image";

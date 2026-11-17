@@ -4,12 +4,7 @@ import BookingStatusBadge from "@/Components/BookingStatusBadge";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  approveBooking,
-  cancelBooking,
-  getUserBookings,
-  rejectBooking,
-} from "@/services/bookingService";
+import { approveBooking, cancelBooking, getUserBookings, rejectBooking } from "@/lib/clientFirebaseServices";
 import type { RentalBooking } from "@/Types/booking";
 import { CalendarDays, Check, Loader2, X } from "lucide-react";
 import Image from "next/image";

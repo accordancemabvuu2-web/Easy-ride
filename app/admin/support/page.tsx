@@ -1,8 +1,8 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { createAuditLog } from "@/services/auditService";
-import { getSupportTickets, updateSupportTicket } from "@/services/supportService";
+import { createAuditLog } from "@/lib/clientFirebaseServices";
+import { getSupportTickets, updateSupportTicket } from "@/lib/clientFirebaseServices";
 import { useAuth } from "@/contexts/AuthContext";
 import type { SupportTicket } from "@/Types/support";
 import { Headphones, Loader2, Search, ShieldCheck } from "lucide-react";

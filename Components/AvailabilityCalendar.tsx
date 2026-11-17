@@ -1,6 +1,6 @@
 "use client";
 
-import { getAllBookings } from "@/services/bookingService";
+import { getAllBookings } from "@/lib/clientFirebaseServices";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 

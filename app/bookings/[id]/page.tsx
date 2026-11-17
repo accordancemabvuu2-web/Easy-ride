@@ -8,13 +8,7 @@ import PaymentSummary from "@/Components/PaymentSummary";
 import RequireAuth from "@/Components/RequireAuth";
 import ReviewForm from "@/Components/ReviewForm";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  activateBooking,
-  approveBooking,
-  completeBooking,
-  getBookingById,
-  rejectBooking,
-} from "@/services/bookingService";
+import { activateBooking, approveBooking, completeBooking, getBookingById, rejectBooking } from "@/lib/clientFirebaseServices";
 import type { RentalBooking } from "@/Types/booking";
 import { Check, Clock3, Loader2, ReceiptText, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";

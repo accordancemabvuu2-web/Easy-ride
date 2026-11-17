@@ -1,6 +1,6 @@
 "use client";
 
-import { api, setAccessToken, setAuthFailureHandler } from "@/lib/apiClient";
+import { ApiError, api, setAccessToken, setAuthFailureHandler } from "@/lib/apiClient";
 import {
   isApprovedDealer,
   isPendingDealerAccount,
@@ -208,8 +208,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.success && res.data?.user) {
         const mapped = mapBackendUserToProfile(res.data.user, res.data);
         setUser(mapped);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[AuthDiagnostic] Profile refresh successful", {
+        if (process.env.NODE_ENV === "development") {
+          console.info("[AuthDiagnostic] Profile refresh successful", {
             userId: mapped.id,
             role: mapped.role,
             accountType: mapped.accountType,
@@ -222,8 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
     } catch {
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[AuthDiagnostic] Profile refresh unauthenticated or failed");
+      if (process.env.NODE_ENV === "development") {
+        console.info("[AuthDiagnostic] Profile refresh unauthenticated or failed");
       }
       setUser(null);
       return null;
@@ -237,6 +237,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setLoading(false);
     });
+
+    if (process.env.NODE_ENV === "development") {
+      console.info("[AuthDiagnostic] Session restoration started", {
+        endpoint: "/auth/me",
+      });
+    }
+
     void refreshUser();
     return () => setAuthFailureHandler(null);
   }, [refreshUser]);
@@ -289,8 +296,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ): Promise<EasyRideUser> => {
       setLoading(true);
       try {
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[AuthDiagnostic] Login API request initiated");
+        if (process.env.NODE_ENV === "development") {
+          console.info("[AuthDiagnostic] Login flow entered");
         }
 
         const res = await api.post<{
@@ -308,10 +315,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const tokenReceived = Boolean(res.data.accessToken);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[AuthDiagnostic] Login API success", {
-            tokenReceived,
-            userReceived: Boolean(res.data.user),
+        if (process.env.NODE_ENV === "development") {
+          console.info("[AuthDiagnostic] Login API success", {
+            accessTokenExists: tokenReceived,
+            userExists: Boolean(res.data.user),
             rawRole: res.data.user?.role,
             accountType: res.data.user?.accountType,
           });
@@ -333,6 +340,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Await profile enrichment via /auth/me to load dealership/memberships details
         let finalProfile = initialProfile;
         try {
+          if (process.env.NODE_ENV === "development") {
+            console.info("[AuthDiagnostic] Login profile retrieval started", {
+              endpoint: "/auth/me",
+            });
+          }
+
           const meRes = await api.get<{
             user: BackendUserPayload;
             dealership?: DealershipSummary | null;
@@ -342,20 +355,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (meRes.success && meRes.data?.user) {
             finalProfile = mapBackendUserToProfile(meRes.data.user, meRes.data);
             setUser(finalProfile);
-            if (process.env.NODE_ENV !== "production") {
-              console.log("[AuthDiagnostic] /auth/me status: 200 OK", {
+            if (process.env.NODE_ENV === "development") {
+              console.info("[AuthDiagnostic] Login profile retrieval succeeded", {
+                profileRetrievalSucceeded: true,
                 resolvedRole: finalProfile.role,
                 resolvedAccountType: finalProfile.accountType,
                 dealerStatus: finalProfile.dealerVerificationStatus,
               });
             }
+          } else if (process.env.NODE_ENV === "development") {
+            console.info("[AuthDiagnostic] Login profile retrieval completed", {
+              profileRetrievalSucceeded: false,
+              userExists: false,
+            });
           }
         } catch (meError) {
-          if (process.env.NODE_ENV !== "production") {
-            console.warn(
-              "[AuthDiagnostic] /auth/me profile enrichment failed; retaining initial login profile",
-              meError
-            );
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[AuthDiagnostic] Login profile retrieval failed; retaining initial login profile", {
+              profileRetrievalSucceeded: false,
+              ...(meError instanceof ApiError
+                ? { status: meError.statusCode, code: meError.code }
+                : { errorType: meError instanceof Error ? meError.name : "UnknownError" }),
+            });
           }
           // Do NOT clear user or fail login if login was successful
         }
@@ -364,6 +385,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error("Unable to establish authenticated user profile.");
         }
 
+        // A failed /auth/me refresh can trigger the global auth-failure handler;
+        // keep the profile returned by a successful login in that case.
+        setUser(finalProfile);
         return finalProfile;
       } finally {
         setLoading(false);

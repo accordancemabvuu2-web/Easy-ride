@@ -4,14 +4,16 @@ import Navbar from "@/Components/Navbar";
 import PromotionPlanCard from "@/Components/PromotionPlanCard";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import { createMockPayment, completeMockPayment } from "@/services/paymentService";
-import { createPromotion, getPromotionByListingId, promotionPlans } from "@/services/promotionService";
-import { getListingById } from "@/services/listingService";
+import { createMockPayment, completeMockPayment } from "@/lib/clientFirebaseServices";
+import { createPromotion, getPromotionByListingId } from "@/lib/clientFirebaseServices";
+import { getListingById } from "@/lib/clientFirebaseServices";
+import { promotionPlans } from "@/services/promotionPlans";
+import type { ListingPromotion } from "@/Types/promotion";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, Megaphone } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function PromotePage() {
@@ -27,20 +29,29 @@ function PromoteContent() {
   const router = useRouter();
   const { profile } = useAuth();
   const [listing, setListing] = useState<Vehicle | null>(null);
+  const [currentPromotion, setCurrentPromotion] = useState<ListingPromotion | null>(null);
   const [loading, setLoading] = useState(true);
-  const currentPromotion = useMemo(() => getPromotionByListingId(listingId), [listingId]);
 
   useEffect(() => {
+    let active = true;
     async function loadListing() {
       setLoading(true);
       try {
-        setListing(await getListingById(listingId));
+        const [nextListing, promotion] = await Promise.all([
+          getListingById(listingId),
+          getPromotionByListingId(listingId),
+        ]);
+        if (active) {
+          setListing(nextListing);
+          setCurrentPromotion(promotion);
+        }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
     void loadListing();
+    return () => { active = false; };
   }, [listingId]);
 
   const selectPlan = async (planId: (typeof promotionPlans)[number]["id"]) => {

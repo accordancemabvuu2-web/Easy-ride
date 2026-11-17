@@ -1,6 +1,6 @@
 "use client";
 
-import { markConversationRead, sendMessage, subscribeToMessages } from "@/services/messageService";
+import { markConversationRead, sendMessage, subscribeToMessages } from "@/lib/clientFirebaseServices";
 import type { Conversation, EasyRideMessage } from "@/Types/message";
 import { Loader2, Send } from "lucide-react";
 import Image from "next/image";

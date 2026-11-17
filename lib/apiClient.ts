@@ -42,8 +42,7 @@ export class ApiError extends Error {
 const REQUEST_TIMEOUT_MS = 15_000;
 const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 let accessToken: string | null = null;
-let isRefreshing = false;
-let refreshQueue: Array<(token: string | null) => void> = [];
+let refreshPromise: Promise<string | null> | null = null;
 
 type AuthFailureHandler = () => void;
 let authFailureHandler: AuthFailureHandler | null = null;
@@ -137,48 +136,78 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
-function settleRefreshQueue(token: string | null): void {
-  refreshQueue.forEach((resolve) => resolve(token));
-  refreshQueue = [];
+function logAuthDiagnostic(event: string, details: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === "development") {
+    console.info(`[AuthDiagnostic] ${event}`, details);
+  }
+}
+
+function getDiagnosticUrl(url: string): string {
+  const parsed = new URL(url);
+  return `${parsed.origin}${parsed.pathname}`;
+}
+
+function isDiagnosticAuthUrl(url: string): boolean {
+  const pathname = new URL(url).pathname.replace(/\/+$/, "");
+  return ["/auth/login", "/auth/me", "/auth/refresh"].some((path) =>
+    pathname.endsWith(path)
+  );
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  if (isRefreshing) {
-    return new Promise((resolve) => refreshQueue.push(resolve));
+  if (refreshPromise) {
+    logAuthDiagnostic("Refresh request joined an in-flight attempt", {});
+    return refreshPromise;
   }
 
-  isRefreshing = true;
-  try {
-    const response = await fetch(`${getConfiguredBaseUrl()}/auth/refresh`, {
-      method: "POST",
-      headers: { Accept: "application/json" },
-      credentials: "include",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+  const refreshUrl = `${getConfiguredBaseUrl()}/auth/refresh`;
+  const requestPromise = Promise.resolve().then(async () => {
+    try {
+      logAuthDiagnostic("Refresh API request started", {
+        method: "POST",
+        url: getDiagnosticUrl(refreshUrl),
+        credentialsIncluded: true,
+      });
 
-    if (!response.ok) {
+      const response = await fetch(refreshUrl, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+
+      logAuthDiagnostic("Refresh API response received", {
+        status: response.status,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        setAccessToken(null);
+        authFailureHandler?.();
+        return null;
+      }
+
+      const payload = (await response.json()) as ApiResponse<{ accessToken?: string }>;
+      const newToken = payload.data?.accessToken ?? null;
+      setAccessToken(newToken);
+      if (!newToken) {
+        authFailureHandler?.();
+      }
+      return newToken;
+    } catch (error) {
       setAccessToken(null);
-      settleRefreshQueue(null);
       authFailureHandler?.();
+      logAuthDiagnostic("Refresh API request failed", {
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      });
       return null;
+    } finally {
+      refreshPromise = null;
     }
+  });
 
-    const payload = (await response.json()) as ApiResponse<{ accessToken?: string }>;
-    const newToken = payload.data?.accessToken ?? null;
-    setAccessToken(newToken);
-    settleRefreshQueue(newToken);
-    if (!newToken) {
-      authFailureHandler?.();
-    }
-    return newToken;
-  } catch {
-    setAccessToken(null);
-    settleRefreshQueue(null);
-    authFailureHandler?.();
-    return null;
-  } finally {
-    isRefreshing = false;
-  }
+  refreshPromise = requestPromise;
+  return requestPromise;
 }
 
 function isAuthEndpoint(endpoint: string): boolean {
@@ -219,6 +248,25 @@ export async function apiRequest<T = unknown>(
     headers.set("Authorization", `Bearer ${currentToken}`);
   }
 
+  const method = options.method ?? "GET";
+  const diagnosticAuthRequest = isDiagnosticAuthUrl(url);
+  if (diagnosticAuthRequest) {
+    logAuthDiagnostic(
+      endpoint.endsWith("/auth/login") ? "Login API request started" : "API request started",
+      {
+        method,
+        url: getDiagnosticUrl(url),
+        credentialsIncluded: (options.credentials ?? "include") === "include",
+        ...(endpoint.endsWith("/auth/login")
+          ? {
+              contentType: headers.get("Content-Type"),
+              bodyFields: ["email", "password", "rememberMe", "twoFactorCode"],
+            }
+          : {}),
+      }
+    );
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   if (options.signal) {
@@ -234,6 +282,19 @@ export async function apiRequest<T = unknown>(
       signal: controller.signal,
     });
   } catch (error) {
+    if (diagnosticAuthRequest) {
+      logAuthDiagnostic(
+        endpoint.endsWith("/auth/login")
+          ? "Login API request failed before receiving a response"
+          : "API request failed before receiving a response",
+        {
+          method,
+          url: getDiagnosticUrl(url),
+          errorType: error instanceof Error ? error.name : "UnknownError",
+        }
+      );
+    }
+
     const message =
       error instanceof DOMException && error.name === "AbortError"
         ? "The API request timed out. Please try again."
@@ -241,6 +302,20 @@ export async function apiRequest<T = unknown>(
     throw new ApiError(message, error instanceof DOMException ? "TIMEOUT" : "NETWORK_ERROR", 0);
   } finally {
     clearTimeout(timeout);
+  }
+
+  if (diagnosticAuthRequest) {
+    logAuthDiagnostic(
+      endpoint.endsWith("/auth/login")
+        ? "Login API response received"
+        : "API response received",
+      {
+        method,
+        url: getDiagnosticUrl(url),
+        status: response.status,
+        ok: response.ok,
+      }
+    );
   }
 
   if (response.status === 401 && !isAuthEndpoint(endpoint)) {
@@ -252,6 +327,15 @@ export async function apiRequest<T = unknown>(
         headers,
         credentials: options.credentials ?? "include",
       });
+
+      if (diagnosticAuthRequest) {
+        logAuthDiagnostic("API retry response received", {
+          method,
+          url: getDiagnosticUrl(url),
+          status: response.status,
+          ok: response.ok,
+        });
+      }
     }
   }
 

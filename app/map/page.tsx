@@ -2,7 +2,7 @@
 
 import MarketplaceMap from "@/Components/MarketplaceMap";
 import LandingNavbar from "@/Components/LandingNavbar";
-import { getActiveListings } from "@/services/listingService";
+import { getActiveListings } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, MapPin } from "lucide-react";
 import Image from "next/image";

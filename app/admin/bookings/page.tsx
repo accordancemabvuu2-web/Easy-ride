@@ -1,7 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAllBookings, updateBookingStatus } from "@/services/bookingService";
+import { getAllBookings, updateBookingStatus } from "@/lib/clientFirebaseServices";
 import type { RentalBooking } from "@/Types/booking";
 import { formatDistanceToNow } from "date-fns";
 import { CalendarRange, Loader2, Search, ShieldCheck } from "lucide-react";

@@ -2,14 +2,14 @@
 
 import AdminMetricCard from "@/Components/AdminMetricCard";
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAdminListings, getAdminUsers } from "@/services/adminService";
-import { getAllBookings } from "@/services/bookingService";
-import { getAllPayments } from "@/services/paymentService";
-import { getAllOffers } from "@/services/offerService";
-import { getAuditLogs } from "@/services/auditService";
-import { getListingReports } from "@/services/reportService";
-import { getSupportTickets } from "@/services/supportService";
-import { getVerificationRequests } from "@/services/verificationService";
+import { getAdminListings, getAdminUsers } from "@/lib/clientFirebaseServices";
+import { getAllBookings } from "@/lib/clientFirebaseServices";
+import { getAllPayments } from "@/lib/clientFirebaseServices";
+import { getAllOffers } from "@/lib/clientFirebaseServices";
+import { getAuditLogs } from "@/lib/clientFirebaseServices";
+import { getListingReports } from "@/lib/clientFirebaseServices";
+import { getSupportTickets } from "@/lib/clientFirebaseServices";
+import { getVerificationRequests } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";

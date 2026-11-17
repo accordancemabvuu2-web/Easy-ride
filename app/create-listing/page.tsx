@@ -3,7 +3,7 @@
 import LandingNavbar from "@/Components/LandingNavbar";
 import LoginPromptModal from "@/Components/LoginPromptModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { createListing, uploadVehicleImages } from "@/services/listingService";
+import { createListing, uploadVehicleImages } from "@/lib/clientFirebaseServices";
 import { ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";

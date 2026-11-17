@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createReview } from "@/services/reviewService";
+import { createReview } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Loader2, Star } from "lucide-react";
 import { useState } from "react";

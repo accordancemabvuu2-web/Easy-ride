@@ -3,7 +3,7 @@
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import { submitVerificationRequest, getVerificationRequests } from "@/services/verificationService";
+import { submitVerificationRequest, getVerificationRequests } from "@/lib/clientFirebaseServices";
 import type { VerificationRequest, VerificationType } from "@/Types/verification";
 import { filesToDataUrls } from "@/utils/files";
 import { Loader2, ShieldCheck } from "lucide-react";

@@ -3,8 +3,8 @@
 import CarCard from "@/Components/CarCard";
 import Footer from "@/Components/Footer";
 import Navbar from "@/Components/Navbar";
-import { getDealerByOwner } from "@/services/dealerService";
-import { getActiveListings } from "@/services/listingService";
+import { getDealerByOwner } from "@/lib/clientFirebaseServices";
+import { getActiveListings } from "@/lib/clientFirebaseServices";
 import type { Dealer } from "@/Types/dealer";
 import type { Vehicle } from "@/Types/vehicle";
 import { BadgeCheck, Loader2, MapPin, Store } from "lucide-react";

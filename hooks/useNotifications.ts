@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeNotifications } from "@/services/notificationService";
+import { subscribeNotifications } from "@/lib/clientFirebaseServices";
 import type { EasyRideNotification } from "@/Types/notification";
 import { useEffect, useState } from "react";
 

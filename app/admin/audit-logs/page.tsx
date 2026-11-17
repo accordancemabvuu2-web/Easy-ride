@@ -1,7 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAuditLogs } from "@/services/auditService";
+import { getAuditLogs } from "@/lib/clientFirebaseServices";
 import type { AuditLog } from "@/Types/audit";
 import { History, Loader2, Search, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

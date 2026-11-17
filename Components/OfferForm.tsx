@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { createVehicleOffer } from "@/services/offerService";
+import { createVehicleOffer } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { BadgeDollarSign, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";

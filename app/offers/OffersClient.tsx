@@ -4,15 +4,7 @@ import Navbar from "@/Components/Navbar";
 import OfferStatusBadge from "@/Components/OfferStatusBadge";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  acceptCounterOffer,
-  acceptOffer,
-  completeVehicleSale,
-  counterOffer,
-  getUserOffers,
-  rejectOffer,
-  withdrawOffer,
-} from "@/services/offerService";
+import { acceptCounterOffer, acceptOffer, completeVehicleSale, counterOffer, getUserOffers, rejectOffer, withdrawOffer } from "@/lib/clientFirebaseServices";
 import type { VehicleOffer } from "@/Types/offer";
 import { BadgeDollarSign, Check, Loader2, Repeat2, ShoppingBag, X } from "lucide-react";
 import Image from "next/image";

@@ -4,7 +4,7 @@ import CarCard from "@/Components/CarCard";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserFavoriteListings } from "@/services/favoriteService";
+import { getUserFavoriteListings } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { Heart, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
