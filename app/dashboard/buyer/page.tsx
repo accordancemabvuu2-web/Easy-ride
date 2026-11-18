@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 export default function BuyerDashboardPage() {
   return (
     <RequireAuth>
-      <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Marketplace">
+      <RoleGuard allowedRoles={["buyer"]} label="Buyer">
         <BuyerDashboardContent />
       </RoleGuard>
     </RequireAuth>

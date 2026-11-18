@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { getDashboardDestination } from "@/lib/authNavigation";
 import NotificationBell from "@/Components/NotificationBell";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import {
@@ -28,20 +29,10 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  const dashboardHref = useMemo(() => {
-    switch (profile?.role) {
-      case "admin":
-        return "/admin";
-      case "dealer":
-        return "/dealer/dashboard";
-      case "seller":
-        return "/dashboard/seller";
-      case "buyer":
-        return "/dashboard/buyer";
-      default:
-        return "/dashboard";
-    }
-  }, [profile?.role]);
+  const dashboardHref = useMemo(
+    () => profile ? getDashboardDestination(profile) : "/dashboard",
+    [profile],
+  );
 
   const closeMenus = () => {
     setMobileMenuOpen(false);
@@ -270,7 +261,7 @@ export default function Navbar() {
                       </p>
 
                       <p className="truncate text-xs capitalize text-gray-500">
-                        {profile?.role ?? "member"}
+                        {profile?.accountType ?? profile?.adminRole ?? profile?.role ?? "member"}
                       </p>
                     </div>
 

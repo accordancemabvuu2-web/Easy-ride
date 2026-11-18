@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { hasDashboardAccess, isApprovedDealer } from "@/lib/authNavigation";
 import { Loader2, ShieldAlert, Sparkles, Store } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -12,18 +13,22 @@ interface RoleGuardProps {
   children: ReactNode;
   allowedRoles: UserRole[];
   label: string;
+  allowDealerApplicant?: boolean;
 }
 
-export default function RoleGuard({ children, allowedRoles, label }: RoleGuardProps) {
+export default function RoleGuard({
+  children,
+  allowedRoles,
+  label,
+  allowDealerApplicant = false,
+}: RoleGuardProps) {
   const {
     profile,
     loading,
     activateSeller,
-    isBuyer,
     isSeller,
     isDealer,
     isPendingDealer,
-    isAdmin,
   } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -42,14 +47,11 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
 
   // Authoritative role and capability verification
   const hasAccess =
-    allowedRoles.includes(profile.role) ||
-    (allowedRoles.includes("buyer") && isBuyer) ||
-    (allowedRoles.includes("seller") && isSeller) ||
-    (allowedRoles.includes("dealer") && isDealer) ||
-    (allowedRoles.includes("admin") && isAdmin);
+    hasDashboardAccess(profile, allowedRoles) ||
+    (allowDealerApplicant && profile.accountType === "dealer" && !isApprovedDealer(profile));
 
   if (!hasAccess) {
-    const isSellerUpgrade = allowedRoles.includes("seller") && !isSeller;
+    const isSellerUpgrade = allowedRoles.includes("seller") && !isSeller && !isPendingDealer;
     const isDealerUpgrade = allowedRoles.includes("dealer") && !isDealer && !isPendingDealer;
 
     const handleActivateSeller = async () => {
@@ -73,7 +75,7 @@ export default function RoleGuard({ children, allowedRoles, label }: RoleGuardPr
           </div>
           <h1 className="mt-5 text-2xl font-black text-slate-900 sm:text-3xl">{label} access required</h1>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Your current account role (<strong>{profile.accountType || profile.role}</strong>) does not have access to this workspace.
+            Your current account role (<strong>{profile.accountType ?? profile.role}</strong>) does not have access to this workspace.
           </p>
 
           {isPendingDealer && allowedRoles.includes("dealer") && (

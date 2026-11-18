@@ -33,7 +33,7 @@ function PendingDealerContent() {
   }
 
   const businessName = profile?.dealership?.businessName || "your dealership";
-  const status = profile?.dealership?.verificationStatus || "pending";
+  const status = profile?.dealerVerificationStatus || profile?.dealership?.verificationStatus || "pending";
 
   return (
     <DashboardShell role="personal">
@@ -53,7 +53,7 @@ function PendingDealerContent() {
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/dealer/profile" className="rounded-full bg-[#0B5D3B] px-5 py-3 font-bold text-white">View application</Link>
-            <Link href="/dashboard/buyer" className="rounded-full border border-slate-300 bg-white px-5 py-3 font-bold text-slate-700">Continue browsing</Link>
+            <Link href="/marketplace" className="rounded-full border border-slate-300 bg-white px-5 py-3 font-bold text-slate-700">Continue browsing</Link>
           </div>
         </div>
       </section>

@@ -27,7 +27,7 @@ export default function BookingDetailPage() {
 
 function BookingDetailContent() {
   const { id } = useParams<{ id: string }>();
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const [booking, setBooking] = useState<RentalBooking | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +74,7 @@ function BookingDetailContent() {
 
   const isOwner = booking.ownerId === profile?.id;
   const isRenter = booking.renterId === profile?.id;
-  const canView = isOwner || isRenter || profile?.role === "admin";
+  const canView = isOwner || isRenter || isAdmin;
   const canAct = isOwner || isRenter;
 
   if (!canView) {

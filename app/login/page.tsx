@@ -3,8 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/apiClient";
 import {
-  getDashboardDestination,
-  resolveRedirectDestination,
+  getAuthenticatedRedirectDestination,
 } from "@/lib/authNavigation";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import Link from "next/link";
@@ -45,9 +44,8 @@ function LoginContent() {
   // If the user is already authenticated, redirect immediately to their dashboard
   useEffect(() => {
     if (!loading && user) {
-      const defaultDest = getDashboardDestination(user);
       const nextParam = searchParams.get("next");
-      const destination = resolveRedirectDestination(nextParam, defaultDest);
+      const destination = getAuthenticatedRedirectDestination(nextParam, user);
 
       if (process.env.NODE_ENV === "development") {
         console.info("[AuthDiagnostic] User already authenticated on login page", {
@@ -107,9 +105,8 @@ function LoginContent() {
         needs2FA ? twoFactorCode.trim() : undefined
       );
 
-      const defaultDest = getDashboardDestination(authenticatedUser);
       const nextParam = searchParams.get("next");
-      const destination = resolveRedirectDestination(nextParam, defaultDest);
+      const destination = getAuthenticatedRedirectDestination(nextParam, authenticatedUser);
 
       if (process.env.NODE_ENV === "development") {
         console.info("[AuthDiagnostic] Login navigation initiated", {

@@ -25,10 +25,14 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     const term = query.trim().toLowerCase();
     return users.filter((user) => {
-      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesRole = roleFilter === "all" || (
+        roleFilter === "admin"
+          ? user.role === "admin" || user.role === "super_admin" || Boolean(user.adminRole)
+          : user.accountType === roleFilter
+      );
       const matchesQuery =
         !term ||
-        [user.name, user.email, user.id, user.role].some((value) =>
+        [user.name, user.email, user.id, user.role, user.accountType ?? ""].some((value) =>
           value.toLowerCase().includes(term),
         );
       return matchesRole && matchesQuery;
@@ -91,7 +95,7 @@ export default function AdminUsersPage() {
                   </div>
                   <div className="truncate text-sm text-gray-600">{user.email}</div>
                   <div>
-                    <AdminStatusBadge status={user.role} />
+                    <AdminStatusBadge status={user.accountType ?? user.role} />
                   </div>
                 </div>
               ))

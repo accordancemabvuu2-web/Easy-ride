@@ -17,7 +17,11 @@ import toast from "react-hot-toast";
 export default function DealerProfilePage() {
   return (
     <RequireAuth>
-      <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Dealer application">
+      <RoleGuard
+        allowedRoles={["buyer", "seller", "dealer"]}
+        allowDealerApplicant
+        label="Dealer application"
+      >
         <DealerProfileContent />
       </RoleGuard>
     </RequireAuth>

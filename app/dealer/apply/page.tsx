@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import DealerProfilePage from "@/app/dealer/profile/page";
 
 export default function DealerApplyPage() {
-  redirect("/dealer/profile");
+  return <DealerProfilePage />;
 }

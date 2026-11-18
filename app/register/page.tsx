@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/apiClient";
+import { getDashboardDestination } from "@/lib/authNavigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -95,8 +96,20 @@ function RegisterContent() {
       });
 
       if (result.accessToken || result.sessionCreated) {
+        if (result.profile) {
+          const destination = getDashboardDestination(result.profile);
+          if (destination === "/") {
+            toast.error("Your account was created, but the backend profile is missing its account type. Please contact support.");
+            router.replace("/");
+            return;
+          }
+          toast.success("Account created successfully.");
+          router.replace(destination);
+          return;
+        }
+
         toast.success("Account created successfully.");
-        router.replace(accountType === "dealer" ? "/dealer/profile" : nextTarget);
+        router.replace(`/login?registered=true&email=${encodeURIComponent(trimmedEmail)}&next=${encodeURIComponent(nextTarget)}`);
       } else {
         toast.success(accountType === "dealer"
           ? "Account created. Sign in to continue with your pending dealership application."

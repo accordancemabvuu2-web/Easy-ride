@@ -27,10 +27,13 @@ export interface EasyRideUser {
   phone?: string;
   phoneNumber?: string;
   role: UserRole;
+  /** The exact role value received from the backend, retained for diagnostics/auditing. */
+  backendRole?: string;
   accountType?: "buyer" | "seller" | "dealer";
   dealerVerificationStatus?: "pending" | "under_review" | "verified" | "rejected" | "suspended" | null;
   roles?: UserRole[];
   capabilities: string[];
+  permissions?: string[];
   adminRole?: AdminSubRole | null;
   accountStatus?: "pending" | "active" | "suspended" | "deleted";
   emailVerified: boolean;

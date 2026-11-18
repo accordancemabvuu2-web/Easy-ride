@@ -36,7 +36,7 @@ import { useEffect, useState } from "react";
 export default function VehiclePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { profile, firebaseUser, loading: authLoading } = useAuth();
+  const { profile, firebaseUser, loading: authLoading, isAdmin } = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [similarVehicles, setSimilarVehicles] = useState<Vehicle[]>([]);
   const [activePhoto, setActivePhoto] = useState("");
@@ -59,7 +59,7 @@ export default function VehiclePage() {
           !listing ||
           (listing.status !== "active" &&
             listing.ownerId !== profile?.id &&
-            profile?.role !== "admin")
+            !isAdmin)
         ) {
           setVehicle(null);
           return;
@@ -72,7 +72,7 @@ export default function VehiclePage() {
     }
 
     void loadVehicle();
-  }, [id, profile?.id, profile?.role]);
+  }, [id, profile?.id, isAdmin]);
 
   useEffect(() => {
     const vehicleId = vehicle?.id;

@@ -17,7 +17,7 @@ export default function CreateListingPage() {
 }
 
 function CreateListingForm() {
-  const { profile } = useAuth();
+  const { profile, isDealer } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -151,8 +151,8 @@ function CreateListingForm() {
         coverImage:
           uploadedUrls[0] ||
           "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400",
-        sellerType: profile.role === "dealer" ? "Dealer" : "Private Seller",
-        verified: profile.role === "dealer",
+        sellerType: isDealer ? "Dealer" : "Private Seller",
+        verified: isDealer,
         featured: false,
       });
 

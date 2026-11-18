@@ -42,6 +42,7 @@ export class ApiError extends Error {
 const REQUEST_TIMEOUT_MS = 15_000;
 const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 let accessToken: string | null = null;
+let accessTokenRevision = 0;
 let refreshPromise: Promise<string | null> | null = null;
 
 type AuthFailureHandler = () => void;
@@ -134,6 +135,7 @@ export function getAccessToken(): string | null {
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+  accessTokenRevision += 1;
 }
 
 function logAuthDiagnostic(event: string, details: Record<string, unknown>): void {
@@ -160,6 +162,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     return refreshPromise;
   }
 
+  const requestTokenRevision = accessTokenRevision;
   const refreshUrl = `${getConfiguredBaseUrl()}/auth/refresh`;
   const requestPromise = Promise.resolve().then(async () => {
     try {
@@ -182,6 +185,9 @@ export async function refreshAccessToken(): Promise<string | null> {
       });
 
       if (!response.ok) {
+        if (requestTokenRevision !== accessTokenRevision) {
+          return accessToken;
+        }
         setAccessToken(null);
         authFailureHandler?.();
         return null;
@@ -189,12 +195,18 @@ export async function refreshAccessToken(): Promise<string | null> {
 
       const payload = (await response.json()) as ApiResponse<{ accessToken?: string }>;
       const newToken = payload.data?.accessToken ?? null;
+      if (requestTokenRevision !== accessTokenRevision) {
+        return accessToken;
+      }
       setAccessToken(newToken);
       if (!newToken) {
         authFailureHandler?.();
       }
       return newToken;
     } catch (error) {
+      if (requestTokenRevision !== accessTokenRevision) {
+        return accessToken;
+      }
       setAccessToken(null);
       authFailureHandler?.();
       logAuthDiagnostic("Refresh API request failed", {
