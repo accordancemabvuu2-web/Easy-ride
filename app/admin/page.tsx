@@ -2,7 +2,7 @@
 
 import AdminMetricCard from "@/Components/AdminMetricCard";
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { getAdminListings, getAdminUsers } from "@/lib/clientFirebaseServices";
+import { getAdminListings, getAdminUserCount } from "@/lib/clientFirebaseServices";
 import { getAllBookings } from "@/lib/clientFirebaseServices";
 import { getAllPayments } from "@/lib/clientFirebaseServices";
 import { getAllOffers } from "@/lib/clientFirebaseServices";
@@ -40,7 +40,7 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     void (async () => {
       const [
-        users,
+        userCount,
         allListings,
         bookings,
         offers,
@@ -50,7 +50,7 @@ export default function AdminOverviewPage() {
         verificationRequests,
         auditLogs,
       ] = await Promise.all([
-        getAdminUsers(),
+        getAdminUserCount(),
         getAdminListings(),
         getAllBookings(),
         getAllOffers(),
@@ -63,7 +63,7 @@ export default function AdminOverviewPage() {
 
       setListings(allListings);
       setStats({
-        users: users.length,
+        users: userCount,
         listings: allListings.length,
         bookings: bookings.length,
         offers: offers.length,

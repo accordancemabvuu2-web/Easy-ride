@@ -3,6 +3,8 @@
 const styles: Record<string, string> = {
   active: "bg-green-100 text-green-800",
   admin: "bg-slate-100 text-slate-800",
+  under_review: "bg-amber-100 text-amber-800",
+  deleted: "bg-gray-100 text-gray-700",
   buyer: "bg-sky-100 text-sky-800",
   seller: "bg-emerald-100 text-emerald-800",
   dealer: "bg-indigo-100 text-indigo-800",
@@ -47,8 +49,10 @@ const styles: Record<string, string> = {
 
 export default function AdminStatusBadge({
   status,
+  label,
 }: {
   status: string;
+  label?: string;
 }) {
   return (
     <span
@@ -56,7 +60,7 @@ export default function AdminStatusBadge({
         styles[status] ?? "bg-gray-100 text-gray-700"
       }`}
     >
-      {status.replaceAll("_", " ")}
+      {label ?? status.replaceAll("_", " ")}
     </span>
   );
 }
