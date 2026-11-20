@@ -10,7 +10,8 @@ import type {
   AdminUsersQuery,
   AdminUsersResponse,
 } from "@/Types/user";
-import { Loader2, Search, ShieldAlert, Users } from "lucide-react";
+import { Eye, Loader2, Search, ShieldAlert, Users } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type AccountCategory =
@@ -275,33 +276,44 @@ export default function AdminUsersPage() {
           </div>
         ) : !error && result && (
           <>
-            <div className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
-              <div className="grid grid-cols-[2fr_1.2fr_1fr] gap-4 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-gray-500">
-                <div>User</div>
-                <div>Email</div>
-                <div>Account type</div>
+            <div className="overflow-x-auto rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
+              <div className="min-w-[720px]">
+                <div className="grid grid-cols-[2fr_1.2fr_1fr_auto] gap-4 border-b border-[#E5E7EB] px-5 py-4 text-sm font-semibold text-gray-500">
+                  <div>User</div>
+                  <div>Email</div>
+                  <div>Account type</div>
+                  <div className="w-32">Actions</div>
+                </div>
+                {result.data.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">No users found for these filters.</div>
+                ) : (
+                  result.data.map((user) => {
+                    const presentation = accountPresentation(user);
+                    const name = `${user.firstName} ${user.lastName}`.trim();
+                    return (
+                      <div key={user.id} className="grid grid-cols-[2fr_1.2fr_1fr_auto] items-center gap-4 border-b border-[#F0F1F2] px-5 py-4 last:border-b-0">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{name || "Name not provided"}</p>
+                          <p className="truncate text-sm text-gray-500">{user.id}</p>
+                        </div>
+                        <div className="truncate text-sm text-gray-600">{user.email ?? "Email not provided"}</div>
+                        <div className="flex flex-col items-start gap-1">
+                          <AdminStatusBadge status={presentation.status} label={presentation.label} />
+                          <span className="text-xs capitalize text-gray-500">{user.accountStatus.replaceAll("_", " ")}</span>
+                        </div>
+                        <Link
+                          href={`/admin/users/${encodeURIComponent(user.id)}`}
+                          aria-label={`View details for ${name || user.id}`}
+                          className="inline-flex w-32 items-center justify-center gap-2 rounded-full border border-[#0B5D3B] px-3 py-2 text-sm font-semibold text-[#0B5D3B] transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5D3B]"
+                        >
+                          <Eye size={16} aria-hidden="true" />
+                          View details
+                        </Link>
+                      </div>
+                    );
+                  })
+                )}
               </div>
-              {result.data.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">No users found for these filters.</div>
-              ) : (
-                result.data.map((user) => {
-                  const presentation = accountPresentation(user);
-                  const name = `${user.firstName} ${user.lastName}`.trim();
-                  return (
-                    <div key={user.id} className="grid grid-cols-[2fr_1.2fr_1fr] gap-4 border-b border-[#F0F1F2] px-5 py-4 last:border-b-0">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{name || "Name not provided"}</p>
-                        <p className="truncate text-sm text-gray-500">{user.id}</p>
-                      </div>
-                      <div className="truncate text-sm text-gray-600">{user.email ?? "Email not provided"}</div>
-                      <div className="flex flex-col items-start gap-1">
-                        <AdminStatusBadge status={presentation.status} label={presentation.label} />
-                        <span className="text-xs capitalize text-gray-500">{user.accountStatus.replaceAll("_", " ")}</span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
             </div>
 
             {totalPages > 0 && (

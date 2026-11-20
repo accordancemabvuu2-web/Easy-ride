@@ -47,6 +47,60 @@ export interface AdminUsersQuery {
   role?: AdminUserRoleFilter;
 }
 
+export interface AdminUserDetailsAccount {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phoneNumber: string | null;
+  role: AdminUserRoleFilter;
+  accountType: "buyer" | "seller" | "dealer" | null;
+  adminRole: AdminSubRole | null;
+  accountStatus: AccountStatus;
+  emailVerified: boolean;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+  deletedAt: string | null;
+}
+
+export interface AdminDealerVerificationDecision {
+  action: "dealer.approve" | "dealer.reject";
+  actorId: string | null;
+  timestamp: string;
+  reason: string | null;
+}
+
+export interface AdminDealerProfileDetails {
+  id: string;
+  businessName: string;
+  businessRegistrationNumber: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  address: string | null;
+  verificationStatus: DealerVerificationStatus;
+  verificationReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  verificationHistory: AdminDealerVerificationDecision[];
+}
+
+export interface AdminUserActivitySummary {
+  vehicles: { total: number; active: number; sold: number };
+  bookings: { asBuyer: number; asSeller: number };
+  offers: { asBuyer: number; asSeller: number };
+}
+
+export interface AdminUserDetailsResponse {
+  success: true;
+  data: {
+    user: AdminUserDetailsAccount;
+    dealerProfile: AdminDealerProfileDetails | null;
+    activitySummary: AdminUserActivitySummary;
+  };
+  meta: Record<string, unknown>;
+}
+
 export interface DealershipMembership {
   id: string;
   dealerId: string;

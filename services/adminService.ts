@@ -5,7 +5,16 @@ import type { EasyRideNotification } from "@/Types/notification";
 import type { Vehicle } from "@/Types/vehicle";
 import { collection, getDocs } from "firebase/firestore";
 import { ApiError, api } from "@/lib/apiClient";
-import type { AdminUsersQuery, AdminUsersResponse, AdminUserRecord } from "@/Types/user";
+import type {
+  AdminDealerProfileDetails,
+  AdminDealerVerificationDecision,
+  AdminUserActivitySummary,
+  AdminUserDetailsAccount,
+  AdminUserDetailsResponse,
+  AdminUsersQuery,
+  AdminUsersResponse,
+  AdminUserRecord,
+} from "@/Types/user";
 
 const BOOKINGS_CACHE_KEY = "easy-ride:bookings";
 const OFFERS_CACHE_KEY = "easy-ride:offers";
@@ -36,12 +45,12 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
-function invalidAdminUsersResponse(): never {
+function invalidAdminUserApiResponse(): never {
   throw new ApiError("The admin users API returned an invalid response.", "INVALID_RESPONSE", 502);
 }
 
 function parseAdminUser(value: unknown): AdminUserRecord {
-  if (!isRecord(value)) return invalidAdminUsersResponse();
+  if (!isRecord(value)) return invalidAdminUserApiResponse();
 
   const roles = ["user", "dealer", "admin"];
   const accountTypes = ["buyer", "seller", "dealer"];
@@ -64,7 +73,7 @@ function parseAdminUser(value: unknown): AdminUserRecord {
     !isNullableString(value.lastLoginAt) ||
     !(value.dealerVerificationStatus === null || (typeof value.dealerVerificationStatus === "string" && dealerStatuses.includes(value.dealerVerificationStatus)))
   ) {
-    return invalidAdminUsersResponse();
+    return invalidAdminUserApiResponse();
   }
 
   return {
@@ -86,7 +95,7 @@ function parseAdminUser(value: unknown): AdminUserRecord {
 
 function parseAdminUsersResponse(value: unknown): AdminUsersResponse {
   if (!isRecord(value) || value.success !== true || !Array.isArray(value.data) || !isRecord(value.meta)) {
-    return invalidAdminUsersResponse();
+    return invalidAdminUserApiResponse();
   }
 
   const { page, pageSize, total, totalPages } = value.meta;
@@ -96,7 +105,7 @@ function parseAdminUsersResponse(value: unknown): AdminUsersResponse {
     !Number.isInteger(total) || (total as number) < 0 ||
     !Number.isInteger(totalPages) || (totalPages as number) < 0
   ) {
-    return invalidAdminUsersResponse();
+    return invalidAdminUserApiResponse();
   }
 
   return {
@@ -138,10 +147,195 @@ export async function getAdminUsers(
   return parseAdminUsersResponse(response);
 }
 
+function isDateTimeString(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isNullableDateTime(value: unknown): value is string | null {
+  return value === null || isDateTimeString(value);
+}
+
+function parseAdminUserDetailsAccount(value: unknown): AdminUserDetailsAccount {
+  if (!isRecord(value)) return invalidAdminUserApiResponse();
+
+  const roles = ["user", "dealer", "admin"];
+  const accountTypes = ["buyer", "seller", "dealer"];
+  const adminRoles = ["super_admin", "operations", "verification", "support"];
+  const accountStatuses = ["pending", "active", "suspended", "deleted"];
+
+  if (
+    typeof value.id !== "string" ||
+    typeof value.firstName !== "string" ||
+    typeof value.lastName !== "string" ||
+    !isNullableString(value.email) ||
+    !isNullableString(value.phoneNumber) ||
+    typeof value.role !== "string" || !roles.includes(value.role) ||
+    !(value.accountType === null || (typeof value.accountType === "string" && accountTypes.includes(value.accountType))) ||
+    !(value.adminRole === null || (typeof value.adminRole === "string" && adminRoles.includes(value.adminRole))) ||
+    typeof value.accountStatus !== "string" || !accountStatuses.includes(value.accountStatus) ||
+    typeof value.emailVerified !== "boolean" ||
+    !isNullableDateTime(value.emailVerifiedAt) ||
+    !isDateTimeString(value.createdAt) ||
+    !isNullableDateTime(value.lastLoginAt) ||
+    !isNullableDateTime(value.deletedAt)
+  ) {
+    return invalidAdminUserApiResponse();
+  }
+
+  return {
+    id: value.id,
+    firstName: value.firstName,
+    lastName: value.lastName,
+    email: value.email,
+    phoneNumber: value.phoneNumber,
+    role: value.role as AdminUserDetailsAccount["role"],
+    accountType: value.accountType as AdminUserDetailsAccount["accountType"],
+    adminRole: value.adminRole as AdminUserDetailsAccount["adminRole"],
+    accountStatus: value.accountStatus as AdminUserDetailsAccount["accountStatus"],
+    emailVerified: value.emailVerified,
+    emailVerifiedAt: value.emailVerifiedAt,
+    createdAt: value.createdAt,
+    lastLoginAt: value.lastLoginAt,
+    deletedAt: value.deletedAt,
+  };
+}
+
+function parseAdminDealerDecision(value: unknown): AdminDealerVerificationDecision {
+  if (
+    !isRecord(value) ||
+    (value.action !== "dealer.approve" && value.action !== "dealer.reject") ||
+    !isNullableString(value.actorId) ||
+    !isDateTimeString(value.timestamp) ||
+    !isNullableString(value.reason) || (value.reason !== null && value.reason.length > 1000)
+  ) {
+    return invalidAdminUserApiResponse();
+  }
+
+  return {
+    action: value.action,
+    actorId: value.actorId,
+    timestamp: value.timestamp,
+    reason: value.reason,
+  };
+}
+
+function parseAdminDealerProfile(value: unknown): AdminDealerProfileDetails {
+  if (!isRecord(value)) return invalidAdminUserApiResponse();
+
+  const verificationStatuses = ["pending", "under_review", "verified", "rejected", "suspended"];
+  if (
+    typeof value.id !== "string" ||
+    typeof value.businessName !== "string" ||
+    !isNullableString(value.businessRegistrationNumber) ||
+    !isNullableString(value.contactEmail) ||
+    !isNullableString(value.contactPhone) ||
+    !isNullableString(value.address) ||
+    typeof value.verificationStatus !== "string" || !verificationStatuses.includes(value.verificationStatus) ||
+    !isNullableString(value.verificationReason) ||
+    (value.verificationReason !== null && value.verificationReason.length > 1000) ||
+    !isDateTimeString(value.createdAt) ||
+    !isDateTimeString(value.updatedAt) ||
+    !Array.isArray(value.verificationHistory) || value.verificationHistory.length > 20
+  ) {
+    return invalidAdminUserApiResponse();
+  }
+
+  return {
+    id: value.id,
+    businessName: value.businessName,
+    businessRegistrationNumber: value.businessRegistrationNumber,
+    contactEmail: value.contactEmail,
+    contactPhone: value.contactPhone,
+    address: value.address,
+    verificationStatus: value.verificationStatus as AdminDealerProfileDetails["verificationStatus"],
+    verificationReason: value.verificationReason,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    verificationHistory: value.verificationHistory.map(parseAdminDealerDecision),
+  };
+}
+
+function parseCount(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
+}
+
+function parseAdminActivitySummary(value: unknown): AdminUserActivitySummary {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.vehicles) ||
+    !isRecord(value.bookings) ||
+    !isRecord(value.offers) ||
+    !parseCount(value.vehicles.total) ||
+    !parseCount(value.vehicles.active) ||
+    !parseCount(value.vehicles.sold) ||
+    !parseCount(value.bookings.asBuyer) ||
+    !parseCount(value.bookings.asSeller) ||
+    !parseCount(value.offers.asBuyer) ||
+    !parseCount(value.offers.asSeller)
+  ) {
+    return invalidAdminUserApiResponse();
+  }
+
+  return {
+    vehicles: {
+      total: value.vehicles.total,
+      active: value.vehicles.active,
+      sold: value.vehicles.sold,
+    },
+    bookings: {
+      asBuyer: value.bookings.asBuyer,
+      asSeller: value.bookings.asSeller,
+    },
+    offers: {
+      asBuyer: value.offers.asBuyer,
+      asSeller: value.offers.asSeller,
+    },
+  };
+}
+
+function parseAdminUserDetailsResponse(value: unknown, expectedUserId: string): AdminUserDetailsResponse {
+  if (
+    !isRecord(value) || value.success !== true || !isRecord(value.data) || !isRecord(value.meta)
+  ) {
+    return invalidAdminUserApiResponse();
+  }
+
+  const user = parseAdminUserDetailsAccount(value.data.user);
+  if (user.id.toLowerCase() !== expectedUserId.toLowerCase()) {
+    return invalidAdminUserApiResponse();
+  }
+
+  const dealerProfile = value.data.dealerProfile === null
+    ? null
+    : parseAdminDealerProfile(value.data.dealerProfile);
+
+  return {
+    success: true,
+    data: {
+      user,
+      dealerProfile,
+      activitySummary: parseAdminActivitySummary(value.data.activitySummary),
+    },
+    meta: {},
+  };
+}
+
+export async function getAdminUserDetails(
+  userId: string,
+  options: Pick<RequestInit, "signal"> = {},
+): Promise<AdminUserDetailsResponse> {
+  if (!/^[0-9a-f]{24}$/i.test(userId)) {
+    throw new ApiError("The user ID is invalid.", "VALIDATION_ERROR", 400);
+  }
+
+  const response = await api.get<unknown>(`/admin/users/${encodeURIComponent(userId)}`, options);
+  return parseAdminUserDetailsResponse(response, userId);
+}
+
 export async function getAdminUserCount(): Promise<number> {
   const response = await api.get<unknown>("/admin/dashboard");
   if (!isRecord(response.data) || !Number.isInteger(response.data.users) || (response.data.users as number) < 0) {
-    return invalidAdminUsersResponse();
+    return invalidAdminUserApiResponse();
   }
   return response.data.users as number;
 }
