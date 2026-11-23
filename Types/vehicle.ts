@@ -1,4 +1,4 @@
-export type ListingType = "buy" | "rent";
+export type ListingType = "buy" | "rent" | "both";
 
 export type ListingStatus =
   | "draft"
@@ -7,6 +7,7 @@ export type ListingStatus =
   | "rejected"
   | "sold"
   | "rented"
+  | "archived"
   | "suspended";
 
 export interface VehicleLocation {
@@ -24,6 +25,7 @@ export interface Vehicle {
   ownerName: string;
   ownerPhone: string;
   ownerEmail: string;
+  dealerId?: string;
 
   listingType: ListingType;
   status: ListingStatus;
@@ -34,6 +36,8 @@ export interface Vehicle {
   price: number;
   currency: string;
   priceLabel?: string;
+  salePrice?: number;
+  rentalPricing?: { day?: number; week?: number; month?: number };
 
   transmission: "Automatic" | "Manual";
   fuelType: "Petrol" | "Diesel" | "Hybrid" | "Electric";
@@ -42,6 +46,9 @@ export interface Vehicle {
 
   bodyType?: string;
   color?: string;
+  drivetrain?: string;
+  engineCapacity?: number;
+  features?: string[];
   description: string;
 
   location: VehicleLocation;

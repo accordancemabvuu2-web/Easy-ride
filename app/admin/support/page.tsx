@@ -74,7 +74,7 @@ export default function AdminSupportPage() {
   };
 
   return (
-    <section className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-[1180px]">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="rounded-3xl bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

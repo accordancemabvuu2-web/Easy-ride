@@ -3,6 +3,7 @@
 import { db, firebaseReady } from "@/lib/firebase";
 import type { EasyRideNotification } from "@/Types/notification";
 import type { Vehicle } from "@/Types/vehicle";
+import { adaptVehicle } from "@/services/vehicleAdapter";
 import { collection, getDocs } from "firebase/firestore";
 import { ApiError, api } from "@/lib/apiClient";
 import type {
@@ -368,15 +369,23 @@ export async function getAdminUserCount(): Promise<number> {
 }
 
 export async function getAdminListings(): Promise<Vehicle[]> {
-  if (!firebaseReady || !db) {
-    return readLocalRecords<Vehicle>("easy-ride:listings");
+  const listings: Vehicle[] = [];
+  const pageSize = 100;
+  let page = 1;
+  let total = Number.POSITIVE_INFINITY;
+  while (listings.length < total) {
+    const response = await api.get<unknown>(`/admin/vehicles?status=all&page=${page}&pageSize=${pageSize}`);
+    if (!Array.isArray(response.data)) {
+      throw new ApiError("The admin vehicle API returned an invalid response.", "INVALID_RESPONSE", 502);
+    }
+    if (!isRecord(response.meta) || typeof response.meta.total !== "number" || !Number.isInteger(response.meta.total) || response.meta.total < 0) {
+      throw new ApiError("The admin vehicle API returned invalid pagination metadata.", "INVALID_RESPONSE", 502);
+    }
+    listings.push(...response.data.map(adaptVehicle));
+    total = response.meta.total;
+    page += 1;
   }
-
-  const snapshot = await getDocs(collection(db, "listings"));
-  return snapshot.docs.map((listingDocument) => ({
-    id: listingDocument.id,
-    ...(listingDocument.data() as Omit<Vehicle, "id">),
-  }));
+  return listings;
 }
 
 export async function getAdminNotifications(): Promise<EasyRideNotification[]> {
@@ -395,7 +404,7 @@ export async function getAdminSummary() {
   if (!firebaseReady || !db) {
     return {
       users: await getAdminUserCount(),
-      listings: readLocalRecords<Vehicle>("easy-ride:listings").length,
+      listings: (await getAdminListings()).length,
       bookings: readLocalRecords(BOOKINGS_CACHE_KEY).length,
       offers: readLocalRecords(OFFERS_CACHE_KEY).length,
       payments: readLocalRecords(PAYMENTS_CACHE_KEY).length,

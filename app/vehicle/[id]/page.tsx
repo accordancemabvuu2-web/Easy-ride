@@ -11,8 +11,8 @@ import Navbar from "@/Components/Navbar";
 import OfferForm from "@/Components/OfferForm";
 import ReportListingModal from "@/Components/ReportListingModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { recordContactClick, recordListingView } from "@/lib/clientFirebaseServices";
-import { getActiveListings, getListingById } from "@/lib/clientFirebaseServices";
+import { recordContactClick } from "@/lib/clientFirebaseServices";
+import { getActiveListings, getListingById } from "@/services/listingService";
 import { createWhatsAppUrl } from "@/utils/whatsapp";
 import type { Vehicle } from "@/Types/vehicle";
 import {
@@ -44,6 +44,8 @@ export default function VehiclePage() {
   const [showPhone, setShowPhone] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !profile) setShowPhone(false);
@@ -53,6 +55,7 @@ export default function VehiclePage() {
     async function loadVehicle() {
       try {
         setLoading(true);
+        setLoadError(null);
         const listing = await getListingById(id);
 
         if (
@@ -66,23 +69,16 @@ export default function VehiclePage() {
         }
 
         setVehicle(listing);
+      } catch (error) {
+        setVehicle(null);
+        setLoadError(error instanceof Error ? error.message : "Vehicle details could not be loaded.");
       } finally {
         setLoading(false);
       }
     }
 
     void loadVehicle();
-  }, [id, profile?.id, isAdmin]);
-
-  useEffect(() => {
-    const vehicleId = vehicle?.id;
-
-    if (!vehicleId) {
-      return;
-    }
-
-    recordListingView(vehicleId, firebaseUser?.uid).catch(console.error);
-  }, [vehicle?.id, firebaseUser?.uid]);
+  }, [id, profile?.id, isAdmin, retryKey]);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +114,19 @@ export default function VehiclePage() {
           <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
         </div>
         <Footer />
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="min-h-screen bg-[#F8F9FA] px-4 py-16 text-center text-[#202124]">
+        <Navbar />
+        <h1 className="mt-8 text-3xl font-bold">Vehicle details could not be loaded</h1>
+        <p role="alert" className="mx-auto mt-3 max-w-xl text-gray-600">{loadError}</p>
+        <button type="button" onClick={() => setRetryKey((value) => value + 1)} className="mt-6 rounded-full bg-[#0B5D3B] px-6 py-3 font-semibold text-white">
+          Try again
+        </button>
       </main>
     );
   }

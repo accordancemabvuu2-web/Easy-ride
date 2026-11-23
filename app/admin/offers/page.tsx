@@ -44,7 +44,7 @@ export default function AdminOffersPage() {
   }, [offers, query, statusFilter]);
 
   return (
-    <section className="min-h-screen px-4 py-8 sm:px-6 lg:px-8 lg:pl-8">
+    <section className="mx-auto w-full max-w-[1180px]">
       <div className="mx-auto max-w-7xl">
           <div className="mb-6 flex items-center gap-3">
             <Handshake className="text-[#0B5D3B]" />

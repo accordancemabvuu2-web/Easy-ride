@@ -1,17 +1,16 @@
 "use client";
 
 import { db, firebaseReady } from "@/lib/firebase";
+import { getMyListings } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
 import {
   Timestamp,
   collection,
   doc,
   getDocs,
-  increment,
   query,
   setDoc,
   where,
-  updateDoc,
 } from "firebase/firestore";
 
 type ListingEvent =
@@ -61,38 +60,10 @@ function writeLocalEvents(events: ListingEvent[]) {
 }
 
 export async function recordListingView(
-  listingId: string,
-  userId?: string,
+  _listingId: string,
+  _userId?: string,
 ): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    writeLocalEvents([
-      {
-        listingId,
-        userId: userId ?? null,
-        eventType: "view",
-        createdAt: new Date().toISOString(),
-      },
-      ...readLocalEvents(),
-    ]);
-    return;
-  }
-
-  const listingReference = doc(firestore, "listings", listingId);
-
-  await updateDoc(listingReference, {
-    views: increment(1),
-  });
-
-  const eventId = crypto.randomUUID();
-
-  await setDoc(doc(firestore, "listingEvents", eventId), {
-    listingId,
-    userId: userId ?? null,
-    eventType: "view",
-    createdAt: Timestamp.now(),
-  });
+  // Vehicle detail reads increment viewCount in the MongoDB API.
 }
 
 export async function recordContactClick(
@@ -129,38 +100,7 @@ export async function recordContactClick(
 }
 
 export async function getSellerAnalytics(ownerId: string): Promise<SellerAnalytics> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const localEvents = readLocalEvents();
-    const views = localEvents.filter((event) => event.eventType === "view").length;
-    const contacts = localEvents.filter(
-      (event): event is Extract<ListingEvent, { eventType: "contact" }> =>
-        event.eventType === "contact" && event.sellerId === ownerId,
-    ).length;
-
-    return {
-      views,
-      contacts,
-      favorites: 0,
-      leadCount: contacts,
-      conversionRate: views > 0 ? (contacts / views) * 100 : 0,
-      favoriteRate: views > 0 ? 0 : 0,
-      listings: [],
-    };
-  }
-
-  const listingsSnapshot = await getDocs(
-    query(collection(firestore, "listings"), where("ownerId", "==", ownerId)),
-  );
-
-  const listings = listingsSnapshot.docs.map(
-    (listingDocument) =>
-      ({
-        id: listingDocument.id,
-        ...(listingDocument.data() as Record<string, unknown>),
-      }) as Partial<Vehicle> & { id: string },
-  );
+  const listings = await getMyListings();
 
   const views = listings.reduce(
     (total, listing) => total + Number(listing.views ?? 0),
@@ -171,15 +111,23 @@ export async function getSellerAnalytics(ownerId: string): Promise<SellerAnalyti
     0,
   );
 
-  const contactsSnapshot = await getDocs(
-    query(
-      collection(firestore, "listingEvents"),
-      where("sellerId", "==", ownerId),
-      where("eventType", "==", "contact"),
-    ),
-  );
+  let contacts = 0;
+  if (firebaseReady && db) {
+    const contactsSnapshot = await getDocs(
+      query(
+        collection(db, "listingEvents"),
+        where("sellerId", "==", ownerId),
+        where("eventType", "==", "contact"),
+      ),
+    );
+    contacts = contactsSnapshot.size;
+  } else {
+    contacts = readLocalEvents().filter(
+      (event): event is Extract<ListingEvent, { eventType: "contact" }> =>
+        event.eventType === "contact" && event.sellerId === ownerId,
+    ).length;
+  }
 
-  const contacts = contactsSnapshot.size;
   const leadCount = contacts;
 
   return {

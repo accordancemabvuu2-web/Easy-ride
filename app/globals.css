@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* Easy Ride administration design tokens */
+@theme {
+  --color-canvas: #f4f6f5;
+  --color-surface: #ffffff;
+  --color-forest: #08281d;
+  --color-brand: #0b5d3b;
+  --color-brand-strong: #0a4e32;
+  --color-brand-soft: #eaf3ee;
+  --color-brand-line: #cfe2d7;
+  --color-gold: #c9a227;
+  --color-ink: #10201a;
+  --color-muted: #4c5c54;
+  --color-subtle: #7b8a82;
+  --color-hairline: #e3e9e5;
+  --color-hairline-soft: #eef2ef;
+  --color-danger: #b42318;
+  --color-danger-ink: #96271c;
+}
+
 :root {
   --background: #f8f9fa;
   --foreground: #202124;

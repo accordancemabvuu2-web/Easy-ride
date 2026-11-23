@@ -1,69 +1,144 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
-import { createAuditLog } from "@/lib/clientFirebaseServices";
-import { createNotification } from "@/lib/clientFirebaseServices";
-import { getDealers, updateDealerStatus } from "@/lib/clientFirebaseServices";
-import { reviewVerificationRequest, getVerificationRequests } from "@/lib/clientFirebaseServices";
-import { updateUserRole } from "@/services/userService";
+import Button from "@/Components/admin/Button";
+import ConfirmDialog, {
+  DialogTarget,
+  DialogTransition,
+} from "@/Components/admin/ConfirmDialog";
+import EmptyState from "@/Components/admin/EmptyState";
+import { SearchField, SelectField } from "@/Components/admin/Filters";
+import PageHeader from "@/Components/admin/PageHeader";
+import Panel, { PanelHeader } from "@/Components/admin/Panel";
 import { useAuth } from "@/contexts/AuthContext";
+import { cx } from "@/lib/classNames";
+import {
+  createAuditLog,
+  createNotification,
+  getDealers,
+  getVerificationRequests,
+  reviewVerificationRequest,
+  updateDealerStatus,
+} from "@/lib/clientFirebaseServices";
+import { formatDateTime, humanize } from "@/lib/format";
+import { updateUserRole } from "@/services/userService";
 import type { Dealer } from "@/Types/dealer";
 import type { VerificationRequest } from "@/Types/verification";
-import { Loader2, Search, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Building2,
+  ChevronRight,
+  ExternalLink,
+  FileText,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 type Row = VerificationRequest & { dealer?: Dealer | null };
 
+const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+
+const TYPE_LABELS: Record<VerificationRequest["type"], string> = {
+  identity: "Identity",
+  private_seller: "Private seller",
+  dealer: "Dealer",
+};
+
+function approvalLabel(type: VerificationRequest["type"]): string {
+  if (type === "dealer") return "Approve dealer";
+  if (type === "private_seller") return "Approve seller request";
+  return "Approve identity";
+}
+
+function approvalOutcome(type: VerificationRequest["type"]): string {
+  if (type === "dealer") {
+    return "Approval marks the dealership verified, updates the linked dealer profile and records the decision in the audit trail.";
+  }
+  if (type === "private_seller") {
+    return "Approval adds seller capability to the linked account and records the decision in the audit trail.";
+  }
+  return "Approval records the decision in the audit trail and notifies the account holder.";
+}
+
 export default function AdminVerificationPage() {
-  const { profile, firebaseUser } = useAuth();
+  const { profile, firebaseUser, isSuperAdmin } = useAuth();
   const [requests, setRequests] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | VerificationRequest["type"]>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<Row | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async (options: { background?: boolean } = {}) => {
+    if (options.background) setRefreshing(true);
+    else setLoading(true);
+    setLoadError(null);
+
     try {
-      setLoading(true);
-      const raw = await getVerificationRequests("pending");
-      const dealers = await getDealers("pending");
+      const [raw, dealers] = await Promise.all([
+        getVerificationRequests("pending"),
+        getDealers("pending"),
+      ]);
       setRequests(
         raw.map((request) => ({
           ...request,
           dealer: dealers.find((dealer) => dealer.ownerId === request.userId) ?? null,
         })),
       );
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Verification requests could not be loaded. Try again.",
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
-  const stats = useMemo(() => ({ pending: requests.length }), [requests]);
+  const actor = useMemo(
+    () => ({
+      actorId: firebaseUser?.uid ?? "system",
+      actorName: profile?.name ?? "Administrator",
+      actorRole: profile?.role ?? "admin",
+    }),
+    [firebaseUser?.uid, profile?.name, profile?.role],
+  );
 
-  const filteredRequests = useMemo(() => {
+  const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return requests.filter((request) => {
       const matchesType = typeFilter === "all" || request.type === typeFilter;
       const matchesQuery =
         !term ||
-        [request.userName, request.userEmail, request.notes ?? "", request.type, request.status].some((value) =>
-          value.toLowerCase().includes(term),
+        [request.userName, request.userEmail, request.notes ?? "", request.type, request.status].some(
+          (value) => value.toLowerCase().includes(term),
         );
       return matchesType && matchesQuery;
     });
   }, [requests, query, typeFilter]);
 
-  const actor = {
-    actorId: firebaseUser?.uid ?? "system",
-    actorName: profile?.name ?? "Administrator",
-    actorRole: profile?.role ?? "admin",
-  };
+  const selected = useMemo(() => {
+    if (filtered.length === 0) return null;
+    return filtered.find((request) => request.id === selectedId) ?? filtered[0];
+  }, [filtered, selectedId]);
 
   const approve = async (request: Row) => {
+    setSubmitting(true);
+    setActionError(null);
     try {
       await reviewVerificationRequest(request.id, "approved", actor.actorId, actor.actorName);
 
@@ -92,23 +167,29 @@ export default function AdminVerificationPage() {
       });
 
       toast.success("Verification approved.");
-      await load();
+      setSelectedId(null);
+      setMobileDetailOpen(false);
+      await load({ background: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Verification could not be approved.");
+      const message =
+        error instanceof Error ? error.message : "Verification could not be approved.";
+      setActionError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const reject = async (request: Row) => {
-    const reason = window.prompt("Enter a rejection reason:");
-    if (!reason?.trim()) return;
-
+  const reject = async (request: Row, reason: string) => {
+    setSubmitting(true);
+    setActionError(null);
     try {
       await reviewVerificationRequest(
         request.id,
         "rejected",
         actor.actorId,
         actor.actorName,
-        reason.trim(),
+        reason,
       );
 
       await createAuditLog({
@@ -123,127 +204,423 @@ export default function AdminVerificationPage() {
         userId: request.userId,
         type: "verification",
         title: "Verification rejected",
-        message: reason.trim(),
+        message: reason,
         actionUrl: "/verification",
         link: "/verification",
       });
 
       toast.success("Verification rejected.");
-      await load();
+      setRejectTarget(null);
+      setSelectedId(null);
+      setMobileDetailOpen(false);
+      await load({ background: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Verification could not be rejected.");
+      const message =
+        error instanceof Error ? error.message : "Verification could not be rejected.";
+      setActionError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  const documents = selected
+    ? [
+        { label: "Government-issued ID", url: selected.identityDocumentUrl },
+        { label: "Proof of address", url: selected.proofOfAddressUrl },
+        { label: "Business registration document", url: selected.businessDocumentUrl },
+      ].filter((document): document is { label: string; url: string } => Boolean(document.url))
+    : [];
+
   return (
-    <section className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-3xl bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="text-[#0B5D3B]" />
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-                  Verification
-                </p>
-                <h1 className="text-4xl font-bold text-[#121212]">Identity and dealer review</h1>
-                <p className="mt-2 max-w-2xl text-gray-600">
-                  Approve or reject verification requests and keep dealer profiles aligned with the marketplace status.
-                </p>
-              </div>
-            </div>
+    <>
+      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-4">
+        <PageHeader
+          title="Verification"
+          meta={`${requests.length.toLocaleString()} requests pending`}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void load({ background: true })}
+              disabled={loading || refreshing}
+            >
+              <RefreshCw
+                size={13}
+                aria-hidden="true"
+                className={cx(refreshing && "animate-spin")}
+              />
+              Refresh
+            </Button>
+          }
+        />
 
-            <div className="rounded-2xl bg-[#F8F9FA] px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Pending requests</p>
-              <p className="text-2xl font-bold">{stats.pending}</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-3 rounded-3xl bg-white p-4 shadow-sm sm:grid-cols-[1fr_180px]">
-          <label className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] px-4 py-3">
-            <Search className="text-gray-400" size={18} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search requests"
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </label>
-          <select
+        <Panel className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+          <SearchField
+            id="verification-search"
+            label="Search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name, email or request ID"
+          />
+          <SelectField
+            id="verification-type"
+            label="Request type"
             value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
-            className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm outline-none"
+            onChange={(event) => {
+              setTypeFilter(event.target.value as typeof typeFilter);
+              setSelectedId(null);
+            }}
           >
             <option value="all">All types</option>
             <option value="identity">Identity</option>
             <option value="private_seller">Private seller</option>
             <option value="dealer">Dealer</option>
-          </select>
-        </div>
+          </SelectField>
+          <div className="shrink-0 pb-0.5 sm:pb-0">
+            <span className="whitespace-nowrap px-1 text-xs text-subtle tabular-nums">
+              {filtered.length.toLocaleString()} results
+            </span>
+          </div>
+        </Panel>
+
+        {loadError ? (
+          <Panel className="border-red-200 bg-red-50 px-4 py-3" aria-label="Load error">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-red-800">
+                  Verification requests could not be loaded
+                </p>
+                <p className="mt-0.5 text-xs text-red-700">{loadError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => void load()}>
+                <RefreshCw size={13} aria-hidden="true" />
+                Try again
+              </Button>
+            </div>
+          </Panel>
+        ) : null}
 
         {loading ? (
-          <div className="flex min-h-80 items-center justify-center rounded-3xl bg-white shadow-sm">
-            <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
+          <div className="grid gap-4 lg:grid-cols-[352px_minmax(0,1fr)]">
+            <div className="h-[480px] animate-pulse rounded-xl bg-surface" />
+            <div className="h-[480px] animate-pulse rounded-xl bg-surface" />
           </div>
         ) : requests.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-12 text-center shadow-sm">
-            <ShieldCheck className="mx-auto text-[#0B5D3B]" size={36} />
-            <h2 className="mt-4 text-2xl font-bold">No pending requests</h2>
-            <p className="mt-2 text-gray-600">Verification submissions will appear here for review.</p>
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-12 text-center shadow-sm">
-            <h2 className="text-2xl font-bold">No matching requests</h2>
-          </div>
+          <Panel>
+            <EmptyState
+              icon={ShieldCheck}
+              title="No pending verification requests"
+              message="Identity, private seller and dealer submissions appear here for review."
+            />
+          </Panel>
         ) : (
-          <div className="space-y-4">
-            {filteredRequests.map((request) => (
-              <article key={request.id} className="rounded-3xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-2xl font-bold">{request.userName}</h2>
-                      <AdminStatusBadge status={request.type} />
-                      <AdminStatusBadge status={request.status} />
+          <div className="grid gap-4 lg:grid-cols-[352px_minmax(0,1fr)]">
+            <Panel
+              className={cx("flex flex-col overflow-hidden", mobileDetailOpen && "hidden lg:flex")}
+              aria-label="Verification requests"
+            >
+              <PanelHeader
+                title="Pending requests"
+                count={
+                  <span className="text-xs text-subtle tabular-nums">
+                    {requests.length.toLocaleString()} requests
+                  </span>
+                }
+              />
+
+              {filtered.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="No requests match this filter"
+                  message="Try a different request type."
+                />
+              ) : (
+                <ul className="max-h-[520px] overflow-y-auto">
+                  {filtered.map((request) => {
+                    const isSelected = selected?.id === request.id;
+                    return (
+                      <li key={request.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(request.id);
+                            setMobileDetailOpen(true);
+                          }}
+                          aria-current={isSelected ? "true" : undefined}
+                          className={cx(
+                            "flex w-full items-center gap-2.5 border-b border-hairline-soft px-3.5 py-3 text-left transition-colors",
+                            isSelected
+                              ? "bg-brand-soft/60 shadow-[inset_0_0_0_1px_var(--color-brand-line)]"
+                              : "hover:bg-[#f7faf8]",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13.5px] font-medium text-ink">
+                              {request.userName}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11.5px] text-subtle">
+                              {request.userEmail}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-[11.5px] text-muted">
+                            {TYPE_LABELS[request.type]}
+                          </span>
+                          <ChevronRight
+                            size={13}
+                            aria-hidden="true"
+                            className={cx("shrink-0", isSelected ? "text-brand" : "text-[#b9c6bf]")}
+                          />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <div className="mt-auto border-t border-hairline-soft px-3.5 py-2.5 text-xs text-subtle tabular-nums">
+                1–{filtered.length} of {requests.length}
+              </div>
+            </Panel>
+
+            {selected ? (
+              <Panel
+                className={cx("flex flex-col overflow-hidden", !mobileDetailOpen && "hidden lg:flex")}
+                aria-label="Selected request"
+              >
+                <div className="flex flex-wrap items-center gap-3 border-b border-hairline-soft px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setMobileDetailOpen(false)}
+                    aria-label="Back to requests"
+                    className="-ml-1 flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-[#eff3f1] lg:hidden"
+                  >
+                    <ArrowLeft size={15} aria-hidden="true" />
+                  </button>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[13px] font-semibold text-brand">
+                    {selected.userName.slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-lg font-semibold tracking-[-0.015em] text-ink">
+                        {selected.userName}
+                      </h2>
+                      <AdminStatusBadge
+                        status={selected.type}
+                        label={TYPE_LABELS[selected.type]}
+                      />
+                      <AdminStatusBadge status={selected.status} />
                     </div>
-                    <p className="text-sm text-gray-500">{request.userEmail}</p>
-                    {request.notes ? <p className="text-sm text-gray-600">{request.notes}</p> : null}
+                    <p className="mt-0.5 truncate text-xs text-subtle">{selected.userEmail}</p>
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void approve(request)}
-                      className="rounded-full bg-[#0B5D3B] px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void reject(request)}
-                      className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  <span className="font-mono text-[11px] text-subtle">
+                    Request {selected.id.slice(0, 8)}
+                  </span>
                 </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl bg-[#F8F9FA] p-4 text-sm">
-                    <p className="text-gray-500">Dealer status</p>
-                    <p className="font-semibold capitalize">{request.dealer?.status ?? "n/a"}</p>
+                <div className="flex flex-col gap-4 p-4">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-ink">Request</p>
+                    <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+                      <div className="min-w-0">
+                        <dt className="text-[11.5px] text-subtle">Request ID</dt>
+                        <dd className="mt-0.5 break-all font-mono text-[11.5px] text-ink">
+                          {selected.id}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[11.5px] text-subtle">Type</dt>
+                        <dd className="mt-0.5 text-[13.5px] text-ink">
+                          {TYPE_LABELS[selected.type]}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[11.5px] text-subtle">Submitted</dt>
+                        <dd className="mt-0.5 text-[13.5px] text-ink">
+                          {formatDateTime(selected.submittedAt)}
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
-                  <div className="rounded-2xl bg-[#F8F9FA] p-4 text-sm">
-                    <p className="text-gray-500">Request type</p>
-                    <p className="font-semibold capitalize">{request.type.replaceAll("_", " ")}</p>
+
+                  {selected.notes ? (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold text-ink">Applicant notes</p>
+                      <p className="max-w-2xl border-l-2 border-brand-line pl-3 text-[13px] leading-6 text-muted">
+                        {selected.notes}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-ink">Linked account</p>
+                    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-hairline bg-[#fafbfa] px-3.5 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand">
+                        {selected.userName.slice(0, 2).toUpperCase()}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13.5px] font-medium text-ink">
+                          {selected.userName}
+                        </p>
+                        <p className="truncate text-[11.5px] text-subtle">
+                          {selected.userEmail}
+                        </p>
+                      </div>
+                      <span className="font-mono text-[11px] text-subtle">{selected.userId}</span>
+                      {isSuperAdmin && OBJECT_ID_PATTERN.test(selected.userId) ? (
+                        <Link
+                          href={`/admin/users/${encodeURIComponent(selected.userId)}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                        >
+                          Open account
+                          <ChevronRight size={12} aria-hidden="true" />
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {documents.length > 0 ? (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold text-ink">Documents submitted</p>
+                      <ul className="divide-y divide-hairline-soft rounded-lg border border-hairline">
+                        {documents.map((document) => (
+                          <li
+                            key={document.label}
+                            className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13px]"
+                          >
+                            <FileText size={14} aria-hidden="true" className="text-subtle" />
+                            <span className="flex-1 text-ink">{document.label}</span>
+                            <a
+                              href={document.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                            >
+                              Open
+                              <ExternalLink size={12} aria-hidden="true" />
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {selected.type === "dealer" ? (
+                    <div>
+                      <p className="mb-1 text-xs font-semibold text-ink">Dealer profile</p>
+                      {selected.dealer ? (
+                        <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 rounded-lg border border-hairline px-3.5 py-3 sm:grid-cols-2">
+                          <div className="min-w-0">
+                            <dt className="text-[11.5px] text-subtle">Business name</dt>
+                            <dd className="mt-0.5 truncate text-[13.5px] text-ink">
+                              {selected.dealer.businessName}
+                            </dd>
+                          </div>
+                          <div className="min-w-0">
+                            <dt className="text-[11.5px] text-subtle">Registration number</dt>
+                            <dd className="mt-0.5 truncate text-[13.5px] text-ink">
+                              {selected.dealer.registrationNumber || "Not provided"}
+                            </dd>
+                          </div>
+                          <div className="min-w-0">
+                            <dt className="text-[11.5px] text-subtle">Contact email</dt>
+                            <dd className="mt-0.5 truncate text-[13.5px] text-ink">
+                              {selected.dealer.email || "Not provided"}
+                            </dd>
+                          </div>
+                          <div className="min-w-0">
+                            <dt className="text-[11.5px] text-subtle">Dealer status</dt>
+                            <dd className="mt-1">
+                              <AdminStatusBadge status={selected.dealer.status} />
+                            </dd>
+                          </div>
+                        </dl>
+                      ) : (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                          <Building2 size={15} aria-hidden="true" className="mt-0.5 text-amber-700" />
+                          <p className="text-xs leading-5 text-amber-900">
+                            No dealer profile is linked to this request. The account was not marked as
+                            verified by this screen.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-lg border border-brand-line bg-brand-soft px-3.5 py-2.5">
+                    <p className="text-xs font-semibold text-ink">What approval does</p>
+                    <p className="mt-0.5 text-xs leading-5 text-muted">
+                      {approvalOutcome(selected.type)}
+                    </p>
+                  </div>
+
+                  {actionError ? (
+                    <p role="alert" className="text-xs text-danger-ink">
+                      {actionError}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline px-4 py-3">
+                  <span className="font-mono text-[11px] text-subtle">
+                    Request {selected.id.slice(0, 8)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setActionError(null);
+                        setRejectTarget(selected);
+                      }}
+                      disabled={submitting}
+                    >
+                      Reject request
+                    </Button>
+                    <Button onClick={() => void approve(selected)} disabled={submitting}>
+                      <ShieldCheck size={14} aria-hidden="true" />
+                      {approvalLabel(selected.type)}
+                    </Button>
                   </div>
                 </div>
-              </article>
-            ))}
+              </Panel>
+            ) : null}
           </div>
         )}
       </div>
-    </section>
+
+      {rejectTarget ? (
+        <ConfirmDialog
+          title="Reject verification request"
+          description="The applicant is notified with the reason you provide."
+          tone="danger"
+          confirmLabel="Reject request"
+          submitting={submitting}
+          submitError={actionError ? { message: actionError } : null}
+          onCancel={() => {
+            if (submitting) return;
+            setRejectTarget(null);
+            setActionError(null);
+          }}
+          onConfirm={(reason) => void reject(rejectTarget, reason)}
+          reason={{
+            label: "Reason for rejection",
+            help: "The applicant sees this reason in their notification.",
+            placeholder: "Explain what is missing or unclear in the submitted documents",
+          }}
+        >
+          <DialogTarget
+            name={rejectTarget.userName}
+            email={rejectTarget.userEmail}
+            id={rejectTarget.id}
+          />
+          <div className="mt-3">
+            <DialogTransition
+              from={{ label: "Current status", text: humanize(rejectTarget.status), tone: "warning" }}
+              to={{ label: "After confirmation", text: "Rejected", tone: "danger" }}
+            />
+          </div>
+        </ConfirmDialog>
+      ) : null}
+    </>
   );
 }

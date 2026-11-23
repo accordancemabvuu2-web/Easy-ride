@@ -3,7 +3,7 @@
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
 import { createAuditLog } from "@/lib/clientFirebaseServices";
 import { createNotification } from "@/lib/clientFirebaseServices";
-import { getListingById, updateListingStatus } from "@/lib/clientFirebaseServices";
+import { getAdminListingById, updateListingStatus } from "@/lib/clientFirebaseServices";
 import { getListingReports, getReportsForListing, resolveListingReport } from "@/lib/clientFirebaseServices";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ListingReport } from "@/Types/report";
@@ -32,7 +32,7 @@ export default function AdminReportsPage() {
       const enriched = await Promise.all(
         rawReports.map(async (report) => ({
           ...report,
-          listing: await getListingById(report.listingId),
+          listing: await getAdminListingById(report.listingId),
           otherReportsCount: (await getReportsForListing(report.listingId)).length,
         })),
       );
@@ -104,7 +104,7 @@ export default function AdminReportsPage() {
   const suspend = async (report: ReportView) => {
     if (!report.listing) return;
     try {
-      await updateListingStatus(report.listing.id, "suspended");
+      await updateListingStatus(report.listing.id, "suspended", "Suspended after administrator review of a user report.");
       await resolveListingReport(report.id, "resolved");
       await createAuditLog({
         ...actor,
@@ -148,7 +148,7 @@ export default function AdminReportsPage() {
   };
 
   return (
-    <section className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-[1180px]">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="rounded-3xl bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

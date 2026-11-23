@@ -48,6 +48,7 @@ export default function HomeMarketplace() {
   const sortBy: SortType = requestedSort === "price-asc" || requestedSort === "price-desc" || requestedSort === "year-desc" || requestedSort === "year-asc" || requestedSort === "views-desc" ? requestedSort : "newest";
   const listingFilters = useMemo<ListingPageFilters>(() => ({
     listingType,
+    search,
     location,
     make,
     model,
@@ -60,7 +61,8 @@ export default function HomeMarketplace() {
     yearMin: yearMin === "" ? undefined : yearMin,
     yearMax: yearMax === "" ? undefined : yearMax,
     mileageMax: mileageMax === "" ? undefined : mileageMax,
-  }), [bodyType, condition, fuelType, listingType, location, make, mileageMax, model, priceMax, priceMin, transmission, yearMax, yearMin]);
+    sortBy,
+  }), [bodyType, condition, fuelType, listingType, location, make, mileageMax, model, priceMax, priceMin, search, sortBy, transmission, yearMax, yearMin]);
 
   useEffect(() => {
     let active = true;
@@ -126,40 +128,8 @@ export default function HomeMarketplace() {
   const bodyTypes = useMemo(() => unique(vehicles.map((vehicle) => vehicle.bodyType ?? "")), [vehicles]);
   const years = useMemo(() => [...new Set(vehicles.map((vehicle) => vehicle.year))].sort((a, b) => b - a), [vehicles]);
 
-  const filteredVehicles = useMemo(() => {
-    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const filtered = vehicles.filter((vehicle) => {
-      const searchable = [
-        vehicle.make, vehicle.model, vehicle.location?.city, vehicle.location?.address,
-        vehicle.location?.country, vehicle.ownerName, vehicle.sellerType, vehicle.fuelType,
-        vehicle.transmission, vehicle.bodyType, vehicle.color, vehicle.condition,
-        vehicle.id, vehicle.year, vehicle.price, vehicle.mileage,
-      ].join(" ").toLowerCase();
-      return (listingType === "all" || vehicle.listingType === listingType)
-        && (location === "all" || vehicle.location?.city.toLowerCase() === location.toLowerCase())
-        && (make === "all" || vehicle.make.toLowerCase() === make.toLowerCase())
-        && (model === "all" || vehicle.model.toLowerCase() === model.toLowerCase())
-        && (priceMin === "" || vehicle.price >= priceMin)
-        && (priceMax === "" || vehicle.price <= priceMax)
-        && (yearMin === "" || vehicle.year >= yearMin)
-        && (yearMax === "" || vehicle.year <= yearMax)
-        && (mileageMax === "" || vehicle.mileage <= mileageMax)
-        && (bodyType === "all" || vehicle.bodyType?.toLowerCase() === bodyType.toLowerCase())
-        && (transmission === "all" || vehicle.transmission === transmission)
-        && (fuelType === "all" || vehicle.fuelType === fuelType)
-        && (condition === "all" || vehicle.condition === condition)
-        && terms.every((term) => searchable.includes(term));
-    });
-
-    return filtered.sort((left, right) => {
-      if (sortBy === "price-asc") return left.price - right.price;
-      if (sortBy === "price-desc") return right.price - left.price;
-      if (sortBy === "year-desc") return right.year - left.year;
-      if (sortBy === "year-asc") return left.year - right.year;
-      if (sortBy === "views-desc") return right.views - left.views;
-      return (right.createdAt ?? right.updatedAt ?? "").localeCompare(left.createdAt ?? left.updatedAt ?? "");
-    });
-  }, [bodyType, condition, fuelType, listingType, location, make, mileageMax, model, priceMax, priceMin, search, sortBy, transmission, vehicles, yearMax, yearMin]);
+  // Filtering and ordering are performed across the full MongoDB result set by the API.
+  const filteredVehicles = vehicles;
 
   const clearFilters = () => {
     setViewMode("grid");

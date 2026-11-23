@@ -2,7 +2,7 @@
 
 import FavoriteButton from "@/Components/FavoriteButton";
 import type { Vehicle } from "@/Types/vehicle";
-import { BadgeCheck, Fuel, Gauge, MapPin, Settings2 } from "lucide-react";
+import { BadgeCheck, Car, Fuel, Gauge, MapPin, Settings2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -52,18 +52,24 @@ function CarCardBody({
     >
       <div className={`relative overflow-hidden ${isList ? "h-60 md:h-full" : "h-56"}`}>
         <Link href={detailHref} className="absolute inset-0" aria-label={`View ${vehicle.make} ${vehicle.model} ${vehicle.year}`}>
-          <Image
-            src={vehicle.coverImage}
-            alt={`${vehicle.make} ${vehicle.model}`}
-            fill
-            className="object-cover transition duration-500 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, 33vw"
-          />
+          {vehicle.coverImage ? (
+            <Image
+              src={vehicle.coverImage}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              fill
+              className="object-cover transition duration-500 group-hover:scale-105"
+              sizes="(max-width: 768px) 100vw, 33vw"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-slate-100 text-slate-400" aria-label="No vehicle photo available">
+              <Car size={40} aria-hidden="true" />
+            </div>
+          )}
         </Link>
 
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-[#0B5D3B] px-3 py-1 text-xs font-bold text-white">
-            {vehicle.listingType === "buy" ? "For Sale" : "For Rent"}
+            {vehicle.listingType === "both" ? "Sale & Rent" : vehicle.listingType === "buy" ? "For Sale" : "For Rent"}
           </span>
 
           {vehicle.featured && (

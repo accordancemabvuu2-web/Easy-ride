@@ -1,52 +1,71 @@
 "use client";
 
-const styles: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  admin: "bg-slate-100 text-slate-800",
-  under_review: "bg-amber-100 text-amber-800",
-  deleted: "bg-gray-100 text-gray-700",
-  buyer: "bg-sky-100 text-sky-800",
-  seller: "bg-emerald-100 text-emerald-800",
-  dealer: "bg-indigo-100 text-indigo-800",
-  pending: "bg-amber-100 text-amber-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-700",
-  suspended: "bg-gray-100 text-gray-700",
-  open: "bg-amber-100 text-amber-800",
-  identity: "bg-sky-100 text-sky-800",
-  private_seller: "bg-indigo-100 text-indigo-800",
-  listing_approved: "bg-green-100 text-green-800",
-  listing_rejected: "bg-red-100 text-red-700",
-  listing_suspended: "bg-gray-100 text-gray-700",
-  listing_restored: "bg-green-100 text-green-800",
-  report_resolved: "bg-green-100 text-green-800",
-  support_ticket_updated: "bg-blue-100 text-blue-800",
-  user_suspended: "bg-red-100 text-red-700",
-  reviewing: "bg-blue-100 text-blue-800",
-  closed: "bg-gray-100 text-gray-700",
-  resolved: "bg-green-100 text-green-800",
-  in_progress: "bg-blue-100 text-blue-800",
-  investigating: "bg-blue-100 text-blue-800",
-  confirmed: "bg-green-100 text-green-800",
-  awaiting_payment: "bg-amber-100 text-amber-800",
-  completed: "bg-purple-100 text-purple-800",
-  disputed: "bg-red-100 text-red-700",
-  successful: "bg-green-100 text-green-800",
-  failed: "bg-red-100 text-red-700",
-  processing: "bg-blue-100 text-blue-800",
-  cancelled: "bg-gray-100 text-gray-700",
-  draft: "bg-gray-100 text-gray-700",
-  rented: "bg-indigo-100 text-indigo-800",
-  sold: "bg-purple-100 text-purple-800",
-  withdrawn: "bg-gray-100 text-gray-700",
-  refunded: "bg-slate-100 text-slate-700",
-  not_required: "bg-slate-100 text-slate-700",
-  low: "bg-green-100 text-green-800",
-  medium: "bg-amber-100 text-amber-800",
-  high: "bg-orange-100 text-orange-800",
-  urgent: "bg-red-100 text-red-700",
+type Tone = "success" | "warning" | "danger" | "info" | "neutral";
+
+const toneClasses: Record<Tone, string> = {
+  success: "bg-[#eaf4ee] text-[#14664a]",
+  warning: "bg-[#fdf3e1] text-[#8a5403]",
+  danger: "bg-[#fbebe9] text-[#96271c]",
+  info: "bg-[#ecf2f7] text-[#245a7c]",
+  neutral: "bg-[#f0f3f1] text-[#54645c]",
 };
 
+const statusTones: Record<string, Tone> = {
+  active: "success",
+  approved: "success",
+  resolved: "success",
+  confirmed: "success",
+  successful: "success",
+  completed: "success",
+  listing_approved: "success",
+  listing_restored: "success",
+  report_resolved: "success",
+  low: "success",
+
+  pending: "warning",
+  under_review: "warning",
+  awaiting_payment: "warning",
+  open: "warning",
+  medium: "warning",
+  high: "warning",
+
+  rejected: "danger",
+  failed: "danger",
+  disputed: "danger",
+  urgent: "danger",
+  user_suspended: "danger",
+
+  in_progress: "info",
+  investigating: "info",
+  reviewing: "info",
+  processing: "info",
+  rented: "info",
+  sold: "info",
+  dealer: "info",
+  identity: "info",
+  private_seller: "info",
+  seller: "info",
+  buyer: "info",
+  support_ticket_updated: "info",
+  verification: "info",
+
+  deleted: "neutral",
+  suspended: "neutral",
+  closed: "neutral",
+  cancelled: "neutral",
+  draft: "neutral",
+  withdrawn: "neutral",
+  refunded: "neutral",
+  not_required: "neutral",
+  admin: "neutral",
+  listing_suspended: "neutral",
+  user: "neutral",
+};
+
+/**
+ * Status is never communicated by colour alone: every badge pairs a tone with
+ * a dot and the humanised label.
+ */
 export default function AdminStatusBadge({
   status,
   label,
@@ -54,12 +73,13 @@ export default function AdminStatusBadge({
   status: string;
   label?: string;
 }) {
+  const tone = statusTones[status] ?? "neutral";
+
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-bold capitalize ${
-        styles[status] ?? "bg-gray-100 text-gray-700"
-      }`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium capitalize ${toneClasses[tone]}`}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
       {label ?? status.replaceAll("_", " ")}
     </span>
   );

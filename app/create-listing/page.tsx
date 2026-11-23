@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createListing, uploadVehicleImages } from "@/lib/clientFirebaseServices";
 import { ArrowRight, CheckCircle, Car, MapPin, Phone, Upload, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
 
@@ -22,7 +22,6 @@ function CreateListingForm() {
   const [step, setStep] = useState(0);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [form, setForm] = useState({
@@ -52,6 +51,8 @@ function CreateListingForm() {
     }
   }, []);
 
+  useEffect(() => () => photoUrls.forEach((url) => URL.revokeObjectURL(url)), [photoUrls]);
+
   const update = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
@@ -59,13 +60,14 @@ function CreateListingForm() {
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
-  const priceLabel = useMemo(
-    () => (form.type === "rent" ? "per day" : undefined),
-    [form.type]
-  );
-
-  const onFilesChange = async (fileList: FileList | null) => {
+  const onFilesChange = (fileList: FileList | null) => {
     const selectedFiles = fileList ? Array.from(fileList) : [];
+    if (selectedFiles.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+      toast.error("Vehicle photos must be JPEG, PNG, or WebP files no larger than 5 MiB each.");
+      setPhotos([]);
+      setPhotoUrls([]);
+      return;
+    }
     const nextFiles = selectedFiles.slice(0, 10);
 
     if (selectedFiles.length > 10) {
@@ -73,35 +75,7 @@ function CreateListingForm() {
     }
 
     setPhotos(nextFiles);
-
-    if (!profile || nextFiles.length === 0) {
-      setPhotoUrls([]);
-      return;
-    }
-
-    try {
-      setUploadingPhotos(true);
-      const urls = await uploadVehicleImages(profile.id, nextFiles);
-      setPhotoUrls(urls);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Photo upload failed.");
-    } finally {
-      setUploadingPhotos(false);
-    }
-  };
-
-  const ensureUploadedPhotos = async () => {
-    if (!profile || photos.length === 0) {
-      return photoUrls;
-    }
-
-    if (photoUrls.length === photos.length) {
-      return photoUrls;
-    }
-
-    const urls = await uploadVehicleImages(profile.id, photos);
-    setPhotoUrls(urls);
-    return urls;
+    setPhotoUrls(nextFiles.map((file) => URL.createObjectURL(file)));
   };
 
   const submit = async () => {
@@ -117,8 +91,6 @@ function CreateListingForm() {
 
     try {
       setSubmitting(true);
-      const uploadedUrls = await ensureUploadedPhotos();
-
       const created = await createListing({
         ownerId: profile.id,
         ownerName: profile.name,
@@ -130,7 +102,6 @@ function CreateListingForm() {
         year: Number(form.year),
         price: Number(form.price),
         currency: "USD",
-        priceLabel,
         transmission: form.transmission,
         fuelType: form.fuelType,
         mileage: Number(form.mileage || 0),
@@ -147,14 +118,26 @@ function CreateListingForm() {
           latitude: Number(form.latitude || 0),
           longitude: Number(form.longitude || 0),
         },
-        images: uploadedUrls,
-        coverImage:
-          uploadedUrls[0] ||
-          "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1400",
+        images: [],
+        coverImage: "",
         sellerType: isDealer ? "Dealer" : "Private Seller",
         verified: isDealer,
         featured: false,
       });
+
+      if (photos.length) {
+        try {
+          await uploadVehicleImages(created.id, photos);
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? `Listing ${created.id} was saved, but its photos could not be uploaded: ${error.message}`
+              : `Listing ${created.id} was saved, but its photos could not be uploaded.`,
+          );
+          router.push("/dashboard");
+          return;
+        }
+      }
 
       toast.success(
         `Listing ${created.id} submitted for review. It will appear publicly after approval.`
@@ -251,7 +234,7 @@ function CreateListingForm() {
           {step === 3 && (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Price</h2>
-              <input className="input" placeholder={priceLabel ? "Price per day e.g. 35" : "Selling price e.g. 8500"} value={form.price} onChange={(e) => update("price", e.target.value)} />
+              <input className="input" placeholder={form.type === "rent" ? "Price per day e.g. 35" : "Selling price e.g. 8500"} value={form.price} onChange={(e) => update("price", e.target.value)} />
             </div>
           )}
 
@@ -286,16 +269,12 @@ function CreateListingForm() {
                 <Upload className="text-[#0B5D3B]" />
                 <p className="mt-3 font-semibold">Click to upload photos</p>
                 <p className="text-sm text-gray-500">Front, back, interior, engine (up to 10 photos)</p>
-                <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => void onFilesChange(e.target.files)} />
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => onFilesChange(e.target.files)} />
               </label>
               <p className="mt-4 text-sm text-gray-500">
                 {photos.length} file(s) selected
               </p>
-              {uploadingPhotos && (
-                <p className="mt-2 text-sm font-medium text-[#0B5D3B]">
-                  Uploading photos...
-                </p>
-              )}
+              {photos.length > 0 && <p className="mt-2 text-sm font-medium text-[#0B5D3B]">Photos upload after the listing is saved.</p>}
               {photoUrls.length > 0 && (
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   {photoUrls.map((url) => (
