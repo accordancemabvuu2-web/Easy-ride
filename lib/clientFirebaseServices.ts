@@ -61,6 +61,7 @@ const loadVerification = () => import("@/services/verificationService");
 
 export const getAdminUsers = lazyMethod(loadAdmin, "getAdminUsers");
 export const getAdminUserDetails = lazyMethod(loadAdmin, "getAdminUserDetails");
+export const updateAdminUserStatus = lazyMethod(loadAdmin, "updateAdminUserStatus");
 export const getAdminUserCount = lazyMethod(loadAdmin, "getAdminUserCount");
 export const getAdminListings = lazyMethod(loadAdmin, "getAdminListings");
 export const getAdminSummary = lazyMethod(loadAdmin, "getAdminSummary");

@@ -2,7 +2,10 @@ export type UserRole = "user" | "buyer" | "seller" | "dealer" | "admin" | "super
 export type UserCapability = "buy" | "rent" | "sell" | "dealer";
 export type AdminSubRole = "super_admin" | "operations" | "verification" | "support";
 export type AccountStatus = "pending" | "active" | "suspended" | "deleted";
+export type AdminAccountStatus = Extract<AccountStatus, "active" | "suspended">;
 export type DealerVerificationStatus = "pending" | "under_review" | "verified" | "rejected" | "suspended";
+
+export const ADMIN_USERS_INVALIDATED_EVENT = "easy-ride:admin-users-invalidated";
 
 export type AdminUserAccountFilter = "buyer" | "seller" | "dealer" | "admin" | "super_admin";
 export type AdminUserRoleFilter = "user" | "dealer" | "admin";

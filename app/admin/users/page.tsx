@@ -4,11 +4,12 @@ import AdminStatusBadge from "@/Components/AdminStatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { ApiError } from "@/lib/apiClient";
 import { getAdminUsers } from "@/lib/clientFirebaseServices";
-import type {
-  AdminUserRecord,
-  AdminUserStatusFilter,
-  AdminUsersQuery,
-  AdminUsersResponse,
+import {
+  ADMIN_USERS_INVALIDATED_EVENT,
+  type AdminUserRecord,
+  type AdminUserStatusFilter,
+  type AdminUsersQuery,
+  type AdminUsersResponse,
 } from "@/Types/user";
 import { Eye, Loader2, Search, ShieldAlert, Users } from "lucide-react";
 import Link from "next/link";
@@ -122,6 +123,12 @@ export default function AdminUsersPage() {
     }, 350);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
+
+  useEffect(() => {
+    const reloadUsers = () => setRetryCount((count) => count + 1);
+    window.addEventListener(ADMIN_USERS_INVALIDATED_EVENT, reloadUsers);
+    return () => window.removeEventListener(ADMIN_USERS_INVALIDATED_EVENT, reloadUsers);
+  }, []);
 
   useEffect(() => {
     if (!isSuperAdmin) {

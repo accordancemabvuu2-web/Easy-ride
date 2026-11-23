@@ -6,6 +6,7 @@ import type { Vehicle } from "@/Types/vehicle";
 import { collection, getDocs } from "firebase/firestore";
 import { ApiError, api } from "@/lib/apiClient";
 import type {
+  AdminAccountStatus,
   AdminDealerProfileDetails,
   AdminDealerVerificationDecision,
   AdminUserActivitySummary,
@@ -330,6 +331,32 @@ export async function getAdminUserDetails(
 
   const response = await api.get<unknown>(`/admin/users/${encodeURIComponent(userId)}`, options);
   return parseAdminUserDetailsResponse(response, userId);
+}
+
+export async function updateAdminUserStatus(
+  userId: string,
+  accountStatus: AdminAccountStatus,
+  reason: string,
+): Promise<void> {
+  if (!/^[0-9a-f]{24}$/i.test(userId)) {
+    throw new ApiError("The user ID is invalid.", "VALIDATION_ERROR", 400);
+  }
+  if (accountStatus !== "active" && accountStatus !== "suspended") {
+    throw new ApiError("The requested account status is not supported.", "VALIDATION_ERROR", 400);
+  }
+
+  const normalizedReason = reason.trim();
+  if (!normalizedReason || normalizedReason.length > 1000) {
+    throw new ApiError("Enter a reason between 1 and 1,000 characters.", "VALIDATION_ERROR", 400);
+  }
+
+  const response = await api.patch<unknown>(
+    `/admin/users/${encodeURIComponent(userId)}/status`,
+    { accountStatus, reason: normalizedReason },
+  );
+  if (response.success !== true) {
+    throw new ApiError("The account status response was invalid.", "INVALID_RESPONSE", 502);
+  }
 }
 
 export async function getAdminUserCount(): Promise<number> {
