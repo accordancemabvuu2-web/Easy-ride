@@ -167,6 +167,7 @@ function BookingDetailContent() {
                   src={booking.listingImage}
                   alt={booking.listingTitle}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="(max-width: 1024px) 100vw, 60vw"
                 />

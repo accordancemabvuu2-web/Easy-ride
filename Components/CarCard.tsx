@@ -57,6 +57,7 @@ function CarCardBody({
               src={vehicle.coverImage}
               alt={`${vehicle.make} ${vehicle.model}`}
               fill
+              unoptimized
               className="object-cover transition duration-500 group-hover:scale-105"
               sizes="(max-width: 768px) 100vw, 33vw"
             />

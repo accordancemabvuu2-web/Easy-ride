@@ -215,9 +215,10 @@ export default function VehiclePage() {
           <div className="space-y-6">
             <div className="group relative h-[360px] overflow-hidden rounded-[32px] bg-gray-200 sm:h-[520px]">
               <Image
-                src={activePhoto || vehicle.coverImage}
+                src={activePhoto || vehicle.coverImage || "/images/pexels-cripsdog-24018795.webp"}
                 alt={`${vehicle.make} ${vehicle.model}`}
                 fill
+                unoptimized
                 priority
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 65vw"
@@ -250,7 +251,7 @@ export default function VehiclePage() {
               <div className="flex gap-3 overflow-x-auto pb-1" aria-label="Vehicle photos">
                 {photos.map((photo, index) => (
                   <button key={photo} type="button" onClick={() => selectPhoto(index)} aria-label={`Show vehicle photo ${index + 1}`} aria-pressed={activePhoto === photo} className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 ${activePhoto === photo ? "border-[#C9A227]" : "border-transparent"}`}>
-                    <Image src={photo} alt={`${vehicle.make} ${vehicle.model} photo ${index + 1}`} fill sizes="112px" className="object-cover" />
+                    <Image src={photo} alt={`${vehicle.make} ${vehicle.model} photo ${index + 1}`} fill unoptimized sizes="112px" className="object-cover" />
                   </button>
                 ))}
               </div>

@@ -5,10 +5,12 @@ const apiMocks = vi.hoisted(() => ({
   post: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
+  getAccessToken: vi.fn(() => "access-token"),
 }));
 
 vi.mock("@/lib/apiClient", () => ({
   api: apiMocks,
+  getAccessToken: apiMocks.getAccessToken,
   ApiError: class ApiError extends Error {
     statusCode: number;
     code: string;
@@ -20,7 +22,7 @@ vi.mock("@/lib/apiClient", () => ({
   },
 }));
 
-import { createListing, getMyListings, updateListingStatus } from "@/services/listingService";
+import { createListing, getListingById, getMyListings, updateListingStatus } from "@/services/listingService";
 
 describe("vehicle service API contract", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -36,6 +38,18 @@ describe("vehicle service API contract", () => {
 
     expect(apiMocks.get).toHaveBeenCalledWith("/vehicles/me?page=1&pageSize=100");
     expect(listings).toMatchObject([{ id: "listing-1", ownerId: "owner-1", status: "pending" }]);
+  });
+
+  it("falls back to the protected owner detail route only after a public 404", async () => {
+    apiMocks.get
+      .mockRejectedValueOnce(new (await import("@/lib/apiClient")).ApiError("Missing", "NOT_FOUND", 404))
+      .mockResolvedValueOnce({ success: true, data: { _id: "private-1", moderationStatus: "pending_review" }, meta: {} });
+
+    const listing = await getListingById("private-1");
+
+    expect(apiMocks.get).toHaveBeenNthCalledWith(1, "/vehicles/private-1");
+    expect(apiMocks.get).toHaveBeenNthCalledWith(2, "/vehicles/me/private-1");
+    expect(listing).toMatchObject({ id: "private-1", status: "pending" });
   });
 
   it("creates listings through the strict API payload and never sends UI owner fields", async () => {

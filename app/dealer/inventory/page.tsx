@@ -79,7 +79,7 @@ function DealerInventoryContent() {
               {listings.map((listing) => (
                 <article key={listing.id} className="grid gap-5 rounded-3xl border border-[#E5E7EB] bg-white p-4 sm:grid-cols-[180px_1fr_auto]">
                   <div className="relative h-36 overflow-hidden rounded-2xl">
-                    <Image src={listing.coverImage} alt={`${listing.make} ${listing.model}`} fill className="object-cover" />
+                    <Image src={listing.coverImage || "/images/pexels-cripsdog-24018795.webp"} alt={`${listing.make} ${listing.model}`} fill unoptimized className="object-cover" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">{listing.make} {listing.model} {listing.year}</h2>

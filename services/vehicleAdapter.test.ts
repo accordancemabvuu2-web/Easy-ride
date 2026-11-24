@@ -27,6 +27,8 @@ describe("vehicle API adapter", () => {
         { id: "second", imageUrl: "https://media.example/second.jpg", displayOrder: 1, moderationStatus: "approved" },
         { id: "first", imageUrl: "https://media.example/first.jpg", displayOrder: 0, moderationStatus: "approved" },
       ],
+      seller: { id: "seller-1", firstName: "Avery", lastName: "Morgan", phone: "+263771234567" },
+      dealer: { id: "dealer-1", businessName: "Harare Motors", verificationStatus: "verified", contactPhone: "+263772345678" },
       viewCount: 17,
       createdAt: "2026-01-02T03:04:05.000Z",
       updatedAt: "2026-01-03T03:04:05.000Z",
@@ -35,6 +37,8 @@ describe("vehicle API adapter", () => {
     expect(vehicle).toMatchObject({
       id: "vehicle-1",
       ownerId: "seller-1",
+      ownerName: "Harare Motors",
+      ownerPhone: "+263772345678",
       dealerId: "dealer-1",
       listingType: "both",
       status: "active",

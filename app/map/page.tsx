@@ -63,6 +63,7 @@ export default function MapPage() {
                       src={selectedVehicle.coverImage}
                       alt={`${selectedVehicle.make} ${selectedVehicle.model}`}
                       fill
+                      unoptimized
                       className="object-cover"
                     />
                   </div>

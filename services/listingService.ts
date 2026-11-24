@@ -1,6 +1,6 @@
 "use client";
 
-import { ApiError, api } from "@/lib/apiClient";
+import { ApiError, api, getAccessToken } from "@/lib/apiClient";
 import type { ListingStatus, ListingType, Vehicle } from "@/Types/vehicle";
 import { adaptVehicle } from "@/services/vehicleAdapter";
 
@@ -193,6 +193,8 @@ export async function getPendingListings(): Promise<Vehicle[]> {
 }
 
 export async function getMyListings(_ownerId?: string): Promise<Vehicle[]> {
+  // Keep the legacy argument for existing callers; the server derives scope from the access token.
+  void _ownerId;
   const listings: Vehicle[] = [];
   let page = 1;
   let hasMore = true;
@@ -210,7 +212,18 @@ export async function getListingById(id: string): Promise<Vehicle | null> {
     const response = await api.get<unknown>(`/vehicles/${encodeURIComponent(id)}`);
     return response.data ? adaptVehicle(response.data) : null;
   } catch (error) {
-    if (error instanceof ApiError && error.statusCode === 404) return null;
+    if (error instanceof ApiError && error.statusCode === 404) {
+      if (getAccessToken()) {
+        try {
+          const response = await api.get<unknown>(`/vehicles/me/${encodeURIComponent(id)}`);
+          return response.data ? adaptVehicle(response.data) : null;
+        } catch (ownedError) {
+          if (ownedError instanceof ApiError && [401, 403, 404].includes(ownedError.statusCode)) return null;
+          throw ownedError;
+        }
+      }
+      return null;
+    }
     throw error;
   }
 }

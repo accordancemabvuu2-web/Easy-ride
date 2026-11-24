@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/firebase";
 import { createNotification } from "@/services/notificationService";
+import { updateListingStatus } from "@/services/listingService";
 import type { OfferStatus, VehicleOffer } from "@/Types/offer";
 import type { Vehicle } from "@/Types/vehicle";
 import {
@@ -197,27 +198,6 @@ function updateLocalOffer(
   const nextOffer = normalizeOffer(updater(current));
   writeOffers(upsertRecord(removeRecord(offers, offerId), nextOffer));
   return nextOffer;
-}
-
-function updateLocalListingToSold(listingId: string, offerId: string, buyerId: string) {
-  const listings = readRecords<Vehicle>("easy-ride:listings");
-  if (!listings.find((listing) => listing.id === listingId)) {
-    return;
-  }
-
-  const nextListings = listings.map((listing) =>
-    listing.id === listingId
-      ? {
-          ...listing,
-          status: "sold",
-          soldToUserId: buyerId,
-          completedOfferId: offerId,
-          updatedAt: nowIso(),
-        }
-      : listing,
-  );
-
-  writeRecords("easy-ride:listings", nextListings, 200);
 }
 
 export async function createVehicleOffer(input: CreateOfferInput): Promise<string> {
@@ -495,12 +475,11 @@ export async function completeVehicleSale(offerId: string, currentUserId: string
       throw new Error("The offer must be accepted first.");
     }
 
+    await updateListingStatus(offer.listingId, "sold");
     const nextOffer = updateLocalOffer(offerId, (entry) => ({
       ...entry,
       status: "completed",
     }));
-
-    updateLocalListingToSold(nextOffer.listingId, nextOffer.id, nextOffer.buyerId);
 
     await createNotification({
       userId: nextOffer.buyerId,
@@ -519,57 +498,39 @@ export async function completeVehicleSale(offerId: string, currentUserId: string
     throw new Error("Firestore is not available.");
   }
 
-  let buyerIdForNotification = currentUserId;
+  const offerReference = doc(firestore, "offers", offerId);
+  const offerSnapshot = await getDoc(offerReference);
+  if (!offerSnapshot.exists()) throw new Error("Offer not found.");
+
+  const offer = normalizeOffer({
+    id: offerSnapshot.id,
+    ...(offerSnapshot.data() as Omit<VehicleOffer, "id">),
+  });
+  ensureRole(offer, currentUserId, "seller");
+  if (offer.status !== "accepted") throw new Error("The offer must be accepted first.");
+
+  // Vehicle state is authoritative in MongoDB; offers remain in their current store.
+  await updateListingStatus(offer.listingId, "sold");
 
   await runTransaction(firestore, async (transaction) => {
-    const offerReference = doc(firestore, "offers", offerId);
-    const offerSnapshot = await transaction.get(offerReference);
-
-    if (!offerSnapshot.exists()) {
-      throw new Error("Offer not found.");
-    }
-
-    const offer = normalizeOffer({
-      id: offerSnapshot.id,
-      ...(offerSnapshot.data() as Omit<VehicleOffer, "id">),
+    const currentSnapshot = await transaction.get(offerReference);
+    if (!currentSnapshot.exists()) throw new Error("Offer not found.");
+    const currentOffer = normalizeOffer({
+      id: currentSnapshot.id,
+      ...(currentSnapshot.data() as Omit<VehicleOffer, "id">),
     });
-
-    buyerIdForNotification = offer.buyerId;
-
-    ensureRole(offer, currentUserId, "seller");
-
-    if (offer.status !== "accepted") {
-      throw new Error("The offer must be accepted first.");
+    ensureRole(currentOffer, currentUserId, "seller");
+    if (currentOffer.status !== "accepted") {
+      throw new Error("The offer must still be accepted to complete the sale.");
     }
-
-    const listingReference = doc(firestore, "listings", offer.listingId);
-    const listingSnapshot = await transaction.get(listingReference);
-
-    if (!listingSnapshot.exists()) {
-      throw new Error("The vehicle listing no longer exists.");
-    }
-
-    const listing = listingSnapshot.data() as Vehicle;
-
-    if (listing.status !== "active") {
-      throw new Error("The vehicle is no longer available.");
-    }
-
     transaction.update(offerReference, {
       status: "completed",
-      updatedAt: Timestamp.now(),
-    });
-
-    transaction.update(listingReference, {
-      status: "sold",
-      soldToUserId: offer.buyerId,
-      completedOfferId: offer.id,
       updatedAt: Timestamp.now(),
     });
   });
 
   await createNotification({
-    userId: buyerIdForNotification,
+    userId: offer.buyerId,
     type: "offer",
     title: "Transaction Completed",
     message: "The vehicle sale has been completed.",

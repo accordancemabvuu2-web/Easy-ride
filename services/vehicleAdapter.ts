@@ -102,8 +102,8 @@ function imageUrls(value: unknown): string[] {
     .map((image) => image.url);
 }
 
-function sellerName(seller: UnknownRecord, vehicle: UnknownRecord): string {
-  const fullName = seller.fullName ?? seller.displayName ?? seller.name ?? vehicle.sellerName;
+function sellerName(seller: UnknownRecord, vehicle: UnknownRecord, dealer: UnknownRecord): string {
+  const fullName = dealer.businessName ?? seller.fullName ?? seller.displayName ?? seller.name ?? vehicle.sellerName;
   if (typeof fullName === "string" && fullName.trim()) return fullName.trim();
   const parts = [seller.firstName, seller.lastName].filter((part): part is string => typeof part === "string" && Boolean(part.trim()));
   return parts.join(" ") || "Easy Ride seller";
@@ -143,8 +143,8 @@ export function adaptVehicle(value: unknown): Vehicle {
   return {
     id: idValue(raw._id ?? raw.id),
     ownerId: sellerId,
-    ownerName: sellerName(seller, raw),
-    ownerPhone: stringValue(seller.phone ?? seller.contactPhone ?? raw.ownerPhone),
+    ownerName: sellerName(seller, raw, dealer),
+    ownerPhone: stringValue(dealer.contactPhone ?? seller.phone ?? seller.contactPhone ?? raw.ownerPhone),
     ownerEmail: stringValue(seller.email ?? raw.ownerEmail),
     ...(dealerId ? { dealerId } : {}),
     listingType: type,

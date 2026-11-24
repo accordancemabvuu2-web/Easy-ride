@@ -60,10 +60,12 @@ function writeLocalEvents(events: ListingEvent[]) {
 }
 
 export async function recordListingView(
-  _listingId: string,
-  _userId?: string,
+  listingId: string,
+  userId?: string,
 ): Promise<void> {
   // Vehicle detail reads increment viewCount in the MongoDB API.
+  void listingId;
+  void userId;
 }
 
 export async function recordContactClick(

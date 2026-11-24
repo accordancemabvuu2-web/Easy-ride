@@ -2,7 +2,7 @@
 
 import { getVehicleAvailability } from "@/services/listingService";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 export default function AvailabilityCalendar({
@@ -14,13 +14,20 @@ export default function AvailabilityCalendar({
     const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
     return local.toISOString().slice(0, 10);
   };
-  const today = dateInput(new Date());
-  const tomorrow = dateInput(new Date(Date.now() + 24 * 60 * 60 * 1000));
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(tomorrow);
+  const [today, setToday] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [available, setAvailable] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const pickupDate = dateInput(new Date());
+    const returnDate = dateInput(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    setToday(pickupDate);
+    setStartDate(pickupDate);
+    setEndDate(returnDate);
+  }, []);
 
   const checkAvailability = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

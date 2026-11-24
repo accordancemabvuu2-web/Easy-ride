@@ -74,6 +74,7 @@ export default function LandingPage() {
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [vehicleLoadError, setVehicleLoadError] = useState(false);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -90,7 +91,10 @@ export default function LandingPage() {
       .then((listings) => {
         if (active) setVehicles(listings.filter((listing) => listing.status === "active"));
       })
-      .catch((error) => console.error("Could not load approved listings:", error))
+      .catch((error) => {
+        console.error("Could not load approved listings:", error);
+        if (active) setVehicleLoadError(true);
+      })
       .finally(() => {
         if (active) setLoadingVehicles(false);
       });
@@ -123,7 +127,7 @@ export default function LandingPage() {
   const featuredVehicles = useMemo(() => {
     const seenListings = new Set<string>();
     return vehicles.filter((vehicle) => {
-      if (vehicle.listingType !== mode) return false;
+      if (vehicle.listingType !== "both" && vehicle.listingType !== mode) return false;
       const identity = [vehicle.ownerId, vehicle.year, vehicle.make, vehicle.model]
         .map((part) => String(part).trim().toLowerCase().replace(/\s+/g, " "))
         .join(":");
@@ -225,7 +229,8 @@ export default function LandingPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {featuredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
           {loadingVehicles && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-[330px] animate-pulse rounded-xl border border-slate-200 bg-slate-50" />)}
-          {!loadingVehicles && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href={marketplaceHref} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
+          {!loadingVehicles && vehicleLoadError && <div role="alert" className="col-span-full rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-red-800">Vehicle listings could not be loaded. Please try again later.</div>}
+          {!loadingVehicles && !vehicleLoadError && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href={marketplaceHref} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
         </div>
         <Link href={marketplaceHref} className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>
       </section>
@@ -272,7 +277,7 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
   const image = vehicle.coverImage || vehicle.images?.[0] || "/images/easy-ride-hero.svg";
   return <article className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
     <Link href={`/vehicle/${vehicle.id}`} className="flex h-full flex-col" aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}>
-      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100"><Image src={image} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} fill loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-105" /><span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-bold text-white ${vehicle.listingType === "rent" ? "bg-[#0B5D3B]" : "bg-emerald-600"}`}>For {vehicle.listingType === "rent" ? "Rent" : "Sale"}</span></div>
+      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100"><Image src={image || "/images/pexels-cripsdog-24018795.webp"} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} fill unoptimized loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-500 group-hover:scale-105" /><span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-bold text-white ${vehicle.listingType === "rent" ? "bg-[#0B5D3B]" : "bg-emerald-600"}`}>{vehicle.listingType === "both" ? "Sale & Rent" : `For ${vehicle.listingType === "rent" ? "Rent" : "Sale"}`}</span></div>
       <div className="flex flex-1 flex-col p-3.5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-slate-900 group-hover:text-[#0B5D3B]">{vehicle.make} {vehicle.model} <span className="font-normal text-slate-500">{vehicle.year}</span></h3>{vehicle.verified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-[#0B5D3B]"><ShieldCheck size={12} /> Verified</span>}</div><p className="mt-1 text-lg font-bold text-slate-900">{vehicle.currency === "USD" ? "$" : `${vehicle.currency} `}{vehicle.price.toLocaleString()}{vehicle.listingType === "rent" && <span className="text-xs font-medium text-slate-500"> / {vehicle.priceLabel || "day"}</span>}</p><p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500"><MapPin size={13} />{vehicle.location?.city || "Zimbabwe"}, {vehicle.location?.country || "Zimbabwe"}</p><div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500"><span className="flex items-center gap-1"><Gauge size={13} />{vehicle.mileage.toLocaleString()} km</span><span className="flex items-center gap-1"><CarFront size={14} />{vehicle.transmission}</span><span className="flex items-center gap-1"><Fuel size={13} />{vehicle.fuelType}</span><span>{vehicle.bodyType || "Vehicle"}</span></div><span className="mt-auto pt-4 text-sm font-bold text-[#0B5D3B]">View Vehicle <ArrowRight size={15} className="ml-1 inline" /></span></div>
     </Link>
     <span className="absolute right-3 top-3" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><FavoriteButton listingId={vehicle.id} compact /></span>

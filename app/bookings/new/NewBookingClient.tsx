@@ -73,7 +73,7 @@ export default function NewBookingPage() {
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
             <section className="overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white">
-              <div className="relative aspect-[16/8]"><Image src={vehicle.coverImage} alt={`${vehicle.make} ${vehicle.model}`} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 65vw" /></div>
+              <div className="relative aspect-[16/8]"><Image src={vehicle.coverImage || "/images/pexels-cripsdog-24018795.webp"} alt={`${vehicle.make} ${vehicle.model}`} fill unoptimized className="object-cover" sizes="(max-width: 1024px) 100vw, 65vw" /></div>
               <div className="p-6"><p className="text-sm text-gray-500">{vehicle.year}</p><h2 className="mt-1 text-2xl font-bold">{vehicle.make} {vehicle.model}</h2><p className="mt-3 flex items-center gap-2 text-sm text-gray-500"><MapPin size={16} />{vehicle.location.city}, {vehicle.location.country}</p></div>
             </section>
             <section className="rounded-3xl border border-[#E5E7EB] bg-white p-6">
