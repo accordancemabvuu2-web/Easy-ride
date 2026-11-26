@@ -44,6 +44,7 @@ const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 let accessToken: string | null = null;
 let accessTokenRevision = 0;
 let refreshPromise: Promise<string | null> | null = null;
+let refreshTemporarilyUnavailable = false;
 
 type AuthFailureHandler = () => void;
 let authFailureHandler: AuthFailureHandler | null = null;
@@ -78,6 +79,10 @@ export function getApiConfigurationDiagnostic(): ApiConfigurationDiagnostic {
 }
 
 function getConfiguredBaseUrl(): string {
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return `${window.location.origin}/api/v1`;
+  }
+
   const configuredUrl = configuredApiBaseUrl?.trim();
 
   if (!configuredUrl) {
@@ -123,6 +128,10 @@ export function getApiBaseUrl(): string {
   return getConfiguredBaseUrl();
 }
 
+export function wasRefreshTemporarilyUnavailable(): boolean {
+  return refreshTemporarilyUnavailable;
+}
+
 export function getApiHealthUrl(): string {
   const baseUrl = new URL(getConfiguredBaseUrl());
   baseUrl.pathname = baseUrl.pathname.replace(/\/api\/v1$/, "/health/ready");
@@ -163,55 +172,74 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 
   const requestTokenRevision = accessTokenRevision;
+  refreshTemporarilyUnavailable = false;
   const refreshUrl = `${getConfiguredBaseUrl()}/auth/refresh`;
   const requestPromise = Promise.resolve().then(async () => {
     try {
-      logAuthDiagnostic("Refresh API request started", {
-        method: "POST",
-        url: getDiagnosticUrl(refreshUrl),
-        credentialsIncluded: true,
-      });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          logAuthDiagnostic("Refresh API request started", {
+            method: "POST",
+            url: getDiagnosticUrl(refreshUrl),
+            credentialsIncluded: true,
+            attempt: attempt + 1,
+          });
 
-      const response = await fetch(refreshUrl, {
-        method: "POST",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+          const response = await fetch(refreshUrl, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            credentials: "include",
+            cache: "no-store",
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          });
 
-      logAuthDiagnostic("Refresh API response received", {
-        status: response.status,
-        ok: response.ok,
-      });
+          logAuthDiagnostic("Refresh API response received", {
+            status: response.status,
+            ok: response.ok,
+          });
 
-      if (!response.ok) {
-        if (requestTokenRevision !== accessTokenRevision) {
-          return accessToken;
+          if (response.status === 429) {
+            refreshTemporarilyUnavailable = true;
+            return requestTokenRevision !== accessTokenRevision ? accessToken : null;
+          }
+
+          if (response.status >= 500) {
+            if (attempt === 0) {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              continue;
+            }
+            refreshTemporarilyUnavailable = true;
+            return requestTokenRevision !== accessTokenRevision ? accessToken : null;
+          }
+
+          if (!response.ok) {
+            if (requestTokenRevision !== accessTokenRevision) return accessToken;
+            setAccessToken(null);
+            authFailureHandler?.();
+            return null;
+          }
+
+          const payload = (await response.json()) as ApiResponse<{ accessToken?: string }>;
+          const newToken = payload.data?.accessToken ?? null;
+          if (requestTokenRevision !== accessTokenRevision) return accessToken;
+          setAccessToken(newToken);
+          if (!newToken) authFailureHandler?.();
+          return newToken;
+        } catch (error) {
+          logAuthDiagnostic("Refresh API request failed", {
+            errorType: error instanceof Error ? error.name : "UnknownError",
+            attempt: attempt + 1,
+          });
+          if (requestTokenRevision !== accessTokenRevision) return accessToken;
+          if (attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            continue;
+          }
+          refreshTemporarilyUnavailable = true;
+          return null;
         }
-        setAccessToken(null);
-        authFailureHandler?.();
-        return null;
       }
-
-      const payload = (await response.json()) as ApiResponse<{ accessToken?: string }>;
-      const newToken = payload.data?.accessToken ?? null;
-      if (requestTokenRevision !== accessTokenRevision) {
-        return accessToken;
-      }
-      setAccessToken(newToken);
-      if (!newToken) {
-        authFailureHandler?.();
-      }
-      return newToken;
-    } catch (error) {
-      if (requestTokenRevision !== accessTokenRevision) {
-        return accessToken;
-      }
-      setAccessToken(null);
-      authFailureHandler?.();
-      logAuthDiagnostic("Refresh API request failed", {
-        errorType: error instanceof Error ? error.name : "UnknownError",
-      });
+      refreshTemporarilyUnavailable = true;
       return null;
     } finally {
       refreshPromise = null;
@@ -291,6 +319,7 @@ export async function apiRequest<T = unknown>(
       ...options,
       headers,
       credentials: options.credentials ?? "include",
+      cache: options.cache ?? "no-store",
       signal: controller.signal,
     });
   } catch (error) {
@@ -338,6 +367,7 @@ export async function apiRequest<T = unknown>(
         ...options,
         headers,
         credentials: options.credentials ?? "include",
+        cache: options.cache ?? "no-store",
       });
 
       if (diagnosticAuthRequest) {
@@ -348,6 +378,12 @@ export async function apiRequest<T = unknown>(
           ok: response.ok,
         });
       }
+    } else if (wasRefreshTemporarilyUnavailable()) {
+      throw new ApiError(
+        "The session service is temporarily unavailable. Your current session has been kept; retry when the service is reachable.",
+        "AUTH_TEMPORARILY_UNAVAILABLE",
+        503,
+      );
     }
   }
 

@@ -86,6 +86,7 @@ export interface AuthContextValue {
   user: EasyRideUser | null;
   profile: EasyRideUser | null;
   loading: boolean;
+  authUnavailable: boolean;
   isAuthenticated: boolean;
   isBuyer: boolean;
   isSeller: boolean;
@@ -192,6 +193,7 @@ export function mapBackendUserToProfile(
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<EasyRideUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authUnavailable, setAuthUnavailable] = useState(false);
   const authRevisionRef = useRef(0);
   const refreshUserPromiseRef = useRef<Promise<EasyRideUser | null> | null>(null);
   const authTransitionRef = useRef(false);
@@ -210,7 +212,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (res.success && res.data?.user) {
           const mapped = mapBackendUserToProfile(res.data.user, res.data);
-          if (revision === authRevisionRef.current) setUser(mapped);
+          if (revision === authRevisionRef.current) {
+            setUser(mapped);
+            setAuthUnavailable(false);
+          }
           if (process.env.NODE_ENV === "development") {
             console.info("[AuthDiagnostic] Profile refresh successful", {
               role: mapped.role,
@@ -221,14 +226,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return mapped;
         }
 
-        if (revision === authRevisionRef.current) setUser(null);
-        return null;
-      } catch {
         if (revision === authRevisionRef.current) {
-          if (process.env.NODE_ENV === "development") {
-            console.info("[AuthDiagnostic] Profile refresh unauthenticated or failed");
-          }
           setUser(null);
+          setAuthUnavailable(false);
+        }
+        return null;
+      } catch (error) {
+        if (revision === authRevisionRef.current) {
+          const temporaryFailure = error instanceof ApiError &&
+            (error.code === "AUTH_TEMPORARILY_UNAVAILABLE" || error.statusCode === 0 || error.statusCode === 429 || error.statusCode >= 500);
+          setAuthUnavailable(temporaryFailure);
+          if (!temporaryFailure) setUser(null);
+          if (process.env.NODE_ENV === "development") {
+            console.info("[AuthDiagnostic] Profile refresh failed", {
+              failureType: temporaryFailure ? "temporary" : "unauthenticated",
+              ...(error instanceof ApiError ? { status: error.statusCode, code: error.code } : {}),
+            });
+          }
         }
         return null;
       } finally {
@@ -249,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authRevisionRef.current += 1;
       refreshUserPromiseRef.current = null;
       setUser(null);
+      setAuthUnavailable(false);
       setLoading(false);
     });
 
@@ -269,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authTransitionRef.current = true;
       setAccessToken(null);
       setUser(null);
+      setAuthUnavailable(false);
       setLoading(true);
       try {
         const parts = input.name.trim().split(/\s+/);
@@ -302,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? mapBackendUserToProfile(result.user, result)
           : null;
         if (profile) setUser(profile);
+        if (profile) setAuthUnavailable(false);
         else if (result.accessToken || result.sessionCreated) profile = await refreshUser();
 
         return { ...result, profile: profile ?? undefined };
@@ -325,6 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authTransitionRef.current = true;
       setAccessToken(null);
       setUser(null);
+      setAuthUnavailable(false);
       setLoading(true);
       try {
         if (process.env.NODE_ENV === "development") {
@@ -421,6 +439,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A failed /auth/me refresh can trigger the global auth-failure handler;
         // keep the profile returned by a successful login in that case.
         setUser(finalProfile);
+        setAuthUnavailable(false);
         return finalProfile;
       } finally {
         authTransitionRef.current = false;
@@ -442,6 +461,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authTransitionRef.current = false;
       setAccessToken(null);
       setUser(null);
+      setAuthUnavailable(false);
       setLoading(false);
     }
   }, []);
@@ -526,6 +546,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       profile: user,
       loading,
+      authUnavailable,
       isAuthenticated,
       isBuyer,
       isSeller,
@@ -553,6 +574,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       loading,
+      authUnavailable,
       isAuthenticated,
       isBuyer,
       isSeller,

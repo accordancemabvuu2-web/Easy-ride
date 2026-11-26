@@ -102,6 +102,28 @@ function imageUrls(value: unknown): string[] {
     .map((image) => image.url);
 }
 
+function imageRecords(value: unknown): NonNullable<Vehicle["imageRecords"]> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      if (typeof item === "string") return { id: "", imageUrl: item, displayOrder: index };
+      const image = asRecord(item);
+      const imageUrl = stringValue(image.imageUrl ?? image.image_url ?? image.url ?? image.thumbnailUrl);
+      const status = image.moderationStatus;
+      const moderationStatus: "pending" | "approved" | "rejected" | undefined = status === "pending" || status === "approved" || status === "rejected"
+        ? status
+        : undefined;
+      return {
+        id: idValue(image._id ?? image.id),
+        imageUrl,
+        displayOrder: numberValue(image.displayOrder ?? image.display_order, index),
+        ...(moderationStatus ? { moderationStatus } : {}),
+      };
+    })
+    .filter((image) => Boolean(image.imageUrl))
+    .sort((left, right) => left.displayOrder - right.displayOrder);
+}
+
 function sellerName(seller: UnknownRecord, vehicle: UnknownRecord, dealer: UnknownRecord): string {
   const fullName = dealer.businessName ?? seller.fullName ?? seller.displayName ?? seller.name ?? vehicle.sellerName;
   if (typeof fullName === "string" && fullName.trim()) return fullName.trim();
@@ -125,9 +147,8 @@ export function adaptVehicle(value: unknown): Vehicle {
     month: optionalNumber(rental.month),
   };
   const price = type === "rent" ? rentalPricing.day ?? salePrice ?? 0 : salePrice ?? rentalPricing.day ?? 0;
-  const images = imageUrls(raw.images ?? raw.vehicleImages ?? raw.vehicle_images)
-    .slice()
-    .sort((left, right) => left.localeCompare(right));
+  const images = imageUrls(raw.images ?? raw.vehicleImages ?? raw.vehicle_images);
+  const imageMetadata = imageRecords(raw.images ?? raw.vehicleImages ?? raw.vehicle_images);
   const explicitCover = stringValue(raw.coverImage ?? raw.coverImageUrl);
   const coverImage = explicitCover || images[0] || "";
   const sellerId = idValue(raw.sellerId ?? raw.ownerId ?? raw.owner_id ?? seller.id);
@@ -151,6 +172,7 @@ export function adaptVehicle(value: unknown): Vehicle {
     status: asListingStatus(raw.moderationStatus ?? raw.status, raw.availabilityStatus),
     make: stringValue(raw.make, "Unknown make"),
     model: stringValue(raw.model, "Unknown model"),
+    ...(typeof raw.trim === "string" ? { trim: raw.trim } : {}),
     year: numberValue(raw.year),
     price,
     ...(salePrice !== undefined ? { salePrice } : {}),
@@ -160,11 +182,14 @@ export function adaptVehicle(value: unknown): Vehicle {
     transmission: asTransmission(raw.transmission),
     fuelType: asFuelType(raw.fuelType),
     mileage: numberValue(raw.mileage),
+    ...(raw.mileageUnit === "km" || raw.mileageUnit === "mi" ? { mileageUnit: raw.mileageUnit } : {}),
     condition: asCondition(raw.condition),
     ...(typeof raw.bodyType === "string" ? { bodyType: raw.bodyType } : {}),
     ...(typeof (raw.exteriorColor ?? raw.color) === "string" ? { color: stringValue(raw.exteriorColor ?? raw.color) } : {}),
+    ...(typeof raw.interiorColor === "string" ? { interiorColor: raw.interiorColor } : {}),
     ...(typeof raw.drivetrain === "string" ? { drivetrain: raw.drivetrain } : {}),
     ...(optionalNumber(raw.engineCapacity) !== undefined ? { engineCapacity: optionalNumber(raw.engineCapacity) } : {}),
+    ...(typeof raw.negotiable === "boolean" ? { negotiable: raw.negotiable } : {}),
     features,
     description: stringValue(raw.description),
     location: {
@@ -175,6 +200,7 @@ export function adaptVehicle(value: unknown): Vehicle {
       longitude,
     },
     images,
+    imageRecords: imageMetadata,
     coverImage,
     sellerType: dealerId ? "Dealer" : "Private Seller",
     verified: dealer.verificationStatus === "verified" || raw.verified === true,

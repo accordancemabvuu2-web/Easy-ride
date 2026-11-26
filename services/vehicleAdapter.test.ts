@@ -47,11 +47,31 @@ describe("vehicle API adapter", () => {
       rentalPricing: { day: 45, week: 250 },
       views: 17,
       images: ["https://media.example/first.jpg", "https://media.example/second.jpg"],
+      imageRecords: [
+        { id: "first", imageUrl: "https://media.example/first.jpg", displayOrder: 0, moderationStatus: "approved" },
+        { id: "second", imageUrl: "https://media.example/second.jpg", displayOrder: 1, moderationStatus: "approved" },
+      ],
       coverImage: "https://media.example/first.jpg",
       location: { city: "Harare", latitude: -17.82, longitude: 31.05 },
       createdAt: "2026-01-02T03:04:05.000Z",
       updatedAt: "2026-01-03T03:04:05.000Z",
     });
+  });
+
+  it("preserves backend displayOrder when deriving the cover image", () => {
+    const vehicle = adaptVehicle({
+      _id: "vehicle-image-order",
+      images: [
+        { imageUrl: "https://media.example/z-cover.jpg", displayOrder: 0 },
+        { imageUrl: "https://media.example/a-second.jpg", displayOrder: 1 },
+      ],
+    });
+
+    expect(vehicle.images).toEqual([
+      "https://media.example/z-cover.jpg",
+      "https://media.example/a-second.jpg",
+    ]);
+    expect(vehicle.coverImage).toBe("https://media.example/z-cover.jpg");
   });
 
   it("safely defaults absent optional API values and maps availability over moderation state", () => {
@@ -76,6 +96,7 @@ describe("strict backend write payload adapter", () => {
       listingType: "rent",
       make: " Toyota ",
       model: " Corolla ",
+      trim: " LE ",
       year: 2022,
       price: 45,
       currency: "usd",
@@ -84,6 +105,11 @@ describe("strict backend write payload adapter", () => {
       transmission: "Automatic",
       fuelType: "Petrol",
       mileage: 1000,
+      mileageUnit: "mi",
+      drivetrain: "FWD",
+      engineCapacity: 1.8,
+      interiorColor: "Black",
+      negotiable: true,
       location: { address: "Street 1", city: "Harare", country: "Zimbabwe", latitude: -17.82, longitude: 31.05 },
       images: ["https://frontend.example/photo.jpg"],
       coverImage: "https://frontend.example/photo.jpg",
@@ -95,13 +121,19 @@ describe("strict backend write payload adapter", () => {
     expect(payload).toEqual({
       make: "Toyota",
       model: "Corolla",
+      trim: "LE",
       year: 2022,
       condition: "used",
       description: "Rental vehicle",
       currency: "USD",
       mileage: 1000,
+      mileageUnit: "mi",
       transmission: "automatic",
       fuelType: "petrol",
+      drivetrain: "FWD",
+      engineCapacity: 1.8,
+      interiorColor: "Black",
+      negotiable: true,
       listingType: "rent",
       rentalPricing: { day: 45 },
       city: "Harare",

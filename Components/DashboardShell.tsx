@@ -35,7 +35,7 @@ interface DashboardShellProps {
 const dealerLinks = [
   { label: "Dashboard", href: "/dashboard/dealer", icon: LayoutDashboard },
   { label: "Inventory", href: "/dealer/inventory", icon: CarFront },
-  { label: "Add Vehicle", href: "/create-listing", icon: Plus },
+  { label: "Add Vehicle", href: "/dashboard/seller/listings/new", icon: Plus },
   { label: "Analytics", href: "/dealer/analytics", icon: BarChart3 },
   { label: "Dealership Profile", href: "/dealer/profile", icon: Store },
   { label: "Messages", href: "/messages", icon: MessageCircle },
@@ -60,7 +60,7 @@ const sellerLinks = [
   { label: "Inventory", href: "/dashboard/seller", icon: CarFront },
   { label: "Leads", href: "/dashboard/seller/leads", icon: Users },
   { label: "Rental Management", href: "/bookings", icon: CalendarDays },
-  { label: "Add Vehicle", href: "/create-listing", icon: Plus },
+  { label: "Add Vehicle", href: "/dashboard/seller/listings/new", icon: Plus },
   { label: "Offers", href: "/offers", icon: BadgeDollarSign },
   { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Bookings", href: "/bookings", icon: CalendarDays },

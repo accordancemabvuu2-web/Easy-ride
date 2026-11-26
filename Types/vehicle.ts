@@ -32,6 +32,7 @@ export interface Vehicle {
 
   make: string;
   model: string;
+  trim?: string;
   year: number;
   price: number;
   currency: string;
@@ -42,18 +43,27 @@ export interface Vehicle {
   transmission: "Automatic" | "Manual";
   fuelType: "Petrol" | "Diesel" | "Hybrid" | "Electric";
   mileage: number;
+  mileageUnit?: "km" | "mi";
   condition: "New" | "Excellent" | "Good" | "Fair";
 
   bodyType?: string;
   color?: string;
+  interiorColor?: string;
   drivetrain?: string;
   engineCapacity?: number;
+  negotiable?: boolean;
   features?: string[];
   description: string;
 
   location: VehicleLocation;
 
   images: string[];
+  imageRecords?: Array<{
+    id: string;
+    imageUrl: string;
+    displayOrder: number;
+    moderationStatus?: "pending" | "approved" | "rejected";
+  }>;
   coverImage: string;
 
   sellerType: "Private Seller" | "Dealer";

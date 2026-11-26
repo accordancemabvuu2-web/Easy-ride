@@ -22,7 +22,18 @@ vi.mock("@/lib/apiClient", () => ({
   },
 }));
 
-import { createListing, getListingById, getMyListings, updateListingStatus } from "@/services/listingService";
+import {
+  createListing,
+  getListingById,
+  getMyDrafts,
+  getMyListings,
+  removeVehicleImage,
+  reorderVehicleImages,
+  saveListingDraft,
+  submitListingDraft,
+  updateListingStatus,
+  uploadVehicleImages,
+} from "@/services/listingService";
 
 describe("vehicle service API contract", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -89,6 +100,72 @@ describe("vehicle service API contract", () => {
     expect(body).not.toHaveProperty("ownerId");
     expect(body).not.toHaveProperty("images");
     expect(created.id).toBe("listing-2");
+    expect(created.status).toBe("pending");
+  });
+
+  it("creates, resumes, updates and submits drafts through owner-scoped backend routes", async () => {
+    apiMocks.post.mockResolvedValueOnce({ success: true, data: { id: "draft-1", moderationStatus: "draft" }, meta: {} });
+    await expect(saveListingDraft({ make: "Toyota" })).resolves.toBe("draft-1");
+    expect(apiMocks.post).toHaveBeenCalledWith("/vehicles", { make: "Toyota", moderationStatus: "draft" });
+
+    apiMocks.patch.mockResolvedValue({ success: true, data: {}, meta: {} });
+    await expect(saveListingDraft({ make: "Toyota", model: "Corolla" }, "draft-1")).resolves.toBe("draft-1");
+    expect(apiMocks.patch).toHaveBeenCalledWith("/vehicles/draft-1", { make: "Toyota", model: "Corolla" });
+
+    apiMocks.get.mockResolvedValue({ success: true, data: [], meta: { page: 1, pageSize: 100, total: 0 } });
+    await expect(getMyDrafts()).resolves.toEqual([]);
+    expect(apiMocks.get).toHaveBeenCalledWith("/vehicles/me/drafts?page=1&pageSize=100");
+
+    apiMocks.post.mockResolvedValue({ success: true, data: {}, meta: {} });
+    await expect(submitListingDraft("draft-1")).resolves.toBeUndefined();
+    expect(apiMocks.post).toHaveBeenLastCalledWith("/vehicles/draft-1/submit");
+  });
+
+  it("reorders and removes persisted draft photos using the backend image endpoints", async () => {
+    apiMocks.patch.mockResolvedValue({ success: true, data: {}, meta: {} });
+    apiMocks.delete.mockResolvedValue({ success: true, data: {}, meta: {} });
+
+    await reorderVehicleImages("draft-2", ["image-a", "image-b"]);
+    await removeVehicleImage("draft-2", "image-a");
+
+    expect(apiMocks.patch).toHaveBeenCalledWith("/vehicles/draft-2/images/order", { imageIds: ["image-a", "image-b"] });
+    expect(apiMocks.delete).toHaveBeenCalledWith("/vehicles/draft-2/images/image-a");
+  });
+
+  it("returns uploaded image metadata in backend display order", async () => {
+    apiMocks.post.mockResolvedValue({
+      success: true,
+      data: [
+        { id: "image-first", imageUrl: "https://images.example.test/first.jpg", displayOrder: 0, moderationStatus: "pending" },
+        { id: "image-second", imageUrl: "https://images.example.test/second.jpg", displayOrder: 1, moderationStatus: "pending" },
+      ],
+      meta: {},
+    });
+    const files = [
+      new File(["one"], "first.jpg", { type: "image/jpeg" }),
+      new File(["two"], "second.jpg", { type: "image/jpeg" }),
+    ];
+
+    await expect(uploadVehicleImages("listing-2", files)).resolves.toEqual([
+      { id: "image-first", imageUrl: "https://images.example.test/first.jpg", displayOrder: 0 },
+      { id: "image-second", imageUrl: "https://images.example.test/second.jpg", displayOrder: 1 },
+    ]);
+  });
+
+  it("surfaces an unavailable image-storage response instead of reporting upload success", async () => {
+    const storageError = new (await import("@/lib/apiClient")).ApiError(
+      "Vehicle image storage is not configured.",
+      "IMAGE_STORAGE_UNAVAILABLE",
+      503,
+    );
+    apiMocks.post.mockRejectedValue(storageError);
+    const photo = new File(["jpeg"], "front.jpg", { type: "image/jpeg" });
+
+    await expect(uploadVehicleImages("listing-2", [photo])).rejects.toBe(storageError);
+    expect(apiMocks.post).toHaveBeenCalledWith(
+      "/vehicles/listing-2/images",
+      expect.any(FormData),
+    );
   });
 
   it("uses the backend moderation and availability routes for state changes", async () => {

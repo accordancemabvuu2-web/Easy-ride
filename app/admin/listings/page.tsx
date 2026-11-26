@@ -1,6 +1,7 @@
 "use client";
 
 import AdminStatusBadge from "@/Components/AdminStatusBadge";
+import AdminVehicleGallery from "@/Components/admin/AdminVehicleGallery";
 import Button from "@/Components/admin/Button";
 import ConfirmDialog, {
   DialogTarget,
@@ -389,13 +390,7 @@ export default function AdminListingsPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 p-4">
-                  <img
-                    src={selected.coverImage}
-                    alt={`${selected.make} ${selected.model} cover`}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-[220px] w-full rounded-lg object-cover sm:h-[272px]"
-                  />
+                  <AdminVehicleGallery key={selected.id} vehicle={selected} />
 
                   <div className="flex flex-wrap gap-1.5">
                     {[

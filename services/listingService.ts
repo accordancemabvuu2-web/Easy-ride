@@ -73,17 +73,21 @@ export function toVehicleWritePayload(input: Partial<Vehicle>): Record<string, u
   const payload: Record<string, unknown> = {};
   if (input.make !== undefined) payload.make = input.make.trim();
   if (input.model !== undefined) payload.model = input.model.trim();
+  if (input.trim !== undefined) payload.trim = input.trim.trim();
   if (input.year !== undefined) payload.year = input.year;
   if (input.condition !== undefined) payload.condition = backendCondition(input.condition);
   if (input.description !== undefined) payload.description = input.description.trim();
   if (input.currency !== undefined) payload.currency = input.currency.toUpperCase();
   if (input.mileage !== undefined) payload.mileage = input.mileage;
+  if (input.mileageUnit !== undefined) payload.mileageUnit = input.mileageUnit;
   if (input.bodyType !== undefined) payload.bodyType = input.bodyType;
   if (input.transmission !== undefined) payload.transmission = input.transmission.toLowerCase();
   if (input.fuelType !== undefined) payload.fuelType = input.fuelType.toLowerCase();
   if (input.drivetrain !== undefined) payload.drivetrain = input.drivetrain;
   if (input.engineCapacity !== undefined) payload.engineCapacity = input.engineCapacity;
   if (input.color !== undefined) payload.exteriorColor = input.color;
+  if (input.interiorColor !== undefined) payload.interiorColor = input.interiorColor;
+  if (input.negotiable !== undefined) payload.negotiable = input.negotiable;
   if (input.features !== undefined) payload.features = input.features;
   if (input.listingType !== undefined) {
     payload.listingType = input.listingType === "rent" ? "rent" : input.listingType === "both" ? "sale_and_rent" : "sale";
@@ -238,10 +242,15 @@ export async function getAdminListingById(id: string): Promise<Vehicle | null> {
   }
 }
 
-export type VehicleListingInput = Omit<Vehicle, "id" | "status" | "views" | "favoritesCount" | "createdAt" | "updatedAt">;
+export type VehicleListingInput = Partial<Omit<Vehicle, "id" | "status" | "views" | "favoritesCount" | "createdAt" | "updatedAt">>;
 
-export async function createListing(listing: VehicleListingInput): Promise<Vehicle> {
-  const response = await api.post<unknown>("/vehicles", toVehicleWritePayload(listing));
+export async function createListing(
+  listing: VehicleListingInput,
+  options: { saveAsDraft?: boolean } = {},
+): Promise<Vehicle> {
+  const payload = toVehicleWritePayload(listing);
+  if (options.saveAsDraft) payload.moderationStatus = "draft";
+  const response = await api.post<unknown>("/vehicles", payload);
   const data = response.data && typeof response.data === "object" ? response.data as Record<string, unknown> : {};
   const id = String(data.id ?? data._id ?? "");
   if (!id) throw new ApiError("The vehicle creation response did not include its ID.", "INVALID_RESPONSE", 502);
@@ -259,6 +268,45 @@ export async function createListing(listing: VehicleListingInput): Promise<Vehic
   });
 }
 
+export async function saveListingDraft(payload: Record<string, unknown>, draftId?: string): Promise<string> {
+  if (draftId) {
+    await api.patch(`/vehicles/${encodeURIComponent(draftId)}`, payload);
+    return draftId;
+  }
+  const response = await api.post<unknown>("/vehicles", { ...payload, moderationStatus: "draft" });
+  const data = response.data && typeof response.data === "object" ? response.data as Record<string, unknown> : {};
+  const id = String(data.id ?? data._id ?? "");
+  if (!id || data.moderationStatus !== "draft") {
+    throw new ApiError("The draft creation response was invalid.", "INVALID_RESPONSE", 502);
+  }
+  return id;
+}
+
+export async function submitListingDraft(listingId: string): Promise<void> {
+  await api.post(`/vehicles/${encodeURIComponent(listingId)}/submit`);
+}
+
+export async function getMyDrafts(): Promise<Vehicle[]> {
+  const drafts: Vehicle[] = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const result = await listPage("/vehicles/me/drafts", page);
+    drafts.push(...result.listings);
+    hasMore = result.hasMore;
+    page += 1;
+  }
+  return drafts;
+}
+
+export async function reorderVehicleImages(listingId: string, imageIds: string[]): Promise<void> {
+  await api.patch(`/vehicles/${encodeURIComponent(listingId)}/images/order`, { imageIds });
+}
+
+export async function removeVehicleImage(listingId: string, imageId: string): Promise<void> {
+  await api.delete(`/vehicles/${encodeURIComponent(listingId)}/images/${encodeURIComponent(imageId)}`);
+}
+
 export async function updateListing(listingId: string, changes: Partial<Vehicle>): Promise<Vehicle> {
   const current = (await getMyListings()).find((listing) => listing.id === listingId);
   if (!current) throw new ApiError("The vehicle could not be found in your inventory.", "NOT_FOUND", 404);
@@ -270,6 +318,36 @@ export async function updateListing(listingId: string, changes: Partial<Vehicle>
   const updated = (await getMyListings()).find((listing) => listing.id === listingId);
   if (!updated) throw new ApiError("The updated vehicle could not be reloaded.", "INVALID_RESPONSE", 502);
   return updated;
+}
+
+export async function getMyListingById(listingId: string): Promise<Vehicle | null> {
+  try {
+    const response = await api.get<unknown>(`/vehicles/me/${encodeURIComponent(listingId)}`);
+    return response.data ? adaptVehicle(response.data) : null;
+  } catch (error) {
+    if (error instanceof ApiError && [403, 404].includes(error.statusCode)) return null;
+    throw error;
+  }
+}
+
+export async function updateVehicleDraft(listingId: string, changes: VehicleListingInput): Promise<Vehicle> {
+  const current = await getMyListingById(listingId);
+  if (!current || current.status !== "draft") {
+    throw new ApiError("Only your saved drafts can be edited here.", "NOT_FOUND", 404);
+  }
+  await api.patch(`/vehicles/${encodeURIComponent(listingId)}`, toVehicleWritePayload(changes));
+  const updated = await getMyListingById(listingId);
+  if (!updated) throw new ApiError("The saved draft could not be reloaded.", "INVALID_RESPONSE", 502);
+  return updated;
+}
+
+export async function submitVehicleDraft(listingId: string): Promise<void> {
+  const response = await api.post<{ id?: string; moderationStatus?: string }>(
+    `/vehicles/${encodeURIComponent(listingId)}/submit`,
+  );
+  if (response.data?.moderationStatus !== "pending_review") {
+    throw new ApiError("The listing was not accepted for moderation.", "INVALID_RESPONSE", 502);
+  }
 }
 
 export async function updateListingStatus(listingId: string, status: ListingStatus, reason?: string): Promise<void> {

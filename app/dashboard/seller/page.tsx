@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getUserBookings } from "@/lib/clientFirebaseServices";
 import { deleteListing, getMyListings, updateListingStatus } from "@/lib/clientFirebaseServices";
 import { getUserOffers } from "@/lib/clientFirebaseServices";
+import { getMyDrafts } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
 import { AlertCircle, BarChart3, CheckCircle2, Eye, HandCoins, Loader2, Plus, Trash2, Users, CalendarDays, MessageCircle, Store } from "lucide-react";
 import Image from "next/image";
@@ -27,6 +28,7 @@ export default function SellerDashboardPage() {
 function SellerDashboardContent() {
   const { profile } = useAuth();
   const [listings, setListings] = useState<Vehicle[]>([]);
+  const [drafts, setDrafts] = useState<Vehicle[]>([]);
   const [offerCount, setOfferCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
   const [bookingCount, setBookingCount] = useState(0);
@@ -36,12 +38,14 @@ function SellerDashboardContent() {
     if (!profile) return;
     try {
       setLoading(true);
-      const [nextListings, offers, bookings] = await Promise.all([
+      const [nextListings, nextDrafts, offers, bookings] = await Promise.all([
         getMyListings(profile.id),
+        getMyDrafts(),
         getUserOffers(profile.id),
         getUserBookings(profile.id),
       ]);
       setListings(nextListings);
+      setDrafts(nextDrafts);
       setOfferCount(offers.filter((offer) => offer.sellerId === profile.id && ["pending", "countered"].includes(offer.status)).length);
       setCompletedCount(offers.filter((offer) => offer.sellerId === profile.id && offer.status === "completed").length + bookings.filter((booking) => booking.ownerId === profile.id && booking.status === "completed").length);
       setBookingCount(bookings.filter((booking) => booking.ownerId === profile.id && !["cancelled", "completed", "rejected"].includes(booking.status)).length);
@@ -96,7 +100,7 @@ function SellerDashboardContent() {
             <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Welcome back, {profile?.name?.trim().split(/\s+/)[0] || "Seller"} <span aria-hidden="true">👋</span></h1>
             <p className="mt-2 text-gray-500">Track your performance, manage your inventory and grow your business.</p>
           </div>
-          <Link href="/create-listing" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E7B319] px-5 py-3 font-black text-[#17201D] shadow-sm hover:bg-[#F4C83D]"><Plus size={18} /> Add vehicle</Link>
+          <Link href="/dashboard/seller/listings/new" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E7B319] px-5 py-3 font-black text-[#17201D] shadow-sm hover:bg-[#F4C83D]"><Plus size={18} /> Add vehicle</Link>
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -121,12 +125,14 @@ function SellerDashboardContent() {
               </div>
             )}
           </section>
-          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/create-listing" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
+          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/dashboard/seller/listings/new" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
 
-        {listings.length === 0 ? <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><CarEmpty /><h2 className="mt-4 text-xl font-bold">No vehicles listed yet</h2><p className="mt-2 text-gray-500">Add your first vehicle and start receiving interest.</p><Link href="/create-listing" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Add a vehicle</Link></div> : <div className="mt-5 space-y-4">{listings.slice(0, 6).map((listing) => <ListingRow key={listing.id} listing={listing} onMarkUnavailable={markUnavailable} onDelete={removeListing} />)}</div>}
+        {drafts.length > 0 && <section className="mt-7 rounded-3xl border border-amber-200 bg-amber-50 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-black text-amber-950">Drafts to finish</h2><p className="mt-1 text-sm text-amber-900">These listings are private and will not appear in the marketplace until reviewed and approved.</p></div><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-900">{drafts.length}</span></div><div className="mt-4 space-y-2">{drafts.slice(0, 5).map((draft) => <div key={draft.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3"><p className="font-semibold text-slate-800">{draft.make === "Unknown make" ? "Untitled" : draft.make} {draft.model === "Unknown model" ? "" : draft.model} {draft.year > 0 ? draft.year : ""}</p><Link href={`/dashboard/seller/listings/new?draftId=${encodeURIComponent(draft.id)}`} className="rounded-full bg-[#063F2C] px-4 py-2 text-xs font-bold text-white">Resume draft</Link></div>)}</div></section>}
+
+        {listings.length === 0 ? <div className="mt-5 rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center"><CarEmpty /><h2 className="mt-4 text-xl font-bold">No vehicles listed yet</h2><p className="mt-2 text-gray-500">Add your first vehicle and start receiving interest.</p><Link href="/dashboard/seller/listings/new" className="mt-5 inline-flex rounded-full bg-[#063F2C] px-5 py-3 font-bold text-white">Add a vehicle</Link></div> : <div className="mt-5 space-y-4">{listings.slice(0, 6).map((listing) => <ListingRow key={listing.id} listing={listing} onMarkUnavailable={markUnavailable} onDelete={removeListing} />)}</div>}
       </section>
     </DashboardShell>
   );
