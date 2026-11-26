@@ -1,7 +1,6 @@
 "use client";
 
 import { db } from "@/lib/firebase";
-import { createNotification } from "@/services/notificationService";
 import type { Vehicle } from "@/Types/vehicle";
 import type {
   BookingPaymentStatus,
@@ -308,15 +307,6 @@ export async function createRentalBooking(
 
   await persistBooking(booking);
 
-  await createNotification({
-    userId: input.vehicle.ownerId,
-    type: "booking",
-    title: "Booking Request",
-    message: `${input.renter.name} wants to rent your vehicle.`,
-    actionUrl: `/bookings/${booking.id}`,
-    link: `/bookings/${booking.id}`,
-  });
-
   return booking;
 }
 
@@ -364,15 +354,6 @@ export async function approveBooking(
     paymentStatus: "pending",
     ownerResponse: "Approved by owner",
   });
-
-  await createNotification({
-    userId: booking.renterId,
-    type: "booking",
-    title: "Booking Approved",
-    message: "Your booking has been approved.",
-    actionUrl: `/bookings/${booking.id}`,
-    link: `/bookings/${booking.id}`,
-  });
 }
 
 export async function rejectBooking(
@@ -395,15 +376,6 @@ export async function rejectBooking(
     rejectionReason: reason,
     ownerResponse: reason,
   });
-
-  await createNotification({
-    userId: booking.renterId,
-    type: "booking",
-    title: "Booking Rejected",
-    message: "The owner rejected your booking.",
-    actionUrl: `/bookings/${booking.id}`,
-    link: `/bookings/${booking.id}`,
-  });
 }
 
 export async function cancelBooking(
@@ -424,15 +396,6 @@ export async function cancelBooking(
   await updateBookingStatus(bookingId, "cancelled", {
     cancellationReason: reason,
     paymentStatus: "refunded",
-  });
-
-  await createNotification({
-    userId: booking.ownerId === userId ? booking.renterId : booking.ownerId,
-    type: "booking",
-    title: "Booking Cancelled",
-    message: `${booking.renterName} booking was cancelled.`,
-    actionUrl: `/bookings/${booking.id}`,
-    link: `/bookings/${booking.id}`,
   });
 }
 
@@ -540,3 +503,4 @@ export async function setBookingPaymentStatus(
     paymentId,
   });
 }
+

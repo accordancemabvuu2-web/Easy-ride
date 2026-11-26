@@ -3,26 +3,29 @@
 import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
-import { useAuth } from "@/contexts/AuthContext";
-import { getMyListings } from "@/lib/clientFirebaseServices";
-import type { Vehicle } from "@/Types/vehicle";
-import { Loader2, Megaphone } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Banknote, ShieldCheck } from "lucide-react";
 
 export default function PromotePage() {
-  return <RequireAuth><RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Seller"><PromoteContent /></RoleGuard></RequireAuth>;
-}
-
-function PromoteContent() {
-  const { profile } = useAuth();
-  const [listings, setListings] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!profile) return;
-    getMyListings(profile.id).then(setListings).finally(() => setLoading(false));
-  }, [profile]);
-
-  return <DashboardShell role="seller"><section><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#C9A227]">Growth tools</p><h1 className="mt-2 text-3xl font-black">Promote your listings</h1><p className="mt-2 text-gray-500">Give your best vehicles more visibility in the marketplace.</p>{loading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="animate-spin text-[#08784D]" /></div> : <div className="mt-8 grid gap-4 md:grid-cols-2">{listings.filter((listing) => listing.status === "active").map((listing) => <article key={listing.id} className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><div className="rounded-xl bg-[#E7B319]/20 p-3 text-[#8A6B00]"><Megaphone size={20} /></div><div><h2 className="font-black">{listing.make} {listing.model} {listing.year}</h2><p className="mt-1 text-sm text-gray-500">{listing.views ?? 0} views · {listing.location.city}</p></div></div><Link href={`/promote/${listing.id}`} className="mt-5 inline-flex rounded-full bg-[#063F2C] px-4 py-2 text-sm font-bold text-white">Choose a plan</Link></article>)}{listings.filter((listing) => listing.status === "active").length === 0 && <div className="rounded-3xl border border-dashed border-[#C9D6CE] bg-white p-12 text-center md:col-span-2">Create and publish a listing before promoting it.</div>}</div>}</section></DashboardShell>;
+  return (
+    <RequireAuth>
+      <RoleGuard allowedRoles={["buyer", "seller", "dealer"]} label="Seller">
+        <DashboardShell role="seller">
+          <section className="mx-auto max-w-3xl rounded-3xl border border-amber-200 bg-white p-8 shadow-sm">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-900">
+              <Banknote size={23} aria-hidden="true" />
+            </div>
+            <h1 className="mt-5 text-3xl font-black">Paid promotion is unavailable</h1>
+            <p className="mt-3 text-gray-600">
+              Paid listing promotion is not connected to a payment provider. No plan can be purchased,
+              and no listing will be marked as promoted from this page.
+            </p>
+            <p className="mt-4 flex items-start gap-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+              <ShieldCheck className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+              <span>No payment will be taken. Your existing listings remain unchanged.</span>
+            </p>
+          </section>
+        </DashboardShell>
+      </RoleGuard>
+    </RequireAuth>
+  );
 }

@@ -1,13 +1,5 @@
-export type AuditAction =
-  | "listing_approved"
-  | "listing_rejected"
-  | "listing_suspended"
-  | "listing_restored"
-  | "verification_approved"
-  | "verification_rejected"
-  | "user_suspended"
-  | "report_resolved"
-  | "support_ticket_updated";
+// The backend audit vocabulary grows with audited server operations.
+export type AuditAction = string;
 
 export interface AuditLog {
   id: string;
@@ -18,12 +10,7 @@ export interface AuditLog {
 
   action: AuditAction;
 
-  targetType:
-    | "listing"
-    | "user"
-    | "verification"
-    | "report"
-    | "support_ticket";
+  targetType: string;
 
   targetId: string;
 

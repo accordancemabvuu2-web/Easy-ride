@@ -1,11 +1,9 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
-import type { EasyRideNotification } from "@/Types/notification";
 import type { Vehicle } from "@/Types/vehicle";
 import { adaptVehicle } from "@/services/vehicleAdapter";
-import { collection, getDocs } from "firebase/firestore";
 import { ApiError, api } from "@/lib/apiClient";
+import { getAdminDashboardData } from "@/services/adminDashboardService";
 import type {
   AdminAccountStatus,
   AdminDealerProfileDetails,
@@ -17,27 +15,6 @@ import type {
   AdminUsersResponse,
   AdminUserRecord,
 } from "@/Types/user";
-
-const BOOKINGS_CACHE_KEY = "easy-ride:bookings";
-const OFFERS_CACHE_KEY = "easy-ride:offers";
-const PAYMENTS_CACHE_KEY = "easy-ride:payments";
-const SUPPORT_CACHE_KEY = "easy-ride:support-tickets";
-const REPORTS_CACHE_KEY = "easy-ride:reports";
-const VERIFICATION_CACHE_KEY = "easy-ride:verification-requests";
-const AUDIT_CACHE_KEY = "easy-ride:audit-logs";
-
-function readLocalRecords<T>(key: string): T[] {
-  if (typeof window === "undefined") return [];
-
-  const raw = window.localStorage.getItem(key);
-  if (!raw) return [];
-
-  try {
-    return JSON.parse(raw) as T[];
-  } catch {
-    return [];
-  }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -388,55 +365,7 @@ export async function getAdminListings(): Promise<Vehicle[]> {
   return listings;
 }
 
-export async function getAdminNotifications(): Promise<EasyRideNotification[]> {
-  if (!firebaseReady || !db) {
-    return readLocalRecords<EasyRideNotification>("easy-ride:notifications");
-  }
-
-  const snapshot = await getDocs(collection(db, "notifications"));
-  return snapshot.docs.map((notificationDocument) => ({
-    id: notificationDocument.id,
-    ...(notificationDocument.data() as Omit<EasyRideNotification, "id">),
-  }));
-}
-
 export async function getAdminSummary() {
-  if (!firebaseReady || !db) {
-    return {
-      users: await getAdminUserCount(),
-      listings: (await getAdminListings()).length,
-      bookings: readLocalRecords(BOOKINGS_CACHE_KEY).length,
-      offers: readLocalRecords(OFFERS_CACHE_KEY).length,
-      payments: readLocalRecords(PAYMENTS_CACHE_KEY).length,
-      supportTickets: readLocalRecords(SUPPORT_CACHE_KEY).length,
-      reports: readLocalRecords(REPORTS_CACHE_KEY).length,
-      verificationRequests: readLocalRecords(VERIFICATION_CACHE_KEY).length,
-      auditLogs: readLocalRecords(AUDIT_CACHE_KEY).length,
-    };
-  }
-
-  const [users, listings, bookings, offers, payments, supportTickets, reports, verificationRequests, auditLogs] =
-    await Promise.all([
-      getAdminUserCount(),
-      getAdminListings(),
-      getDocs(collection(db, "bookings")),
-      getDocs(collection(db, "offers")),
-      getDocs(collection(db, "payments")),
-      getDocs(collection(db, "supportTickets")),
-      getDocs(collection(db, "reports")),
-      getDocs(collection(db, "verificationRequests")),
-      getDocs(collection(db, "auditLogs")),
-    ]);
-
-  return {
-    users,
-    listings: listings.length,
-    bookings: bookings.size,
-    offers: offers.size,
-    payments: payments.size,
-    supportTickets: supportTickets.size,
-    reports: reports.size,
-    verificationRequests: verificationRequests.size,
-    auditLogs: auditLogs.size,
-  };
+  const { counts, pendingListings } = await getAdminDashboardData();
+  return { ...counts, pendingListings };
 }

@@ -1,18 +1,4 @@
-export type NotificationType =
-  | "message"
-  | "offer"
-  | "booking"
-  | "payment"
-  | "listing"
-  | "verification"
-  | "review"
-  | "support"
-  | "announcement"
-  | "listing_approved"
-  | "listing_rejected"
-  | "listing_favorited"
-  | "listing_reported"
-  | "new_message";
+export type NotificationType = string;
 
 export interface EasyRideNotification {
   id: string;
@@ -26,3 +12,4 @@ export interface EasyRideNotification {
   icon?: string;
   createdAt?: unknown;
 }
+

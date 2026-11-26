@@ -18,11 +18,12 @@ import {
   ShieldCheck,
   Star,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-const iconMap = {
+const iconMap: Record<string, LucideIcon> = {
   message: MessageCircle,
   new_message: MessageCircle,
   offer: BadgeDollarSign,
@@ -49,7 +50,7 @@ export default function NotificationsPage() {
 
 function NotificationsContent() {
   const { profile } = useAuth();
-  const notifications = useNotifications();
+  const { notifications, error } = useNotifications();
   const [loading, setLoading] = useState(false);
 
   const unreadNotifications = useMemo(
@@ -65,6 +66,14 @@ function NotificationsContent() {
       toast.error("Notifications could not be updated.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markRead = async (notificationId: string) => {
+    try {
+      await markNotificationRead(notificationId);
+    } catch {
+      toast.error("Notification could not be marked as read.");
     }
   };
 
@@ -97,13 +106,15 @@ function NotificationsContent() {
           )}
         </div>
 
-        <p className="mt-3 text-gray-500">View updates from messages, offers, bookings, payments, and admin actions.</p>
+        <p className="mt-3 text-gray-500">View notifications created by backend workflows, including new messages.</p>
 
-        {notifications.length === 0 ? (
+        {error ? <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+
+        {!error && notifications.length === 0 ? (
           <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-14 text-center">
             <Bell className="mx-auto text-gray-400" size={40} />
             <h2 className="mt-5 text-2xl font-bold">No notifications yet</h2>
-            <p className="mt-2 text-gray-500">Activity will appear here when something happens on the platform.</p>
+            <p className="mt-2 text-gray-500">New message notifications are currently supported.</p>
           </div>
         ) : (
           <div className="mt-8 space-y-4">
@@ -114,7 +125,7 @@ function NotificationsContent() {
                 <Link
                   key={notification.id}
                   href={notification.actionUrl ?? notification.link ?? "#"}
-                  onClick={() => void markNotificationRead(notification.id)}
+                  onClick={() => void markRead(notification.id)}
                   className={`block rounded-3xl border p-5 transition hover:shadow-sm ${
                     notification.read
                       ? "border-[#E5E7EB] bg-white"
@@ -150,3 +161,6 @@ function NotificationsContent() {
     </main>
   );
 }
+
+
+

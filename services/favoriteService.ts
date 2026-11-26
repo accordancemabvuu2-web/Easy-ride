@@ -1,7 +1,6 @@
 "use client";
 
 import { getListingById } from "@/services/listingService";
-import { createNotification } from "@/services/notificationService";
 import { api } from "@/lib/apiClient";
 import type { Vehicle } from "@/Types/vehicle";
 
@@ -15,7 +14,7 @@ async function getFavoriteIds(): Promise<string[]> {
   let total = Number.POSITIVE_INFINITY;
   const pageSize = 100;
   while (ids.length < total) {
-    const response = await api.get<unknown>(`/vehicles/me/saved?page=${page}&pageSize=${pageSize}`);
+    const response = await api.get<unknown>("/vehicles/me/saved?page=" + page + "&pageSize=" + pageSize);
     const meta = asRecord(response.meta);
     const records = Array.isArray(response.data) ? response.data : [];
     total = typeof meta.total === "number" ? meta.total : ids.length + records.length;
@@ -31,51 +30,22 @@ async function getFavoriteIds(): Promise<string[]> {
   return ids;
 }
 
-async function notifyOwnerAboutFavorite(listing: Vehicle, userId: string) {
-  if (listing.ownerId === userId) {
-    return;
-  }
-
-  await createNotification({
-    userId: listing.ownerId,
-    type: "listing",
-    title: "Your listing was saved",
-    message: `${listing.make} ${listing.model} ${listing.year} was added to favorites.`,
-    actionUrl: `/vehicle/${listing.id}`,
-    link: `/vehicle/${listing.id}`,
-  });
-}
-
-export async function addFavorite(
-  userId: string,
-  listingId: string,
-): Promise<void> {
-  const alreadySaved = (await getFavoriteIds()).includes(listingId);
-  await api.put(`/vehicles/me/saved/${encodeURIComponent(listingId)}`);
-  if (alreadySaved) return;
-  const listing = await getListingById(listingId);
-  if (listing) await notifyOwnerAboutFavorite(listing, userId);
-}
-
-export async function removeFavorite(
-  userId: string,
-  listingId: string,
-): Promise<void> {
+export async function addFavorite(userId: string, listingId: string): Promise<void> {
   void userId;
-  await api.delete(`/vehicles/me/saved/${encodeURIComponent(listingId)}`);
+  await api.put("/vehicles/me/saved/" + encodeURIComponent(listingId));
 }
 
-export async function isFavorite(
-  userId: string,
-  listingId: string,
-): Promise<boolean> {
+export async function removeFavorite(userId: string, listingId: string): Promise<void> {
+  void userId;
+  await api.delete("/vehicles/me/saved/" + encodeURIComponent(listingId));
+}
+
+export async function isFavorite(userId: string, listingId: string): Promise<boolean> {
   void userId;
   return (await getFavoriteIds()).includes(listingId);
 }
 
-export async function getUserFavoriteListings(
-  userId: string,
-): Promise<Vehicle[]> {
+export async function getUserFavoriteListings(userId: string): Promise<Vehicle[]> {
   void userId;
   const ids = await getFavoriteIds();
   const listings: Vehicle[] = [];
@@ -85,3 +55,4 @@ export async function getUserFavoriteListings(
   }
   return listings;
 }
+

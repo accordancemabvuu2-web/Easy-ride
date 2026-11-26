@@ -1,62 +1,40 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
-import { getMyListings } from "@/services/listingService";
+import { ApiError, api } from "@/lib/apiClient";
 import type { Vehicle } from "@/Types/vehicle";
-import {
-  Timestamp,
-  collection,
-  doc,
-  getDocs,
-  query,
-  setDoc,
-  where,
-} from "firebase/firestore";
-
-type ListingEvent =
-  | {
-      listingId: string;
-      userId: string | null;
-      eventType: "view";
-      createdAt: string;
-    }
-  | {
-      listingId: string;
-      sellerId: string;
-      buyerId: string | null;
-      eventType: "contact";
-      contactMethod: "whatsapp" | "phone" | "message";
-      createdAt: string;
-    };
-
-const STORAGE_KEY = "easy-ride:listing-events";
 
 export interface SellerAnalytics {
   views: number;
-  contacts: number;
   favorites: number;
   leadCount: number;
   conversionRate: number;
-  favoriteRate: number;
-  listings: Array<Partial<Vehicle> & { id: string }>;
+  listings: Array<
+    Partial<Vehicle> & {
+      id: string;
+      views: number;
+      favoritesCount: number;
+      leadCount: number;
+    }
+  >;
 }
 
-function readLocalEvents(): ListingEvent[] {
-  if (typeof window === "undefined") return [];
+type UnknownRecord = Record<string, unknown>;
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
+}
 
-  try {
-    return JSON.parse(raw) as ListingEvent[];
-  } catch {
-    return [];
+function countValue(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new ApiError("The inventory analytics API returned invalid counts.", "INVALID_RESPONSE", 502);
   }
+  return value;
 }
 
-function writeLocalEvents(events: ListingEvent[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+function invalidResponse(): never {
+  throw new ApiError("The inventory analytics API returned an invalid response.", "INVALID_RESPONSE", 502);
 }
 
 export async function recordListingView(
@@ -74,71 +52,40 @@ export async function recordContactClick(
   buyerId?: string,
   contactMethod: "whatsapp" | "phone" | "message" = "whatsapp",
 ): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    writeLocalEvents([
-      {
-        listingId,
-        sellerId,
-        buyerId: buyerId ?? null,
-        eventType: "contact",
-        contactMethod,
-        createdAt: new Date().toISOString(),
-      },
-      ...readLocalEvents(),
-    ]);
-    return;
-  }
-
-  await setDoc(doc(firestore, "listingEvents", crypto.randomUUID()), {
-    listingId,
-    sellerId,
-    buyerId: buyerId ?? null,
-    eventType: "contact",
-    contactMethod,
-    createdAt: Timestamp.now(),
-  });
+  // Only backend conversation creation is counted as an enquiry.
+  void listingId;
+  void sellerId;
+  void buyerId;
+  void contactMethod;
 }
 
 export async function getSellerAnalytics(ownerId: string): Promise<SellerAnalytics> {
-  const listings = await getMyListings();
+  void ownerId;
+  const response = await api.get<unknown>("/vehicles/me/analytics");
+  const record = asRecord(response.data);
+  if (!Array.isArray(record.listings)) return invalidResponse();
 
-  const views = listings.reduce(
-    (total, listing) => total + Number(listing.views ?? 0),
-    0,
-  );
-  const favorites = listings.reduce(
-    (total, listing) => total + Number(listing.favoritesCount ?? 0),
-    0,
-  );
-
-  let contacts = 0;
-  if (firebaseReady && db) {
-    const contactsSnapshot = await getDocs(
-      query(
-        collection(db, "listingEvents"),
-        where("sellerId", "==", ownerId),
-        where("eventType", "==", "contact"),
-      ),
-    );
-    contacts = contactsSnapshot.size;
-  } else {
-    contacts = readLocalEvents().filter(
-      (event): event is Extract<ListingEvent, { eventType: "contact" }> =>
-        event.eventType === "contact" && event.sellerId === ownerId,
-    ).length;
-  }
-
-  const leadCount = contacts;
-
+  const listings = record.listings.map((value) => {
+    const listing = asRecord(value);
+    if (typeof listing.id !== "string" || !listing.id) return invalidResponse();
+    return {
+      id: listing.id,
+      make: typeof listing.make === "string" ? listing.make : undefined,
+      model: typeof listing.model === "string" ? listing.model : undefined,
+      year: typeof listing.year === "number" ? listing.year : undefined,
+      views: countValue(listing.views),
+      favoritesCount: countValue(listing.favorites),
+      leadCount: countValue(listing.messageEnquiries),
+    };
+  });
+  const views = countValue(record.views);
+  const favorites = countValue(record.favorites);
+  const leadCount = countValue(record.messageEnquiries);
   return {
     views,
-    contacts,
     favorites,
     leadCount,
     conversionRate: views > 0 ? (leadCount / views) * 100 : 0,
-    favoriteRate: views > 0 ? (favorites / views) * 100 : 0,
     listings,
   };
 }

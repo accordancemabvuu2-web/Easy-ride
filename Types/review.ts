@@ -11,7 +11,7 @@ export interface EasyRideReview {
   listingId: string;
 
   rating: number;
-  title: string;
+  title?: string;
   comment: string;
 
   approved: boolean;
@@ -19,3 +19,4 @@ export interface EasyRideReview {
 
   createdAt?: string;
 }
+

@@ -1,503 +1,215 @@
 "use client";
 
-import { createNotification } from "@/services/notificationService";
-import { db, firebaseReady } from "@/lib/firebase";
+import { api } from "@/lib/apiClient";
 import type { Conversation, EasyRideMessage } from "@/Types/message";
 import type { Vehicle } from "@/Types/vehicle";
-import {
-  DocumentData,
-  QueryDocumentSnapshot,
-  Timestamp,
-  addDoc,
-  arrayRemove,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
 
-const CONVERSATIONS_KEY = "easy-ride:conversations";
-const MESSAGES_KEY = "easy-ride:messages";
-const CONVERSATIONS_EVENT = "easy-ride-conversations-updated";
-const MESSAGES_EVENT = "easy-ride-messages-updated";
+type UnknownRecord = Record<string, unknown>;
 
-function conversationId(listingId: string, buyerId: string, sellerId: string): string {
-  return `${listingId}_${buyerId}_${sellerId}`;
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null ? value as UnknownRecord : {};
 }
 
-function nowIso() {
-  return new Date().toISOString();
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const id = record._id ?? record.id;
+  return typeof id === "string" ? id : "";
 }
 
-function readLocalConversations(): Conversation[] {
-  if (typeof window === "undefined") return [];
-
-  const raw = window.localStorage.getItem(CONVERSATIONS_KEY);
-  if (!raw) return [];
-
-  try {
-    return JSON.parse(raw) as Conversation[];
-  } catch {
-    return [];
-  }
+function personName(value: unknown, fallback: string): string {
+  const person = asRecord(value);
+  const name = [person.firstName, person.lastName]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" ")
+    .trim();
+  return name || fallback;
 }
 
-function writeLocalConversations(conversations: Conversation[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations));
-  window.dispatchEvent(new Event(CONVERSATIONS_EVENT));
-}
+function mapConversation(value: unknown, userId: string): Conversation | null {
+  const record = asRecord(value);
+  const id = recordId(record);
+  const rawParticipants = Array.isArray(record.participantIds) ? record.participantIds : [];
+  const participantIds = rawParticipants.map(recordId).filter(Boolean);
+  const unreadBy = Array.isArray(record.unreadBy)
+    ? record.unreadBy.map(recordId).filter(Boolean)
+    : [];
+  if (!id || participantIds.length !== 2 || !participantIds.includes(userId)) return null;
 
-function readLocalMessages(): Record<string, EasyRideMessage[]> {
-  if (typeof window === "undefined") return {};
+  const vehicle = asRecord(record.vehicleId);
+  const listingId = recordId(record.vehicleId);
+  const titleParts = [vehicle.year, vehicle.make, vehicle.model]
+    .filter((part) => typeof part === "string" || typeof part === "number");
+  const listingTitle = titleParts.join(" ");
 
-  const raw = window.localStorage.getItem(MESSAGES_KEY);
-  if (!raw) return {};
-
-  try {
-    return JSON.parse(raw) as Record<string, EasyRideMessage[]>;
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalMessages(messages: Record<string, EasyRideMessage[]>) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
-  window.dispatchEvent(new Event(MESSAGES_EVENT));
-}
-
-function normalizeConversation(conversation: Conversation): Conversation {
   return {
-    ...conversation,
-    participants: conversation.participants?.length
-      ? conversation.participants
-      : [conversation.buyerId, conversation.sellerId],
-    unreadBy: conversation.unreadBy ?? [],
-    lastMessageAt: conversation.lastMessageAt ?? conversation.updatedAt ?? conversation.createdAt ?? nowIso(),
-    createdAt: conversation.createdAt ?? nowIso(),
-    updatedAt: conversation.updatedAt ?? nowIso(),
+    id,
+    listingId,
+    listingTitle: listingTitle || "Vehicle enquiry",
+    listingImage: "/images/easy-ride-hero.svg",
+    buyerId: participantIds[0]!,
+    buyerName: personName(rawParticipants[0], "Buyer"),
+    sellerId: participantIds[1]!,
+    sellerName: personName(rawParticipants[1], "Seller"),
+    lastMessage: "Open conversation",
+    lastMessageAt: record.lastMessageAt,
+    participants: participantIds,
+    unreadBy,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
-function normalizeMessage(message: EasyRideMessage): EasyRideMessage {
+function mapMessage(value: unknown, conversationId: string): EasyRideMessage | null {
+  const record = asRecord(value);
+  const id = recordId(record);
+  const senderId = recordId(record.senderId);
+  if (!id || !senderId || typeof record.text !== "string") return null;
+
   return {
-    ...message,
-    body: message.body ?? "",
-    read: Boolean(message.read),
-    createdAt: message.createdAt ?? nowIso(),
+    id,
+    conversationId,
+    senderId,
+    senderName: "Easy Ride member",
+    body: record.text,
+    read: record.readAt !== null && record.readAt !== undefined,
+    createdAt: record.createdAt,
   };
 }
 
-function sortConversations(conversations: Conversation[]) {
-  return [...conversations].sort((left, right) =>
-    String(right.lastMessageAt ?? "").localeCompare(String(left.lastMessageAt ?? "")),
+function responseRecords(response: { data?: unknown }, label: string): unknown[] {
+  if (!Array.isArray(response.data)) {
+    throw new Error("The " + label + " response was invalid. Please retry.");
+  }
+  return response.data;
+}
+
+async function loadConversations(userId: string): Promise<Conversation[]> {
+  const response = await api.get<unknown>("/conversations?page=1&pageSize=100");
+  return responseRecords(response, "conversation")
+    .map((record) => mapConversation(record, userId))
+    .filter((record): record is Conversation => record !== null);
+}
+
+async function loadMessages(conversationId: string): Promise<EasyRideMessage[]> {
+  const response = await api.get<unknown>(
+    "/conversations/" + encodeURIComponent(conversationId) + "/messages?page=1&pageSize=100",
   );
+  return responseRecords(response, "message")
+    .map((record) => mapMessage(record, conversationId))
+    .filter((record): record is EasyRideMessage => record !== null)
+    .sort((left, right) =>
+      String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? "")),
+    );
 }
 
-async function notifyRecipient(params: {
-  recipientId: string;
-  title: string;
-  message: string;
-  link: string;
-}) {
-  await createNotification({
-    userId: params.recipientId,
-    type: "message",
-    title: params.title,
-    message: params.message,
-    actionUrl: params.link,
-    link: params.link,
-  });
-}
+function subscribe<T>(
+  load: () => Promise<T>,
+  callback: (value: T) => void,
+  intervalMs: number,
+  onError?: (message: string) => void,
+): () => void {
+  let active = true;
+  let inFlight = false;
 
-async function persistLocalConversationAndMessage(
-  conversation: Conversation,
-  message: EasyRideMessage,
-) {
-  const conversations = readLocalConversations().map(normalizeConversation);
-  const nextConversation: Conversation = {
-    ...conversation,
-    lastMessage: message.body,
-    lastMessageAt: message.createdAt,
-    unreadBy: [
-      message.senderId === conversation.buyerId ? conversation.sellerId : conversation.buyerId,
-    ],
-    updatedAt: message.createdAt,
+  const refresh = async () => {
+    if (!active || inFlight) return;
+    inFlight = true;
+    try {
+      const value = await load();
+      if (active) callback(value);
+    } catch (error) {
+      if (active) {
+        onError?.(error instanceof Error ? error.message : "The messaging service is temporarily unavailable.");
+      }
+    } finally {
+      inFlight = false;
+    }
   };
 
-  const nextConversations = conversations.some((item) => item.id === conversation.id)
-    ? conversations.map((item) => (item.id === conversation.id ? nextConversation : item))
-    : [nextConversation, ...conversations];
-
-  const messages = readLocalMessages();
-  const nextMessages = messages[conversation.id] ?? [];
-
-  writeLocalMessages({
-    ...messages,
-    [conversation.id]: [...nextMessages, normalizeMessage(message)],
-  });
-  writeLocalConversations(nextConversations);
-}
-
-async function persistLocalRead(conversationIdValue: string, userId: string) {
-  const conversations = readLocalConversations().map(normalizeConversation);
-  writeLocalConversations(
-    conversations.map((conversation) =>
-      conversation.id === conversationIdValue
-        ? {
-            ...conversation,
-            unreadBy: conversation.unreadBy.filter((entry) => entry !== userId),
-            updatedAt: nowIso(),
-          }
-        : conversation,
-    ),
-  );
+  void refresh();
+  const timer = setInterval(() => void refresh(), intervalMs);
+  return () => {
+    active = false;
+    clearInterval(timer);
+  };
 }
 
 export async function startConversation(
   listing: Vehicle,
-  buyer: {
-    id: string;
-    name: string;
-  },
+  buyer: { id: string; name: string },
   firstMessage: string,
 ): Promise<string> {
   const cleanMessage = firstMessage.trim();
-
-  if (!cleanMessage) {
-    throw new Error("Enter a message.");
-  }
-
+  if (!cleanMessage) throw new Error("Enter a message.");
   if (buyer.id === listing.ownerId) {
     throw new Error("You cannot start a conversation on your own listing.");
   }
 
-  const id = conversationId(listing.id, buyer.id, listing.ownerId);
-  const firestore = db;
-  const recipientId = listing.ownerId;
-  const now = Timestamp.now();
+  const response = await api.post<unknown>("/conversations", { vehicleId: listing.id });
+  const conversationId = recordId(response.data);
+  if (!conversationId) throw new Error("The conversation response was invalid. Please retry.");
 
-  if (!firebaseReady || !firestore) {
-    const existing =
-      readLocalConversations().find((conversation) => conversation.id === id) ??
-      normalizeConversation({
-        id,
-        listingId: listing.id,
-        listingTitle: `${listing.make} ${listing.model} ${listing.year}`,
-        listingImage: listing.coverImage,
-        buyerId: buyer.id,
-        buyerName: buyer.name,
-        sellerId: listing.ownerId,
-        sellerName: listing.ownerName,
-        participants: [buyer.id, listing.ownerId],
-        lastMessage: cleanMessage,
-        lastMessageAt: nowIso(),
-        unreadBy: [listing.ownerId],
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      });
-
-    await persistLocalConversationAndMessage(existing, {
-      id: crypto.randomUUID(),
-      conversationId: id,
-      senderId: buyer.id,
-      senderName: buyer.name,
-      body: cleanMessage,
-      read: false,
-      createdAt: nowIso(),
-    });
-
-    await notifyRecipient({
-      recipientId,
-      title: "New Message",
-      message: `${buyer.name} sent a message about ${listing.make} ${listing.model}.`,
-      link: `/messages?conversation=${id}`,
-    });
-
-    return id;
-  }
-
-  const conversationReference = doc(firestore, "conversations", id);
-  const existingConversation = await getDoc(conversationReference);
-
-  if (!existingConversation.exists()) {
-    await setDoc(conversationReference, {
-      listingId: listing.id,
-      listingTitle: `${listing.make} ${listing.model} ${listing.year}`,
-      listingImage: listing.coverImage,
-      buyerId: buyer.id,
-      buyerName: buyer.name,
-      sellerId: listing.ownerId,
-      sellerName: listing.ownerName,
-      participants: [buyer.id, listing.ownerId],
-      lastMessage: cleanMessage,
-      lastMessageAt: now,
-      unreadBy: [listing.ownerId],
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  await addDoc(collection(firestore, "conversations", id, "messages"), {
-    conversationId: id,
-    senderId: buyer.id,
-    senderName: buyer.name,
-    body: cleanMessage,
-    read: false,
-    createdAt: now,
-  });
-
-  await updateDoc(conversationReference, {
-    lastMessage: cleanMessage,
-    lastMessageAt: now,
-    unreadBy: [listing.ownerId],
-    updatedAt: now,
-  });
-
-    await notifyRecipient({
-      recipientId,
-      title: "New Message",
-      message: `${buyer.name} sent a message about ${listing.make} ${listing.model}.`,
-      link: `/messages?conversation=${id}`,
-    });
-
-  return id;
+  await api.post(
+    "/conversations/" + encodeURIComponent(conversationId) + "/messages",
+    { text: cleanMessage },
+  );
+  return conversationId;
 }
 
 export async function sendMessage(
   conversation: Conversation,
-  sender: {
-    id: string;
-    name: string;
-  },
+  sender: { id: string; name: string },
   body: string,
 ): Promise<void> {
   const cleanBody = body.trim();
-
-  if (!cleanBody) {
-    throw new Error("Enter a message.");
-  }
-
+  if (!cleanBody) throw new Error("Enter a message.");
   if (!conversation.participants.includes(sender.id)) {
     throw new Error("You are not part of this conversation.");
   }
 
-  const recipientId =
-    sender.id === conversation.buyerId ? conversation.sellerId : conversation.buyerId;
-  const firestore = db;
-  const now = Timestamp.now();
-
-  if (!firebaseReady || !firestore) {
-    await persistLocalConversationAndMessage(conversation, {
-      id: crypto.randomUUID(),
-      conversationId: conversation.id,
-      senderId: sender.id,
-      senderName: sender.name,
-      body: cleanBody,
-      read: false,
-      createdAt: nowIso(),
-    });
-
-    await notifyRecipient({
-      recipientId,
-      title: "New Message",
-      message: `${sender.name} sent a message about ${conversation.listingTitle}.`,
-      link: `/messages?conversation=${conversation.id}`,
-    });
-    return;
-  }
-
-  await addDoc(collection(firestore, "conversations", conversation.id, "messages"), {
-    conversationId: conversation.id,
-    senderId: sender.id,
-    senderName: sender.name,
-    body: cleanBody,
-    read: false,
-    createdAt: now,
-  });
-
-  await updateDoc(doc(firestore, "conversations", conversation.id), {
-    lastMessage: cleanBody,
-    lastMessageAt: now,
-    unreadBy: [recipientId],
-    updatedAt: now,
-  });
-
-  await notifyRecipient({
-    recipientId,
-    title: "New Message",
-    message: `${sender.name} sent a message about ${conversation.listingTitle}.`,
-    link: `/messages?conversation=${conversation.id}`,
-  });
+  await api.post(
+    "/conversations/" + encodeURIComponent(conversation.id) + "/messages",
+    { text: cleanBody },
+  );
 }
 
 export function subscribeToMessages(
-  conversationIdValue: string,
+  conversationId: string,
   callback: (messages: EasyRideMessage[]) => void,
+  onError?: (message: string) => void,
 ): () => void {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const emit = () => {
-      const messages = readLocalMessages()[conversationIdValue] ?? [];
-      callback(
-        [...messages]
-          .map(normalizeMessage)
-          .sort((left, right) =>
-            String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? "")),
-          ),
-      );
-    };
-
-    emit();
-
-    const listener = () => emit();
-    window.addEventListener("storage", listener);
-    window.addEventListener(MESSAGES_EVENT, listener);
-
-    return () => {
-      window.removeEventListener("storage", listener);
-      window.removeEventListener(MESSAGES_EVENT, listener);
-    };
-  }
-
-  const messagesQuery = query(
-    collection(firestore, "conversations", conversationIdValue, "messages"),
-    orderBy("createdAt", "asc"),
-    limit(150),
-  );
-
-  return onSnapshot(messagesQuery, (snapshot) => {
-    callback(
-      snapshot.docs.map(
-        (messageDocument: QueryDocumentSnapshot<DocumentData>) =>
-          ({
-            id: messageDocument.id,
-            ...messageDocument.data(),
-          } as EasyRideMessage),
-      ),
-    );
-  });
+  return subscribe(() => loadMessages(conversationId), callback, 8_000, onError);
 }
 
 export function subscribeToUserConversations(
   userId: string,
   callback: (conversations: Conversation[]) => void,
+  onError?: (message: string) => void,
 ): () => void {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const emit = () => {
-      callback(
-        sortConversations(
-          readLocalConversations()
-            .map(normalizeConversation)
-            .filter((conversation) => conversation.participants.includes(userId)),
-        ),
-      );
-    };
-
-    emit();
-
-    const listener = () => emit();
-    window.addEventListener("storage", listener);
-    window.addEventListener(CONVERSATIONS_EVENT, listener);
-
-    return () => {
-      window.removeEventListener("storage", listener);
-      window.removeEventListener(CONVERSATIONS_EVENT, listener);
-    };
-  }
-
-  const conversationsQuery = query(
-    collection(firestore, "conversations"),
-    where("participants", "array-contains", userId),
-    orderBy("lastMessageAt", "desc"),
-    limit(50),
-  );
-
-  return onSnapshot(conversationsQuery, (snapshot) => {
-    callback(
-      snapshot.docs.map(
-        (conversationDocument) =>
-          ({
-            id: conversationDocument.id,
-            ...conversationDocument.data(),
-          } as Conversation),
-      ),
-    );
-  });
+  return subscribe(() => loadConversations(userId), callback, 15_000, onError);
 }
 
-export async function getConversationById(conversationIdValue: string): Promise<Conversation | null> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return (
-      readLocalConversations().map(normalizeConversation).find((conversation) => conversation.id === conversationIdValue) ??
-      null
-    );
-  }
-
-  const snapshot = await getDoc(doc(firestore, "conversations", conversationIdValue));
-
-  if (!snapshot.exists()) {
-    return null;
-  }
-
-  return {
-    id: snapshot.id,
-    ...(snapshot.data() as Omit<Conversation, "id">),
-  } as Conversation;
+export async function getConversationById(
+  conversationId: string,
+): Promise<Conversation | null> {
+  const response = await api.get<unknown>("/auth/me");
+  const user = asRecord(asRecord(response.data).user);
+  const userId = recordId(user);
+  if (!userId) return null;
+  return (await loadConversations(userId)).find((conversation) =>
+    conversation.id === conversationId,
+  ) ?? null;
 }
 
 export async function getUserConversations(userId: string): Promise<Conversation[]> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return sortConversations(
-      readLocalConversations()
-        .map(normalizeConversation)
-        .filter((conversation) => conversation.participants.includes(userId)),
-    );
-  }
-
-  const conversationsQuery = query(
-    collection(firestore, "conversations"),
-    where("participants", "array-contains", userId),
-    orderBy("lastMessageAt", "desc"),
-    limit(50),
-  );
-
-  const snapshot = await getDocs(conversationsQuery);
-
-  return snapshot.docs.map(
-    (conversationDocument) =>
-      ({
-        id: conversationDocument.id,
-        ...conversationDocument.data(),
-      } as Conversation),
-  );
+  return loadConversations(userId);
 }
 
-export async function markConversationRead(conversationIdValue: string, userId: string): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    await persistLocalRead(conversationIdValue, userId);
-    return;
-  }
-
-  await updateDoc(doc(firestore, "conversations", conversationIdValue), {
-    unreadBy: arrayRemove(userId),
-    updatedAt: Timestamp.now(),
-  });
+export async function markConversationRead(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  void userId;
+  await loadMessages(conversationId);
 }

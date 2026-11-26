@@ -14,7 +14,6 @@ import PageHeader from "@/Components/admin/PageHeader";
 import Panel, { PanelHeader } from "@/Components/admin/Panel";
 import { cx } from "@/lib/classNames";
 import {
-  createNotification,
   getAdminListings,
   updateListingStatus,
 } from "@/lib/clientFirebaseServices";
@@ -115,14 +114,6 @@ export default function AdminListingsPage() {
     setActionError(null);
     try {
       await updateListingStatus(listing.id, "active");
-      await createNotification({
-        userId: listing.ownerId,
-        type: "listing",
-        title: "Listing approved",
-        message: `${listing.make} ${listing.model} ${listing.year} is now live on Easy Ride.`,
-        actionUrl: `/vehicle/${listing.id}`,
-        link: `/vehicle/${listing.id}`,
-      });
       toast.success("Listing approved.");
       setPendingAction(null);
       setSelectedId(null);
@@ -141,14 +132,6 @@ export default function AdminListingsPage() {
     setActionError(null);
     try {
       await updateListingStatus(listing.id, "rejected", reason);
-      await createNotification({
-        userId: listing.ownerId,
-        type: "listing",
-        title: "Listing rejected",
-        message: `${listing.make} ${listing.model} ${listing.year} was rejected: ${reason}`,
-        actionUrl: "/dashboard",
-        link: "/dashboard",
-      });
       toast.success("Listing rejected.");
       setPendingAction(null);
       setSelectedId(null);

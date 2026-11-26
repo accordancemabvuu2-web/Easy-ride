@@ -27,9 +27,9 @@ function BuyerDashboardContent() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [savedCount, setSavedCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
-  const [bookingCount, setBookingCount] = useState(0);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const unreadMessages = useUnreadMessages();
 
   useEffect(() => {
@@ -38,22 +38,21 @@ function BuyerDashboardContent() {
 
     async function loadDashboard() {
       try {
-        const [listingService, favoriteService, offerService, bookingService] = await Promise.all([
+        const [listingService, favoriteService, offerService] = await Promise.all([
           import("@/services/listingService"),
           import("@/services/favoriteService"),
           import("@/services/offerService"),
-          import("@/services/bookingService"),
         ]);
-        const [activeListings, favorites, offers, bookings] = await Promise.all([
+        const [activeListings, favorites, offers] = await Promise.all([
           listingService.getActiveListings(),
           favoriteService.getUserFavoriteListings(userId),
           offerService.getUserOffers(userId),
-          bookingService.getUserBookings(userId),
         ]);
         setVehicles(activeListings.slice(0, 8));
         setSavedCount(favorites.length);
-        setOfferCount(offers.filter((offer) => ["pending", "countered", "accepted"].includes(offer.status)).length);
-        setBookingCount(bookings.filter((booking) => !["cancelled", "completed", "rejected"].includes(booking.status)).length);
+        setOfferCount(offers.filter((offer) => offer.buyerId === userId && ["pending", "accepted"].includes(offer.status)).length);
+      } catch (requestError) {
+        setLoadError(requestError instanceof Error ? requestError.message : "Your dashboard could not be loaded.");
       } finally {
         setLoading(false);
       }
@@ -89,10 +88,11 @@ function BuyerDashboardContent() {
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cars, makes, models or locations..." className="w-full bg-transparent outline-none" />
         </label>
 
+        {loadError ? <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{loadError}</p> : null}
         <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <BuyerMetric icon={<Heart className="text-red-500" />} label="Saved Vehicles" value={savedCount} href="/favorites" />
           <BuyerMetric icon={<BadgeDollarSign className="text-[#C9A227]" />} label="Active Offers" value={offerCount} href="/offers" />
-          <BuyerMetric icon={<CalendarDays className="text-[#08784D]" />} label="Upcoming Bookings" value={bookingCount} href="/bookings" />
+          <BuyerMetric icon={<CalendarDays className="text-[#08784D]" />} label="Rental listings" value="Browse" href="/marketplace" />
           <BuyerMetric icon={<MessageCircle className="text-blue-500" />} label="Unread Messages" value={unreadMessages} href="/messages" />
         </div>
 

@@ -3,11 +3,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { markNotificationRead } from "@/lib/clientFirebaseServices";
 import { useNotifications } from "@/hooks/useNotifications";
-import { Bell, BadgeDollarSign, CalendarDays, Car, CreditCard, ShieldCheck, Star, MessageCircle, LifeBuoy } from "lucide-react";
+import { Bell, BadgeDollarSign, CalendarDays, Car, CreditCard, ShieldCheck, Star, MessageCircle, LifeBuoy, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import toast from "react-hot-toast";
 
-const iconMap = {
+const iconMap: Record<string, LucideIcon> = {
   message: MessageCircle,
   new_message: MessageCircle,
   offer: BadgeDollarSign,
@@ -26,7 +27,7 @@ const iconMap = {
 
 export default function NotificationBell() {
   const { profile } = useAuth();
-  const notifications = useNotifications();
+  const { notifications, error } = useNotifications();
   const [open, setOpen] = useState(false);
 
   const unreadCount = useMemo(
@@ -35,8 +36,13 @@ export default function NotificationBell() {
   );
 
   const openNotification = async (notificationId: string) => {
-    await markNotificationRead(notificationId);
-    setOpen(false);
+    try {
+      await markNotificationRead(notificationId);
+    } catch {
+      toast.error("Notification could not be marked as read.");
+    } finally {
+      setOpen(false);
+    }
   };
 
   if (!profile) {
@@ -82,7 +88,9 @@ export default function NotificationBell() {
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {error ? (
+              <p role="alert" className="p-5 text-sm text-red-700">{error}</p>
+            ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">No notifications yet.</div>
             ) : (
               notifications.slice(0, 8).map((notification) => {
@@ -117,3 +125,4 @@ export default function NotificationBell() {
     </div>
   );
 }
+

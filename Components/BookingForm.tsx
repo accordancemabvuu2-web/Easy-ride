@@ -1,10 +1,10 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { startConversation } from "@/lib/clientFirebaseServices";
 import type { Vehicle } from "@/Types/vehicle";
 import { CalendarDays, ShieldCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { Suspense, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -37,45 +37,52 @@ function BookingFormBody({
   pickupDate: string;
   returnDate: string;
 }) {
-  const { firebaseUser, profile } = useAuth();
+  const { profile } = useAuth();
   const router = useRouter();
-
   const today = format(new Date(), "yyyy-MM-dd");
-
   const [pickupDate, setPickupDate] = useState(initialPickupDate);
   const [returnDate, setReturnDate] = useState(initialReturnDate);
-  const [message, setMessage] = useState(
-    `Hello, I would like to rent this ${vehicle.make} ${vehicle.model}.`,
-  );
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const totalDays = useMemo(() => {
     if (!pickupDate || !returnDate) return 0;
-    return Math.max(
-      0,
-      differenceInCalendarDays(parseISO(returnDate), parseISO(pickupDate)) + 1,
-    );
+    const days = differenceInCalendarDays(parseISO(returnDate), parseISO(pickupDate)) + 1;
+    return Math.max(0, days);
   }, [pickupDate, returnDate]);
 
-  const subtotal = totalDays * vehicle.price;
-  const serviceFee = subtotal * 0.05;
-  const deposit = 0;
-  const total = subtotal + serviceFee + deposit;
+  const estimate = totalDays * vehicle.price;
 
-  const submitBooking = () => {
-    if (!firebaseUser || !profile) {
-      toast.error("Log in to request a booking.");
+  const submitEnquiry = async () => {
+    if (!profile) {
+      toast.error("Log in to contact the seller.");
       router.push("/login");
       return;
     }
-
-    if (!pickupDate || !returnDate) {
-      toast.error("Select pickup and return dates.");
+    if (!pickupDate || !returnDate || totalDays < 1) {
+      toast.error("Select valid pickup and return dates.");
       return;
     }
 
-    router.push(
-      `/bookings/new?vehicle=${encodeURIComponent(vehicle.id)}&start=${encodeURIComponent(pickupDate)}&end=${encodeURIComponent(returnDate)}`,
-    );
+    const enquiry = [
+      "I am interested in renting this vehicle.",
+      "Requested dates: " + pickupDate + " to " + returnDate + ".",
+      message.trim(),
+    ].filter(Boolean).join("\n");
+
+    try {
+      setSubmitting(true);
+      const conversationId = await startConversation(
+        vehicle,
+        { id: profile.id, name: profile.name },
+        enquiry,
+      );
+      router.push("/messages?conversation=" + encodeURIComponent(conversationId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The rental enquiry could not be sent.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -85,10 +92,8 @@ function BookingFormBody({
           <CalendarDays size={23} />
         </div>
         <div>
-          <h2 className="text-xl font-bold">Request this rental</h2>
-          <p className="text-sm text-gray-500">
-            Select your pickup and return dates.
-          </p>
+          <h2 className="text-xl font-bold">Ask about this rental</h2>
+          <p className="text-sm text-gray-500">Choose the dates you want and send the seller an enquiry.</p>
         </div>
       </div>
 
@@ -103,7 +108,6 @@ function BookingFormBody({
             className="input"
           />
         </label>
-
         <label>
           <span className="mb-2 block text-sm font-semibold">Return date</span>
           <input
@@ -116,57 +120,40 @@ function BookingFormBody({
         </label>
       </div>
 
-      <textarea
-        value={message}
-        onChange={(event) => setMessage(event.target.value)}
-        rows={3}
-        className="input mt-4 resize-none"
-        placeholder="Message for the vehicle owner"
-      />
+      <label className="mt-4 block">
+        <span className="mb-2 block text-sm font-semibold">Message to the seller (optional)</span>
+        <textarea
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          rows={3}
+          maxLength={2000}
+          className="input resize-none"
+          placeholder="Ask about availability, handover, or rental terms."
+        />
+      </label>
 
-      <div className="mt-5 flex items-start gap-2 rounded-2xl bg-green-50 p-4 text-sm text-green-800">
+      <div className="mt-5 flex items-start gap-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
         <ShieldCheck className="mt-0.5 shrink-0" size={18} />
-        <p>No payment is required until the vehicle owner approves your request.</p>
+        <p>This sends an enquiry only. It does not reserve the vehicle or take payment. Confirm availability and terms with the seller.</p>
       </div>
 
       {totalDays > 0 && (
         <div className="mt-5 rounded-2xl bg-[#F8F9FA] p-4 text-sm">
           <div className="flex justify-between gap-4">
-            <span>
-              {vehicle.currency} {vehicle.price.toLocaleString()} x {totalDays} days
-            </span>
-            <span>
-              {vehicle.currency} {subtotal.toFixed(2)}
-            </span>
+            <span>{vehicle.currency} {vehicle.price.toLocaleString()} x {totalDays} days</span>
+            <span>{vehicle.currency} {estimate.toFixed(2)} estimated</span>
           </div>
-          <div className="mt-2 flex justify-between text-gray-500">
-            <span>Service fee</span>
-            <span>
-              {vehicle.currency} {serviceFee.toFixed(2)}
-            </span>
-          </div>
-          <div className="mt-2 flex justify-between text-gray-500">
-            <span>Deposit</span>
-            <span>
-              {vehicle.currency} {deposit.toFixed(2)}
-            </span>
-          </div>
-          <div className="mt-4 flex justify-between border-t border-[#E5E7EB] pt-4 text-base font-bold">
-            <span>Total</span>
-            <span>
-              {vehicle.currency} {total.toFixed(2)}
-            </span>
-          </div>
+          <p className="mt-2 text-gray-500">Final rental terms are agreed with the seller.</p>
         </div>
       )}
 
       <button
         type="button"
-        onClick={submitBooking}
-        disabled={!!profile && totalDays < 1}
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={() => void submitEnquiry()}
+        disabled={submitting || (!!profile && totalDays < 1)}
+        className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Request Booking
+        {submitting ? "Sending enquiry..." : "Ask seller about availability"}
       </button>
     </section>
   );

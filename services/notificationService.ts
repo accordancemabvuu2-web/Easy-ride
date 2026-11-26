@@ -1,244 +1,130 @@
 "use client";
 
-import { auth, db, firebaseReady } from "@/lib/firebase";
-import type { EasyRideNotification, NotificationType } from "@/Types/notification";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-  onSnapshot,
-} from "firebase/firestore";
+import { ApiError, api } from "@/lib/apiClient";
+import type { EasyRideNotification } from "@/Types/notification";
 
-const STORAGE_KEY = "easy-ride:notifications";
-const UPDATE_EVENT = "easy-ride-notifications-updated";
+type UnknownRecord = Record<string, unknown>;
 
 type CreateNotificationObjectInput = {
   userId: string;
   title: string;
   message: string;
-  type: NotificationType;
+  type: string;
   actionUrl?: string;
   link?: string;
   icon?: string;
 };
 
-function readLocalNotifications(): EasyRideNotification[] {
-  if (typeof window === "undefined") return [];
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
+}
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
+}
 
-  try {
-    return JSON.parse(raw) as EasyRideNotification[];
-  } catch {
-    return [];
+function invalidResponse(): never {
+  throw new ApiError("The notifications API returned an invalid response.", "INVALID_RESPONSE", 502);
+}
+
+function notificationUrl(resourceType: unknown): string {
+  if (resourceType === "conversation") return "/messages";
+  return "/notifications";
+}
+
+function mapNotification(value: unknown, userId: string): EasyRideNotification {
+  const record = asRecord(value);
+  const id = recordId(record);
+  if (!id || typeof record.type !== "string" || typeof record.title !== "string" || typeof record.message !== "string") {
+    return invalidResponse();
   }
-}
-
-function writeLocalNotifications(notifications: EasyRideNotification[]): EasyRideNotification[] {
-  if (typeof window === "undefined") return notifications;
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-  window.dispatchEvent(new Event(UPDATE_EVENT));
-
-  return notifications;
-}
-
-function sortNotifications(notifications: EasyRideNotification[]) {
-  return [...notifications].sort((left, right) =>
-    String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")),
-  );
-}
-
-function normalizeNotification(notification: EasyRideNotification): EasyRideNotification {
+  const actionUrl = notificationUrl(record.resourceType);
   return {
-    ...notification,
-    actionUrl: notification.actionUrl ?? notification.link,
-    link: notification.link ?? notification.actionUrl,
-    icon: notification.icon ?? "",
-    read: Boolean(notification.read),
+    id,
+    userId,
+    type: record.type,
+    title: record.title,
+    message: record.message,
+    read: Boolean(record.readAt),
+    actionUrl,
+    link: actionUrl,
+    createdAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
   };
 }
 
-function mapNotificationInput(input: CreateNotificationObjectInput): EasyRideNotification {
-  return normalizeNotification({
-    id: crypto.randomUUID(),
-    userId: input.userId,
-    title: input.title,
-    message: input.message,
-    type: input.type,
-    actionUrl: input.actionUrl ?? input.link,
-    link: input.link ?? input.actionUrl,
-    icon: input.icon ?? "",
-    read: false,
-    createdAt: new Date().toISOString(),
-  });
-}
-
+/** Notification creation is a backend side effect; browser code may not forge notification records. */
 export async function createNotification(
-  input: CreateNotificationObjectInput,
-): Promise<void>;
-export async function createNotification(
-  userId: string,
-  title: string,
-  message: string,
-  type: NotificationType,
-  actionUrl?: string,
-  icon?: string,
-): Promise<void>;
-export async function createNotification(
-  arg1: CreateNotificationObjectInput | string,
-  title?: string,
-  message?: string,
-  type?: NotificationType,
-  actionUrl?: string,
-  icon?: string,
+  _input: CreateNotificationObjectInput | string,
+  _title?: string,
+  _message?: string,
+  _type?: string,
+  _actionUrl?: string,
+  _icon?: string,
 ): Promise<void> {
-  const firestore = db;
-  const input =
-    typeof arg1 === "string"
-      ? {
-          userId: arg1,
-          title: title ?? "",
-          message: message ?? "",
-          type: type ?? "announcement",
-          actionUrl,
-          link: actionUrl,
-          icon,
-        }
-      : arg1;
-
-  const payload = mapNotificationInput(input);
-
-  if (!firebaseReady || !firestore) {
-    const notifications = readLocalNotifications();
-    writeLocalNotifications([payload, ...notifications]);
-    return;
-  }
-
-  await addDoc(collection(firestore, "notifications"), {
-    ...payload,
-    createdBy: auth?.currentUser?.uid,
-    createdAt: Timestamp.now(),
-  });
+  throw new ApiError(
+    "Notifications can only be created by backend operations.",
+    "FEATURE_UNAVAILABLE",
+    501,
+  );
 }
 
 export async function getUserNotifications(userId: string): Promise<EasyRideNotification[]> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return sortNotifications(
-      readLocalNotifications()
-        .filter((notification) => notification.userId === userId)
-        .map(normalizeNotification),
-    );
-  }
-
-  const snapshot = await getDocs(
-    query(
-      collection(firestore, "notifications"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
-      limit(100),
-    ),
-  );
-
-  return snapshot.docs.map(
-    (notificationDocument) =>
-      normalizeNotification({
-        id: notificationDocument.id,
-        ...(notificationDocument.data() as Omit<EasyRideNotification, "id">),
-      }),
-  );
+  const response = await api.get<unknown>("/notifications?page=1&pageSize=100");
+  if (!Array.isArray(response.data)) return invalidResponse();
+  return response.data.map((record) => mapNotification(record, userId));
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const notifications = readLocalNotifications();
-    writeLocalNotifications(
-      notifications.map((notification) =>
-        notification.id === notificationId ? { ...notification, read: true } : notification,
-      ),
-    );
-    return;
-  }
-
-  await updateDoc(doc(firestore, "notifications", notificationId), {
-    read: true,
-  });
+  await api.patch("/notifications/" + encodeURIComponent(notificationId) + "/read", {});
 }
 
 export async function markAllNotificationsRead(
   notificationsOrUserId: EasyRideNotification[] | string,
 ): Promise<void> {
-  const notifications =
-    typeof notificationsOrUserId === "string"
-      ? await getUserNotifications(notificationsOrUserId)
-      : notificationsOrUserId;
-
-  await Promise.all(
-    notifications
-      .filter((notification) => !notification.read)
-      .map((notification) => markNotificationRead(notification.id)),
-  );
+  const notifications = typeof notificationsOrUserId === "string"
+    ? await getUserNotifications(notificationsOrUserId)
+    : notificationsOrUserId;
+  const unread = notifications.filter((notification) => !notification.read);
+  for (let index = 0; index < unread.length; index += 5) {
+    await Promise.all(
+      unread.slice(index, index + 5).map((notification) => markNotificationRead(notification.id)),
+    );
+  }
 }
 
+/** The backend currently stores notifications but does not expose a push or streaming transport. */
 export function subscribeNotifications(
   userId: string,
   callback: (notifications: EasyRideNotification[]) => void,
+  onError?: (message: string) => void,
 ): () => void {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const emit = () => {
-      callback(
-        sortNotifications(
-          readLocalNotifications()
-            .filter((notification) => notification.userId === userId)
-            .map(normalizeNotification),
-        ),
-      );
-    };
-
-    emit();
-
-    const listener = () => emit();
-    window.addEventListener("storage", listener);
-    window.addEventListener(UPDATE_EVENT, listener);
-
-    return () => {
-      window.removeEventListener("storage", listener);
-      window.removeEventListener(UPDATE_EVENT, listener);
-    };
-  }
-
-  const notificationsQuery = query(
-    collection(firestore, "notifications"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-    limit(100),
-  );
-
-  return onSnapshot(notificationsQuery, (snapshot) => {
-    callback(
-      snapshot.docs.map(
-        (notificationDocument) =>
-          normalizeNotification({
-            id: notificationDocument.id,
-            ...(notificationDocument.data() as Omit<EasyRideNotification, "id">),
-          }),
-      ),
-    );
-  });
+  let active = true;
+  const poll = async () => {
+    try {
+      const notifications = await getUserNotifications(userId);
+      if (active) {
+        callback(notifications);
+        onError?.("");
+      }
+    } catch (error) {
+      if (active) {
+        onError?.(error instanceof Error ? error.message : "Notifications could not be loaded.");
+      }
+    }
+  };
+  void poll();
+  const timer = window.setInterval(() => void poll(), 45_000);
+  return () => {
+    active = false;
+    window.clearInterval(timer);
+  };
 }
 
 export const subscribeToNotifications = subscribeNotifications;
+
+

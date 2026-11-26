@@ -549,18 +549,18 @@ const ACTION_FILTERS = [
 ] as const;
 
 function actionIcon(action: string) {
-  if (action === "listing_approved" || action === "listing_restored") return Check;
-  if (action === "listing_rejected" || action === "verification_rejected") return X;
-  if (action === "verification_approved") return ShieldCheck;
-  if (action === "report_resolved") return Flag;
-  if (action === "support_ticket_updated") return Headphones;
-  if (action === "user_suspended") return Ban;
+  if (action === "listing_approved" || action === "listing_restored" || action === "listing.approved" || action === "listing.restored") return Check;
+  if (action === "listing_rejected" || action === "verification_rejected" || action === "listing.rejected" || action === "verification.rejected") return X;
+  if (action === "verification_approved" || action === "verification.approved") return ShieldCheck;
+  if (action === "report_resolved" || action === "report.resolved") return Flag;
+  if (action === "support_ticket_updated" || action.startsWith("support.")) return Headphones;
+  if (action === "user_suspended" || action === "user.suspended") return Ban;
   return History;
 }
 
 function matchesActionFilter(action: string, filter: string): boolean {
   if (filter === "all") return true;
-  if (filter === "user") return action === "user_suspended";
+  if (filter === "user") return action === "user_suspended" || action.startsWith("user.");
   return action.startsWith(filter);
 }
 
@@ -581,7 +581,7 @@ function OversightView() {
         const [admins, superAdmins, auditLogs] = await Promise.all([
           getAdminUsers({ accountType: "admin", role: "admin", pageSize: 24 }),
           getAdminUsers({ accountType: "super_admin", role: "admin", pageSize: 24 }),
-          getAuditLogs(),
+          getAuditLogs(1, 12),
         ]);
 
         if (!active) return;
@@ -599,7 +599,7 @@ function OversightView() {
           total: admins.meta.total + superAdmins.meta.total,
           superAdmins: superAdmins.meta.total,
         });
-        setLogs(auditLogs.slice(0, 12));
+        setLogs(auditLogs.logs.slice(0, 12));
       } catch (requestFailure) {
         if (!active) return;
         setError(
@@ -835,3 +835,5 @@ function OversightView() {
     </>
   );
 }
+
+

@@ -9,7 +9,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 
 export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
-  const { firebaseUser, profile } = useAuth();
+  const { profile } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [offeredPrice, setOfferedPrice] = useState(vehicle.price);
@@ -19,7 +19,7 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
-    if (!firebaseUser || !profile) {
+    if (!profile) {
       toast.error("Log in to make an offer.");
       router.push("/login");
       return;
@@ -30,7 +30,7 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
       const offerId = await createVehicleOffer({
         vehicle,
         buyer: {
-          id: firebaseUser.uid,
+          id: profile.id,
           name: profile.name,
           email: profile.email,
           phone: profile.phone ?? "",
@@ -54,7 +54,7 @@ export default function OfferForm({ vehicle }: { vehicle: Vehicle }) {
       <button
         type="button"
         onClick={() => {
-          if (!firebaseUser || !profile) {
+          if (!profile) {
             toast.error("Log in to make an offer.");
             router.push("/login");
             return;

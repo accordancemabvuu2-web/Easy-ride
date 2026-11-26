@@ -1,33 +1,56 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
-import { createNotification } from "@/services/notificationService";
-import type { SupportStatus, SupportTicket } from "@/Types/support";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  updateDoc,
-} from "firebase/firestore";
+import { ApiError, api } from "@/lib/apiClient";
+import type { SupportCategory, SupportStatus, SupportTicket } from "@/Types/support";
 
-const STORAGE_KEY = "easy-ride:support-tickets";
+type UnknownRecord = Record<string, unknown>;
 
-function readLocalTickets(): SupportTicket[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as SupportTicket[];
-  } catch {
-    return [];
-  }
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-function writeLocalTickets(tickets: SupportTicket[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
+}
+
+function mapStatus(value: unknown): SupportStatus {
+  if (["open", "in_progress", "waiting_for_user", "resolved", "closed"].includes(String(value))) {
+    return value as SupportStatus;
+  }
+  throw new ApiError("The support API returned an invalid ticket status.", "INVALID_RESPONSE", 502);
+}
+
+function mapCategory(value: unknown): SupportCategory {
+  if (["account", "listing", "booking", "payment", "safety", "other"].includes(String(value))) {
+    return value as SupportCategory;
+  }
+  return "other";
+}
+
+function mapTicket(value: unknown, userId: string): SupportTicket {
+  const record = asRecord(value);
+  const id = recordId(record);
+  if (!id || typeof record.subject !== "string") {
+    throw new ApiError("The support API returned an invalid ticket.", "INVALID_RESPONSE", 502);
+  }
+  return {
+    id,
+    userId,
+    userName: "You",
+    userEmail: "",
+    subject: record.subject,
+    category: mapCategory(record.category),
+    description: "",
+    status: mapStatus(record.status),
+    priority: "medium",
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
 }
 
 export async function createSupportTicket(input: {
@@ -35,103 +58,56 @@ export async function createSupportTicket(input: {
   userName: string;
   userEmail: string;
   subject: string;
-  category: SupportTicket["category"];
+  category: SupportCategory;
   description: string;
   priority?: SupportTicket["priority"];
 }): Promise<SupportTicket> {
-  const payload: SupportTicket = {
-    id: crypto.randomUUID(),
-    ...input,
-    status: "open",
-    priority: input.priority ?? "medium",
+  const category = input.category === "listing" || input.category === "payment" || input.category === "account" || input.category === "safety"
+    ? input.category
+    : "other";
+  const response = await api.post<unknown>("/support", {
+    subject: input.subject.trim(),
+    category,
+    message: input.description.trim(),
+  });
+  const record = asRecord(response.data);
+  const id = recordId(record);
+  if (!id) {
+    throw new ApiError("The support API did not return a ticket ID.", "INVALID_RESPONSE", 502);
+  }
+
+  return {
+    id,
+    userId: input.userId,
+    userName: input.userName,
+    userEmail: "",
+    subject: input.subject.trim(),
+    category,
+    description: input.description.trim(),
+    status: mapStatus(record.status),
+    priority: "medium",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    writeLocalTickets([payload, ...readLocalTickets()]);
-    return payload;
-  }
-
-  await addDoc(collection(firestore, "supportTickets"), {
-    ...payload,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
-  return payload;
 }
 
-export async function getSupportTickets(userId?: string): Promise<SupportTicket[]> {
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    return userId
-      ? readLocalTickets().filter((ticket) => ticket.userId === userId)
-      : readLocalTickets();
+export async function getSupportTickets(userId = ""): Promise<SupportTicket[]> {
+  const response = await api.get<unknown>("/support?page=1&pageSize=100");
+  if (!Array.isArray(response.data)) {
+    throw new ApiError("The support API returned an invalid ticket list.", "INVALID_RESPONSE", 502);
   }
-
-  const snapshots = await getDocs(collection(firestore, "supportTickets"));
-  return snapshots.docs
-    .map((ticketDocument) => ({
-      id: ticketDocument.id,
-      ...(ticketDocument.data() as Omit<SupportTicket, "id">),
-    }))
-    .filter((ticket) => (userId ? ticket.userId === userId : true));
+  return response.data.map((record) => mapTicket(record, userId));
 }
 
 export async function updateSupportTicket(
-  ticketId: string,
-  status: SupportStatus,
-  adminResponse?: string,
-  assignedTo?: string,
+  _ticketId: string,
+  _status: SupportStatus,
+  _adminResponse?: string,
+  _assignedTo?: string,
 ): Promise<void> {
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    const nextTickets = readLocalTickets().map((ticket) =>
-        ticket.id === ticketId
-          ? {
-              ...ticket,
-              status,
-              adminResponse: adminResponse ?? ticket.adminResponse,
-              assignedTo: assignedTo ?? ticket.assignedTo,
-              updatedAt: new Date().toISOString(),
-            }
-          : ticket,
-      );
-
-    writeLocalTickets(nextTickets);
-
-    const updatedTicket = nextTickets.find((ticket) => ticket.id === ticketId);
-    if (updatedTicket) {
-      await createNotification({
-        userId: updatedTicket.userId,
-        type: "support",
-        title: "Support ticket updated",
-        message: `Your ticket "${updatedTicket.subject}" is now ${status}.`,
-        actionUrl: "/support",
-        link: "/support",
-      });
-    }
-
-    return;
-  }
-
-  await updateDoc(doc(firestore, "supportTickets", ticketId), {
-    status,
-    adminResponse: adminResponse ?? null,
-    assignedTo: assignedTo ?? null,
-    updatedAt: Timestamp.now(),
-  });
-
-  const updatedTicket = (await getSupportTickets()).find((ticket) => ticket.id === ticketId);
-  if (updatedTicket) {
-    await createNotification({
-      userId: updatedTicket.userId,
-      type: "support",
-      title: "Support ticket updated",
-      message: `Your ticket "${updatedTicket.subject}" is now ${status}.`,
-      actionUrl: "/support",
-      link: "/support",
-    });
-  }
+  throw new ApiError(
+    "Use the authenticated support conversation and administrator status APIs to update a ticket.",
+    "FEATURE_UNAVAILABLE",
+    501,
+  );
 }

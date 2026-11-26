@@ -4,12 +4,12 @@ import DealerSidebar from "@/Components/DealerSidebar";
 import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
-import VerificationBadge from "@/Components/VerificationBadge";
 import { useAuth } from "@/contexts/AuthContext";
-import { createDealerProfile, getDealerByOwner } from "@/lib/clientFirebaseServices";
-import { submitVerificationRequest } from "@/lib/clientFirebaseServices";
+import {
+  getMyDealerProfile,
+  submitDealerApplication,
+} from "@/services/dealerApiService";
 import type { Dealer } from "@/Types/dealer";
-import { filesToDataUrls } from "@/utils/files";
 import { Loader2, Store } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -29,72 +29,84 @@ export default function DealerProfilePage() {
 }
 
 function DealerProfileContent() {
-  const { profile, isPendingDealer } = useAuth();
+  const { profile, isPendingDealer, refreshUser } = useAuth();
   const [dealer, setDealer] = useState<Dealer | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function loadDealer() {
-      if (!profile) return;
-      try {
-        setLoading(true);
-        setDealer(await getDealerByOwner(profile.id));
-      } finally {
-        setLoading(false);
-      }
+    let active = true;
+    if (!profile) {
+      setLoading(false);
+      return;
     }
 
-    void loadDealer();
+    getMyDealerProfile()
+      .then((result) => {
+        if (active) setDealer(result);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(error instanceof Error
+            ? error.message
+            : "The dealer profile could not be loaded.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [profile]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!profile) return;
 
-    const form = event.currentTarget;
-    const businessDoc = (form.elements.namedItem("businessDoc") as HTMLInputElement | null)?.files;
-
-    const formData = new FormData(form);
+    const formData = new FormData(event.currentTarget);
+    const businessName = String(formData.get("businessName") ?? "").trim();
+    if (businessName.length < 2) {
+      toast.error("Enter a business name.");
+      return;
+    }
 
     try {
       setSubmitting(true);
-      const [businessDocumentUrl] = await filesToDataUrls(businessDoc ?? null);
-
-      const payload = await createDealerProfile(profile, {
-        businessName: String(formData.get("businessName") ?? ""),
-        description: String(formData.get("description") ?? ""),
-        registrationNumber: String(formData.get("registrationNumber") ?? ""),
-        email: String(formData.get("email") ?? profile.email),
-        phone: String(formData.get("phone") ?? profile.phone ?? ""),
-        whatsapp: String(formData.get("whatsapp") ?? profile.phone ?? ""),
-        website: String(formData.get("website") ?? ""),
-        logoUrl: String(formData.get("logoUrl") ?? ""),
-        coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
-        address: String(formData.get("address") ?? ""),
-        city: String(formData.get("city") ?? ""),
-        country: String(formData.get("country") ?? ""),
-        latitude: Number(formData.get("latitude") ?? 0),
-        longitude: Number(formData.get("longitude") ?? 0),
+      const application = await submitDealerApplication(
+        {
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          phone: profile.phone,
+        },
+        {
+          businessName,
+          businessRegistrationNumber: String(formData.get("registrationNumber") ?? ""),
+          contactEmail: String(formData.get("email") ?? ""),
+          contactPhone: String(formData.get("phone") ?? ""),
+          address: String(formData.get("address") ?? ""),
+          description: String(formData.get("description") ?? ""),
+        },
+      );
+      setDealer(application);
+      toast.success("Dealer application submitted for review.");
+      void refreshUser().catch(() => {
+        // The submitted application remains visible here; a later session refresh will update account metadata.
       });
-
-      await submitVerificationRequest({
-        userId: profile.id,
-        userName: profile.name,
-        userEmail: profile.email,
-        type: "dealer",
-        notes: `Dealer request for ${payload.businessName}`,
-        businessDocumentUrl,
-      });
-
-      toast.success("Dealer profile submitted for review.");
-      setDealer(payload);
-    } catch {
-      toast.error("Dealer profile could not be submitted.");
+    } catch (error) {
+      toast.error(error instanceof Error
+        ? error.message
+        : "Dealer profile could not be submitted.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const hasApplication = Boolean(dealer) || isPendingDealer;
+  const statusLabel = dealer?.status ?? (isPendingDealer ? "pending" : "not submitted");
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
@@ -102,66 +114,106 @@ function DealerProfileContent() {
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 lg:grid-cols-[280px_1fr] lg:px-6">
         <DealerSidebar />
 
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Store className="text-[#0B5D3B]" />
+            <Store className="text-[#0B5D3B]" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
                 Dealer profile
               </p>
-              <h1 className="text-4xl font-bold">Become a dealer</h1>
+              <h1 className="text-4xl font-bold">Dealership application</h1>
             </div>
           </div>
 
-          <p className="mt-3 max-w-3xl text-gray-500">
-            Submit your business details and documents. Your profile will stay pending until admin review.
+          <p className="mt-3 max-w-3xl text-gray-600">
+            Submit your business information for administrator review. Approved dealer privileges remain unavailable until the backend records approval.
           </p>
 
           {loading ? (
-            <div className="flex min-h-64 items-center justify-center">
-              <Loader2 className="animate-spin text-[#0B5D3B]" size={28} />
+            <div className="flex min-h-64 items-center justify-center" aria-live="polite">
+              <Loader2 className="animate-spin text-[#0B5D3B]" size={28} aria-hidden="true" />
+              <span className="sr-only">Loading dealer profile</span>
             </div>
-          ) : (
-            <>
-              <div className="mt-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-2xl font-bold">Current status</h2>
-                  <VerificationBadge verified={dealer?.verified ?? false} />
-                </div>
-                <p className="mt-3 text-sm text-gray-500">
-                  {dealer ? dealer.status : "No dealer profile submitted yet."}
-                </p>
+          ) : loadError ? (
+            <div role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+              {loadError}
+            </div>
+          ) : hasApplication ? (
+            <section className="mt-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm" aria-labelledby="dealer-status-heading">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="dealer-status-heading" className="text-2xl font-bold">
+                  {dealer?.businessName ?? "Your dealership application"}
+                </h2>
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold capitalize text-amber-900">
+                  {statusLabel.replaceAll("_", " ")}
+                </span>
               </div>
-
-              {isPendingDealer ? (
-                <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-                  Your dealership application is already pending backend verification. You do not need to submit another application.
-                </div>
-              ) : <form onSubmit={submit} className="mt-6 grid gap-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:grid-cols-2">
-                <input name="businessName" className="input" placeholder="Business name" defaultValue={dealer?.businessName} />
-                <input name="registrationNumber" className="input" placeholder="Registration number" defaultValue={dealer?.registrationNumber} />
-                <input name="email" className="input" placeholder="Business email" defaultValue={dealer?.email ?? profile?.email} />
-                <input name="phone" className="input" placeholder="Business phone" defaultValue={dealer?.phone ?? profile?.phone} />
-                <input name="whatsapp" className="input" placeholder="WhatsApp number" defaultValue={dealer?.whatsapp ?? profile?.phone} />
-                <input name="website" className="input" placeholder="Website" defaultValue={dealer?.website} />
-                <input name="logoUrl" className="input" placeholder="Logo URL" defaultValue={dealer?.logoUrl} />
-                <input name="coverImageUrl" className="input" placeholder="Cover image URL" defaultValue={dealer?.coverImageUrl} />
-                <input name="address" className="input lg:col-span-2" placeholder="Business address" defaultValue={dealer?.address} />
-                <input name="city" className="input" placeholder="City" defaultValue={dealer?.city} />
-                <input name="country" className="input" placeholder="Country" defaultValue={dealer?.country} />
-                <input name="latitude" className="input" placeholder="Latitude" defaultValue={dealer?.latitude ?? 0} />
-                <input name="longitude" className="input" placeholder="Longitude" defaultValue={dealer?.longitude ?? 0} />
-                <textarea name="description" className="input min-h-[140px] lg:col-span-2" placeholder="Business description" defaultValue={dealer?.description} />
-                <label className="rounded-2xl border border-dashed border-[#D1D5DB] bg-[#F8F9FA] p-4 text-sm lg:col-span-2">
-                  <span className="font-semibold">Business registration document</span>
-                  <input name="businessDoc" type="file" className="mt-3 block w-full text-sm" />
-                </label>
-                <button disabled={submitting} className="flex items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:opacity-60 lg:col-span-2">
-                  {submitting && <Loader2 className="animate-spin" size={18} />}
-                  Submit Dealer Profile
-                </button>
-              </form>}
-            </>
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                {dealer?.status === "verified"
+                  ? "Your dealership is approved. Dealer inventory and team permissions are enforced by the backend."
+                  : dealer?.status === "rejected"
+                    ? "The application was rejected. Contact support if you need clarification."
+                    : "Your application is pending review. You do not need to submit another application."}
+              </p>
+              {dealer ? (
+                <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Business registration</dt>
+                    <dd className="mt-1 break-words">{dealer.registrationNumber || "Not supplied"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Business contact</dt>
+                    <dd className="mt-1 break-all">{dealer.email || "Not supplied"}</dd>
+                    <dd className="mt-1">{dealer.phone || "Not supplied"}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">Description</dt>
+                    <dd className="mt-1 whitespace-pre-wrap">{dealer.description || "No description supplied."}</dd>
+                  </div>
+                </dl>
+              ) : null}
+            </section>
+          ) : (
+            <form
+              onSubmit={submit}
+              className="mt-6 grid gap-5 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:grid-cols-2"
+            >
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold">Business name <span aria-hidden="true">*</span></span>
+                <input name="businessName" required minLength={2} maxLength={160} className="input w-full" autoComplete="organization" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold">Registration number</span>
+                <input name="registrationNumber" maxLength={100} className="input w-full" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold">Business email</span>
+                <input name="email" type="email" maxLength={254} className="input w-full" autoComplete="email" />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold">Business phone</span>
+                <input name="phone" type="tel" maxLength={32} className="input w-full" autoComplete="tel" />
+              </label>
+              <label className="block lg:col-span-2">
+                <span className="mb-2 block text-sm font-semibold">Business address</span>
+                <input name="address" maxLength={500} className="input w-full" autoComplete="street-address" />
+              </label>
+              <label className="block lg:col-span-2">
+                <span className="mb-2 block text-sm font-semibold">Business description</span>
+                <textarea name="description" maxLength={6000} rows={5} className="input w-full resize-y" />
+              </label>
+              <p className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900 lg:col-span-2">
+                Business document uploads are not available in this application yet. Submit your details for review; no document will be uploaded or stored by this form.
+              </p>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#0B5D3B] px-6 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
+              >
+                {submitting ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : null}
+                {submitting ? "Submitting…" : "Submit dealer application"}
+              </button>
+            </form>
           )}
         </div>
       </section>

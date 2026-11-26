@@ -4,10 +4,11 @@ export type SupportCategory =
   | "payment"
   | "verification"
   | "fraud"
+  | "safety"
   | "technical"
   | "other";
 
-export type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
+export type SupportStatus = "open" | "in_progress" | "waiting_for_user" | "resolved" | "closed";
 
 export interface SupportTicket {
   id: string;

@@ -34,18 +34,22 @@ function DealerDashboardContent() {
   const [listings, setListings] = useState<Vehicle[]>([]);
   const [analytics, setAnalytics] = useState<SellerAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     async function load() {
       if (!profile) return;
       try {
         setLoading(true);
+        setLoadError("");
         const [inventory, sellerAnalytics] = await Promise.all([
           getMyListings(profile.id),
           getSellerAnalytics(profile.id),
         ]);
         setListings(inventory);
         setAnalytics(sellerAnalytics);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "The dealer dashboard could not be loaded.");
       } finally {
         setLoading(false);
       }
@@ -67,6 +71,24 @@ function DealerDashboardContent() {
     );
   }
 
+  if (loadError) {
+    return (
+      <DashboardShell role="dealer">
+        <section role="alert" className="m-4 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+          <h1 className="text-xl font-bold">Dealer dashboard unavailable</h1>
+          <p className="mt-2 text-sm">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-full border border-red-300 px-4 py-2 text-sm font-semibold"
+          >
+            Retry
+          </button>
+        </section>
+      </DashboardShell>
+    );
+  }
+
   const dealershipName = profile?.dealership?.businessName || profile?.name || "Dealership";
 
   return (
@@ -76,7 +98,7 @@ function DealerDashboardContent() {
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-[#E7B319]/20 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-[#063F2C]">
-                Verified Dealership
+                Dealer workspace
               </span>
             </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-[#17201D] sm:text-4xl">
@@ -100,12 +122,11 @@ function DealerDashboardContent() {
           <AnalyticsMetric label="Active Vehicles" value={active} />
           <AnalyticsMetric label="Pending Review" value={pending} />
           <AnalyticsMetric label="Total Views" value={analytics?.views ?? 0} />
-          <AnalyticsMetric label="Customer Leads" value={analytics?.leadCount ?? 0} />
-          <AnalyticsMetric label="WhatsApp Inquiries" value={analytics?.contacts ?? 0} />
+          <AnalyticsMetric label="Message Enquiries" value={analytics?.leadCount ?? 0} />
           <AnalyticsMetric label="Saved Favorites" value={analytics?.favorites ?? 0} />
           <AnalyticsMetric
-            label="Conversion Rate"
-            value={`${Number(analytics?.conversionRate ?? 0).toFixed(1)}%`}
+            label="View to enquiry rate"
+            value={Number(analytics?.conversionRate ?? 0).toFixed(1) + "%"}
           />
         </div>
 

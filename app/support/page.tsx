@@ -43,17 +43,11 @@ const contactDetails = [
 const socialLinks = ["f", "X", "◎", "▶"];
 
 interface FormValues {
-  name: string;
-  email: string;
-  phone: string;
   subject: string;
   message: string;
 }
 
 const initialForm: FormValues = {
-  name: "",
-  email: "",
-  phone: "",
   subject: "",
   message: "",
 };
@@ -77,16 +71,18 @@ export default function SupportPage() {
     setError("");
 
     try {
-      if (profile) {
-        await createSupportTicket({
+      if (!profile) {
+        setError("Sign in before opening a private support ticket. You can also contact us using the phone or email shown on this page.");
+        return;
+      }
+      await createSupportTicket({
           userId: profile.id,
-          userName: form.name.trim() || profile.name,
-          userEmail: form.email.trim() || profile.email,
+          userName: profile.name,
+          userEmail: profile.email,
           subject: form.subject.trim(),
           category: subjectToCategory(form.subject),
-          description: `${form.message.trim()}${form.phone.trim() ? `\n\nPhone: ${form.phone.trim()}` : ""}`,
+          description: form.message.trim(),
         });
-      }
 
       setSubmitted(true);
       setForm(initialForm);
@@ -173,12 +169,10 @@ export default function SupportPage() {
             </div>
           ) : (
             <form className="mt-6 space-y-4" onSubmit={submitMessage}>
-              <Field label="Full Name" required><input required className="contact-input" placeholder="Your name" value={form.name} onChange={(event) => updateField("name", event.target.value)} /></Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Email Address" required><input required type="email" className="contact-input" placeholder="you@example.com" value={form.email} onChange={(event) => updateField("email", event.target.value)} /></Field>
-                <Field label="Phone Number"><input type="tel" className="contact-input" placeholder="+263 77 XXX XXXX" value={form.phone} onChange={(event) => updateField("phone", event.target.value)} /></Field>
               </div>
               <Field label="Subject" required><select required className="contact-input" value={form.subject} onChange={(event) => updateField("subject", event.target.value)}><option value="">Select a subject</option><option>General enquiry</option><option>Buying a vehicle</option><option>Selling or renting a vehicle</option><option>Technical support</option><option>Report a concern</option></select></Field>
+              {!profile ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Sign in to create a private support ticket. Anonymous contact is available using the phone or email listed on this page.</p> : null}
               <Field label="Message" required><textarea required maxLength={500} className="contact-input min-h-32 resize-y" placeholder="Type your message here..." value={form.message} onChange={(event) => updateField("message", event.target.value)} /></Field>
               {error && <p className="text-sm font-medium text-red-600" role="alert">{error}</p>}
               <button type="submit" disabled={sending} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#08A866] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#078653] disabled:cursor-wait disabled:opacity-60"><Send size={15} />{sending ? "Sending..." : "Send Message"}</button>
@@ -223,7 +217,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 
 function subjectToCategory(subject: string): SupportCategory {
   if (subject.toLowerCase().includes("vehicle")) return "listing";
-  if (subject.toLowerCase().includes("technical")) return "technical";
-  if (subject.toLowerCase().includes("concern")) return "fraud";
+  if (subject.toLowerCase().includes("concern")) return "safety";
+  if (subject.toLowerCase().includes("technical")) return "other";
   return "other";
 }

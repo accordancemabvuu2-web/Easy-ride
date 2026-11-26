@@ -1,148 +1,99 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
-import { createNotification } from "@/services/notificationService";
+import { ApiError, api } from "@/lib/apiClient";
 import type {
   VerificationRequest,
   VerificationStatus,
   VerificationType,
 } from "@/Types/verification";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  updateDoc,
-} from "firebase/firestore";
 
-const STORAGE_KEY = "easy-ride:verification-requests";
+type UnknownRecord = Record<string, unknown>;
 
-function readLocalRequests(): VerificationRequest[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as VerificationRequest[];
-  } catch {
-    return [];
-  }
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-function writeLocalRequests(requests: VerificationRequest[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
+}
+
+function invalidResponse(): never {
+  throw new ApiError("The verification API returned an invalid response.", "INVALID_RESPONSE", 502);
+}
+
+function mapRequest(value: unknown): VerificationRequest {
+  const record = asRecord(value);
+  const id = recordId(record);
+  const userId = recordId(record.userId);
+  const type = record.type;
+  const status = record.status;
+  if (
+    !id ||
+    !["identity", "vehicle_ownership", "vehicle_history"].includes(String(type)) ||
+    !["pending", "approved", "rejected", "unavailable"].includes(String(status))
+  ) {
+    return invalidResponse();
+  }
+
+  return {
+    id,
+    userId,
+    type: type as VerificationType,
+    status: status as VerificationStatus,
+    vehicleId: recordId(record.vehicleId) || undefined,
+    notes: typeof record.note === "string" ? record.note : undefined,
+    rejectionReason: typeof record.reviewReason === "string" ? record.reviewReason : undefined,
+    submittedAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
+    reviewedAt: typeof record.reviewedAt === "string" ? record.reviewedAt : undefined,
+  };
 }
 
 export async function submitVerificationRequest(input: {
-  userId: string;
-  userName: string;
-  userEmail: string;
   type: VerificationType;
+  vehicleId?: string;
   notes?: string;
-  identityDocumentUrl?: string;
-  businessDocumentUrl?: string;
-  proofOfAddressUrl?: string;
 }): Promise<VerificationRequest> {
-  const payload: VerificationRequest = {
-    id: crypto.randomUUID(),
-    ...input,
-    status: "pending",
-    submittedAt: new Date().toISOString(),
-  };
-
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    writeLocalRequests([payload, ...readLocalRequests()]);
-    return payload;
+  if (input.type === "vehicle_ownership" && !input.vehicleId) {
+    throw new ApiError("Choose one of your vehicles for ownership review.", "VALIDATION_ERROR", 400);
+  }
+  if (input.type === "identity" && input.vehicleId) {
+    throw new ApiError("Identity requests cannot include a vehicle.", "VALIDATION_ERROR", 400);
   }
 
-  await addDoc(collection(firestore, "verificationRequests"), {
-    ...payload,
-    submittedAt: Timestamp.now(),
+  const response = await api.post<unknown>("/verification", {
+    type: input.type,
+    ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}),
+    ...(input.notes?.trim() ? { note: input.notes.trim() } : {}),
   });
-  return payload;
+  return mapRequest(response.data);
 }
 
 export async function getVerificationRequests(
   status?: VerificationStatus,
 ): Promise<VerificationRequest[]> {
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    return status
-      ? readLocalRequests().filter((request) => request.status === status)
-      : readLocalRequests();
-  }
-
-  const snapshots = await getDocs(collection(firestore, "verificationRequests"));
-  return snapshots.docs
-    .map((requestDocument) => ({
-      id: requestDocument.id,
-      ...(requestDocument.data() as Omit<VerificationRequest, "id">),
-    }))
-    .filter((request) => (status ? request.status === status : true));
+  const response = await api.get<unknown>("/verification/me?page=1&pageSize=100");
+  if (!Array.isArray(response.data)) return invalidResponse();
+  return response.data.map(mapRequest).filter((request) => status ? request.status === status : true);
 }
 
 export async function reviewVerificationRequest(
   requestId: string,
   status: VerificationStatus,
-  reviewerId: string,
-  reviewerName: string,
+  _reviewerId?: string,
+  _reviewerName?: string,
   rejectionReason?: string,
 ): Promise<void> {
-  const firestore = db;
-  if (!firebaseReady || !firestore) {
-    const nextRequests = readLocalRequests().map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status,
-              rejectionReason,
-              reviewedAt: new Date().toISOString(),
-              reviewedBy: reviewerName,
-            }
-          : request,
-      );
-
-    writeLocalRequests(nextRequests);
-
-    const updatedRequest = nextRequests.find((request) => request.id === requestId);
-    if (updatedRequest) {
-      await createNotification({
-        userId: updatedRequest.userId,
-        type: "verification",
-        title: status === "approved" ? "Verification Approved" : "Verification Rejected",
-        message:
-          status === "approved"
-            ? "Your verification request was approved."
-            : rejectionReason ?? "Your verification request was rejected.",
-        actionUrl: "/verification",
-        link: "/verification",
-      });
-    }
-
-    return;
+  if (!["approved", "rejected", "unavailable"].includes(status)) {
+    throw new ApiError("That verification status cannot be applied by a reviewer.", "VALIDATION_ERROR", 400);
   }
-
-  await updateDoc(doc(firestore, "verificationRequests", requestId), {
+  await api.patch("/admin/verification-requests/" + encodeURIComponent(requestId), {
     status,
-    rejectionReason: rejectionReason ?? null,
-    reviewedBy: reviewerId,
-    reviewedAt: Timestamp.now(),
+    ...(rejectionReason?.trim() ? { reason: rejectionReason.trim() } : {}),
   });
-
-  const updatedRequest = (await getVerificationRequests()).find((request) => request.id === requestId);
-  if (updatedRequest) {
-    await createNotification({
-      userId: updatedRequest.userId,
-      type: "verification",
-      title: status === "approved" ? "Verification Approved" : "Verification Rejected",
-      message:
-        status === "approved"
-          ? "Your verification request was approved."
-          : rejectionReason ?? "Your verification request was rejected.",
-      actionUrl: "/verification",
-      link: "/verification",
-    });
-  }
 }
+

@@ -6,17 +6,21 @@ import type { EasyRideNotification } from "@/Types/notification";
 import { useEffect, useState } from "react";
 
 export function useNotifications() {
-  const { firebaseUser } = useAuth();
+  const { profile } = useAuth();
   const [notifications, setNotifications] = useState<EasyRideNotification[]>([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!firebaseUser) {
+    if (!profile) {
       setNotifications([]);
+      setError("");
       return;
     }
 
-    return subscribeNotifications(firebaseUser.uid, setNotifications);
-  }, [firebaseUser]);
+    setError("");
+    return subscribeNotifications(profile.id, setNotifications, setError);
+  }, [profile]);
 
-  return notifications;
+  return { notifications, error };
 }
+

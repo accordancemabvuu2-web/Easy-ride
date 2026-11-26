@@ -1,24 +1,16 @@
-export type VerificationType = "identity" | "private_seller" | "dealer";
+export type VerificationType = "identity" | "vehicle_ownership" | "vehicle_history";
 
-export type VerificationStatus = "pending" | "approved" | "rejected";
+export type VerificationStatus = "pending" | "approved" | "rejected" | "unavailable";
 
 export interface VerificationRequest {
   id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-
+  userId?: string;
   type: VerificationType;
   status: VerificationStatus;
-
-  identityDocumentUrl?: string;
-  businessDocumentUrl?: string;
-  proofOfAddressUrl?: string;
-
+  vehicleId?: string;
   notes?: string;
   rejectionReason?: string;
-
-  submittedAt?: unknown;
-  reviewedAt?: unknown;
-  reviewedBy?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
 }
+

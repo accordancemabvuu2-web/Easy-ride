@@ -1,17 +1,7 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
+import { ApiError, api } from "@/lib/apiClient";
 import type { ReportReason, ListingReport } from "@/Types/report";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  query,
-  where,
-} from "firebase/firestore";
 
 interface CreateReportInput {
   listingId: string;
@@ -21,113 +11,78 @@ interface CreateReportInput {
   details: string;
 }
 
-const STORAGE_KEY = "easy-ride:reports";
+type UnknownRecord = Record<string, unknown>;
 
-function readLocalReports(): ListingReport[] {
-  if (typeof window === "undefined") return [];
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-
-  try {
-    return JSON.parse(raw) as ListingReport[];
-  } catch {
-    return [];
-  }
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-function writeLocalReports(reports: ListingReport[]) {
-  if (typeof window === "undefined") return;
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+function id(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
 }
 
-export async function createListingReport(
-  input: CreateReportInput,
-): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    const reports = readLocalReports();
-    writeLocalReports([
-      {
-        id: crypto.randomUUID(),
-        ...input,
-        status: "open",
-        createdAt: new Date().toISOString(),
-      },
-      ...reports,
-    ]);
-    return;
+function mapReport(value: unknown): ListingReport {
+  const record = asRecord(value);
+  const reportId = id(record);
+  const vehicleId = id(record.vehicleId);
+  if (!reportId || !vehicleId || typeof record.reporterId !== "string") {
+    throw new ApiError("The reports API returned an invalid record.", "INVALID_RESPONSE", 502);
   }
+  const status = record.status === "investigating" ? "reviewing"
+    : record.status === "resolved" || record.status === "dismissed" ? record.status : "open";
 
-  await addDoc(collection(firestore, "reports"), {
-    ...input,
-    status: "open",
-    createdAt: Timestamp.now(),
+  return {
+    id: reportId,
+    listingId: vehicleId,
+    listingTitle: "Vehicle report",
+    reportedBy: record.reporterId,
+    reason: typeof record.reason === "string" ? record.reason as ReportReason : "other",
+    details: typeof record.description === "string" ? record.description : "",
+    status,
+    createdAt: record.createdAt,
+  };
+}
+
+export async function createListingReport(input: CreateReportInput): Promise<void> {
+  await api.post("/reports", {
+    vehicleId: input.listingId,
+    reason: input.reason,
+    description: input.details.trim(),
   });
 }
 
 export async function getListingReports(): Promise<ListingReport[]> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return readLocalReports();
+  const response = await api.get<unknown>("/admin/reports?status=all&page=1&pageSize=100");
+  if (!Array.isArray(response.data)) {
+    throw new ApiError("The admin reports API returned an invalid response.", "INVALID_RESPONSE", 502);
   }
-
-  const snapshot = await getDocs(collection(firestore, "reports"));
-  return snapshot.docs.map(
-    (reportDocument) =>
-      ({
-        id: reportDocument.id,
-        ...reportDocument.data(),
-      }) as ListingReport,
-  );
+  return response.data.map(mapReport);
 }
 
-export async function getReportsForListing(
-  listingId: string,
-): Promise<ListingReport[]> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return readLocalReports().filter((report) => report.listingId === listingId);
-  }
-
-  const snapshot = await getDocs(
-    query(collection(firestore, "reports"), where("listingId", "==", listingId)),
-  );
-
-  return snapshot.docs.map(
-    (reportDocument) =>
-      ({
-        id: reportDocument.id,
-        ...reportDocument.data(),
-      }) as ListingReport,
-  );
+export async function getReportsForListing(listingId: string): Promise<ListingReport[]> {
+  return (await getListingReports()).filter((report) => report.listingId === listingId);
 }
 
 export async function resolveListingReport(
   reportId: string,
   status: ListingReport["status"],
+  resolution?: string,
 ): Promise<void> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    writeLocalReports(
-      readLocalReports().map((report) =>
-        report.id === reportId
-          ? {
-              ...report,
-              status,
-            }
-          : report,
-      ),
-    );
-    return;
+  if (status === "open") {
+    throw new ApiError("Reports cannot be reopened from this screen.", "INVALID_STATE", 409);
   }
-
-  await updateDoc(doc(firestore, "reports", reportId), {
-    status,
+  const backendStatus = status === "reviewing" ? "investigating" : status;
+  const cleanResolution = resolution?.trim();
+  if (backendStatus === "resolved" && !cleanResolution) {
+    throw new ApiError("A resolution is required when closing a report.", "VALIDATION_ERROR", 400);
+  }
+  await api.patch("/admin/reports/" + encodeURIComponent(reportId), {
+    status: backendStatus,
+    ...(cleanResolution ? { resolution: cleanResolution } : {}),
   });
 }

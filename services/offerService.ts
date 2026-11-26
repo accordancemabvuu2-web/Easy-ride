@@ -1,551 +1,194 @@
 "use client";
 
-import { db } from "@/lib/firebase";
-import { createNotification } from "@/services/notificationService";
-import { updateListingStatus } from "@/services/listingService";
+import { ApiError, api } from "@/lib/apiClient";
 import type { OfferStatus, VehicleOffer } from "@/Types/offer";
 import type { Vehicle } from "@/Types/vehicle";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  runTransaction,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import {
-  readRecords,
-  removeRecord,
-  upsertRecord,
-  writeRecords,
-  nowIso,
-  generateId,
-} from "@/utils/marketplaceStore";
 
-const STORAGE_KEY = "easy-ride:offers";
-const MAX_OFFERS = 200;
+type UnknownRecord = Record<string, unknown>;
 
 interface CreateOfferInput {
   vehicle: Vehicle;
-  buyer: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
+  buyer: { id: string; name: string; email: string; phone: string };
   offeredPrice: number;
   message: string;
 }
 
-function readOffers() {
-  return readRecords<VehicleOffer>(STORAGE_KEY);
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-function writeOffers(offers: VehicleOffer[]) {
-  writeRecords(STORAGE_KEY, offers, MAX_OFFERS);
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const id = record._id ?? record.id;
+  return typeof id === "string" ? id : "";
 }
 
-function normalizeTimestamp(value: unknown) {
-  if (!value) {
-    return undefined;
-  }
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
 
-  if (typeof value === "string") {
-    return value;
-  }
+function numberValue(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function unsupported(message: string): never {
+  throw new ApiError(message, "FEATURE_UNAVAILABLE", 501);
+}
+
+function mapOffer(value: unknown, currentUserId = ""): VehicleOffer {
+  const record = asRecord(value);
+  const vehicle = asRecord(record.vehicleId);
+  const id = recordId(record);
+  const listingId = recordId(record.vehicleId);
+  const buyerId = recordId(record.buyerId);
+  const sellerId = recordId(record.sellerId);
+  const status = record.status;
 
   if (
-    typeof value === "object" &&
-    value !== null &&
-    "toDate" in value &&
-    typeof (value as { toDate: () => Date }).toDate === "function"
+    !id ||
+    !listingId ||
+    !buyerId ||
+    !sellerId ||
+    !["pending", "accepted", "rejected", "withdrawn", "expired"].includes(String(status))
   ) {
-    return (value as { toDate: () => Date }).toDate().toISOString();
+    throw new ApiError("The offers API returned an invalid record.", "INVALID_RESPONSE", 502);
   }
 
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "seconds" in value &&
-    typeof (value as { seconds?: number }).seconds === "number"
-  ) {
-    return new Date(
-      ((value as { seconds: number }).seconds ?? 0) * 1000,
-    ).toISOString();
-  }
-
-  return undefined;
-}
-
-function normalizeOffer(offer: VehicleOffer): VehicleOffer {
-  const buyerMessage = offer.buyerMessage ?? offer.message ?? "";
+  const titleParts = [vehicle.make, vehicle.model, vehicle.year]
+    .filter((part) => typeof part === "string" || typeof part === "number");
+  const listingTitle = titleParts.join(" ") || "Vehicle offer";
+  const isBuyer = currentUserId === buyerId;
 
   return {
-    ...offer,
-    buyerMessage,
-    message: buyerMessage,
-    buyerEmail: offer.buyerEmail ?? "",
-    buyerPhone: offer.buyerPhone ?? "",
-    sellerMessage: offer.sellerMessage ?? "",
-    counterPrice: offer.counterPrice ?? undefined,
-    createdAt: normalizeTimestamp(offer.createdAt) ?? nowIso(),
-    updatedAt: normalizeTimestamp(offer.updatedAt) ?? nowIso(),
+    id,
+    listingId,
+    listingTitle,
+    listingImage: stringValue(vehicle.coverImage ?? vehicle.coverImageUrl, "/images/easy-ride-hero.svg"),
+    buyerId,
+    buyerName: isBuyer ? "You" : "Buyer",
+    buyerEmail: "",
+    buyerPhone: "",
+    sellerId,
+    sellerName: isBuyer ? "Seller" : "You",
+    askingPrice: numberValue(vehicle.salePrice ?? vehicle.price),
+    offeredPrice: numberValue(record.amount),
+    currency: stringValue(record.currency, "USD").toUpperCase(),
+    buyerMessage: stringValue(record.message),
+    message: stringValue(record.message),
+    status: status as VehicleOffer["status"],
+    createdAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
+    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : undefined,
   };
 }
 
-function sortNewestFirst(left: VehicleOffer, right: VehicleOffer) {
-  return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
-}
-
-function getOffersForLocalUser(userId: string) {
-  return readOffers()
-    .map(normalizeOffer)
-    .filter((offer) => offer.buyerId === userId || offer.sellerId === userId)
-    .sort(sortNewestFirst);
-}
-
-async function getOffersForFirestoreUser(userId: string) {
-  const [buyerSnapshot, sellerSnapshot] = await Promise.all([
-    getDocs(
-      query(collection(db!, "offers"), where("buyerId", "==", userId)),
-    ),
-    getDocs(
-      query(collection(db!, "offers"), where("sellerId", "==", userId)),
-    ),
-  ]);
-
-  const merged = [...buyerSnapshot.docs, ...sellerSnapshot.docs].map((snapshot) =>
-    normalizeOffer({
-      id: snapshot.id,
-      ...(snapshot.data() as Omit<VehicleOffer, "id">),
-    }),
-  );
-
-  return Array.from(new Map(merged.map((offer) => [offer.id, offer]))).map(([, offer]) => offer).sort(sortNewestFirst);
-}
-
-function localOffersFromListing(listingId: string, buyerId: string) {
-  return readOffers()
-    .map(normalizeOffer)
-    .filter(
-      (offer) =>
-        offer.listingId === listingId &&
-        offer.buyerId === buyerId &&
-        ["pending", "countered", "accepted"].includes(offer.status),
-    );
-}
-
-async function firestoreOffersFromListing(listingId: string, buyerId: string) {
-  const snapshot = await getDocs(
-    query(
-      collection(db!, "offers"),
-      where("listingId", "==", listingId),
-      where("buyerId", "==", buyerId),
-    ),
-  );
-
-  return snapshot.docs
-    .map((offerDocument) =>
-      normalizeOffer({
-        id: offerDocument.id,
-        ...(offerDocument.data() as Omit<VehicleOffer, "id">),
-      }),
-    )
-    .filter((offer) => ["pending", "countered", "accepted"].includes(offer.status));
-}
-
-function ensureValidOfferAmount(amount: number, label = "offer") {
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error(`Enter a valid ${label} amount.`);
+async function loadOfferRecords(): Promise<unknown[]> {
+  const response = await api.get<unknown>("/offers/me?page=1&pageSize=100");
+  if (!Array.isArray(response.data)) {
+    throw new ApiError("The offers API returned an invalid response.", "INVALID_RESPONSE", 502);
   }
-}
-
-function ensureRole(offer: VehicleOffer, userId: string, role: "buyer" | "seller") {
-  if (role === "buyer" && offer.buyerId !== userId) {
-    throw new Error("Only the buyer can perform this action.");
-  }
-
-  if (role === "seller" && offer.sellerId !== userId) {
-    throw new Error("Only the seller can perform this action.");
-  }
-}
-
-function getLocalOffer(offerId: string) {
-  const offer = readOffers().map(normalizeOffer).find((entry) => entry.id === offerId);
-
-  if (!offer) {
-    return null;
-  }
-
-  return offer;
-}
-
-function updateLocalOffer(
-  offerId: string,
-  updater: (offer: VehicleOffer) => VehicleOffer,
-) {
-  const offers = readOffers().map(normalizeOffer);
-  const current = offers.find((offer) => offer.id === offerId);
-
-  if (!current) {
-    throw new Error("Offer not found.");
-  }
-
-  const nextOffer = normalizeOffer(updater(current));
-  writeOffers(upsertRecord(removeRecord(offers, offerId), nextOffer));
-  return nextOffer;
+  return response.data;
 }
 
 export async function createVehicleOffer(input: CreateOfferInput): Promise<string> {
-  const { vehicle, buyer, offeredPrice, message } = input;
-
-  if (vehicle.listingType !== "buy") {
+  const message = input.message.trim();
+  if (input.vehicle.listingType !== "buy") {
     throw new Error("Offers can only be submitted for vehicles listed for sale.");
   }
-
-  if (vehicle.status !== "active") {
+  if (input.vehicle.status !== "active") {
     throw new Error("This vehicle is no longer available.");
   }
-
-  if (buyer.id === vehicle.ownerId) {
+  if (input.buyer.id === input.vehicle.ownerId) {
     throw new Error("You cannot make an offer on your own vehicle.");
   }
-
-  ensureValidOfferAmount(offeredPrice, "offer");
-
-  if (db) {
-    const existingOffers = await firestoreOffersFromListing(vehicle.id, buyer.id);
-
-    if (existingOffers.length > 0) {
-      throw new Error("You already have an active offer for this vehicle.");
-    }
-
-    const offerDocument = await addDoc(collection(db, "offers"), {
-      listingId: vehicle.id,
-      listingTitle: `${vehicle.make} ${vehicle.model} ${vehicle.year}`,
-      listingImage: vehicle.coverImage,
-      buyerId: buyer.id,
-      buyerName: buyer.name,
-      buyerEmail: buyer.email,
-      buyerPhone: buyer.phone,
-      sellerId: vehicle.ownerId,
-      sellerName: vehicle.ownerName,
-      askingPrice: vehicle.price,
-      offeredPrice,
-      counterPrice: null,
-      currency: vehicle.currency,
-      buyerMessage: message.trim(),
-      message: message.trim(),
-      sellerMessage: "",
-      status: "pending",
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    });
-
-    await createNotification({
-      userId: vehicle.ownerId,
-      type: "offer",
-      title: "New Offer",
-      message: `${buyer.name} submitted an offer for ${vehicle.make} ${vehicle.model}.`,
-      actionUrl: "/offers",
-      link: "/offers",
-    });
-
-    return offerDocument.id;
+  if (!Number.isFinite(input.offeredPrice) || input.offeredPrice <= 0) {
+    throw new Error("Enter a valid offer amount.");
   }
 
-  const existingOffers = localOffersFromListing(vehicle.id, buyer.id);
-  if (existingOffers.length > 0) {
-    throw new Error("You already have an active offer for this vehicle.");
+  const response = await api.post<unknown>("/offers", {
+    vehicleId: input.vehicle.id,
+    amount: input.offeredPrice,
+    ...(message ? { message } : {}),
+  });
+  const id = recordId(response.data);
+  if (!id) {
+    throw new ApiError("The offer response did not include an ID.", "INVALID_RESPONSE", 502);
   }
-
-  const offer: VehicleOffer = normalizeOffer({
-    id: generateId(),
-    listingId: vehicle.id,
-    listingTitle: `${vehicle.make} ${vehicle.model} ${vehicle.year}`,
-    listingImage: vehicle.coverImage,
-    buyerId: buyer.id,
-    buyerName: buyer.name,
-    buyerEmail: buyer.email,
-    buyerPhone: buyer.phone,
-    sellerId: vehicle.ownerId,
-    sellerName: vehicle.ownerName,
-    askingPrice: vehicle.price,
-    offeredPrice,
-    currency: vehicle.currency,
-    buyerMessage: message.trim(),
-    message: message.trim(),
-    sellerMessage: "",
-    status: "pending",
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  });
-
-  writeOffers(upsertRecord(readOffers(), offer));
-
-  await createNotification({
-    userId: vehicle.ownerId,
-    type: "offer",
-    title: "New Offer",
-    message: `${buyer.name} submitted an offer for ${vehicle.make} ${vehicle.model}.`,
-    actionUrl: "/offers",
-    link: "/offers",
-  });
-
-  return offer.id;
+  return id;
 }
 
 export async function getOfferById(offerId: string): Promise<VehicleOffer | null> {
-  if (!db) {
-    return getLocalOffer(offerId);
-  }
-
-  const snapshot = await getDoc(doc(db, "offers", offerId));
-
-  if (!snapshot.exists()) {
-    return null;
-  }
-
-  return normalizeOffer({
-    id: snapshot.id,
-    ...(snapshot.data() as Omit<VehicleOffer, "id">),
-  });
+  const offer = (await loadOfferRecords()).find((record) => recordId(record) === offerId);
+  return offer ? mapOffer(offer) : null;
 }
 
 export async function getUserOffers(userId: string): Promise<VehicleOffer[]> {
-  if (!db) {
-    return getOffersForLocalUser(userId);
-  }
-
-  return getOffersForFirestoreUser(userId);
+  return (await loadOfferRecords())
+    .map((record) => mapOffer(record, userId))
+    .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
 }
 
 export async function getAllOffers(): Promise<VehicleOffer[]> {
-  if (!db) {
-    return readOffers().map(normalizeOffer).sort(sortNewestFirst);
-  }
-
-  const snapshot = await getDocs(collection(db, "offers"));
-
-  return snapshot.docs.map((offerDocument) =>
-    normalizeOffer({
-      id: offerDocument.id,
-      ...(offerDocument.data() as Omit<VehicleOffer, "id">),
-    }),
-  );
+  return unsupported("Administrative offer monitoring is not available in the backend API.");
 }
 
-async function updateOfferDocument(
-  offerId: string,
-  data: Partial<VehicleOffer>,
-): Promise<void> {
-  if (!db) {
-    updateLocalOffer(offerId, (offer) => ({
-      ...offer,
-      ...data,
-      updatedAt: nowIso(),
-    }));
-    return;
-  }
-
-  await updateDoc(doc(db, "offers", offerId), {
-    ...data,
-    updatedAt: Timestamp.now(),
-  });
+async function patchOfferStatus(offerId: string, status: "accepted" | "rejected" | "withdrawn") {
+  await api.patch("/offers/" + encodeURIComponent(offerId) + "/status", { status });
 }
 
 export async function acceptOffer(offer: VehicleOffer, currentUserId: string): Promise<void> {
-  ensureRole(offer, currentUserId, "seller");
-
-  if (offer.status !== "pending") {
-    throw new Error("This offer can no longer be accepted.");
-  }
-
-  await updateOfferDocument(offer.id, { status: "accepted" });
-
-  await createNotification({
-    userId: offer.buyerId,
-    type: "offer",
-    title: "Offer Accepted",
-    message: "The seller accepted your offer.",
-    actionUrl: "/offers",
-    link: "/offers",
-  });
+  if (offer.sellerId !== currentUserId) throw new Error("Only the seller can accept this offer.");
+  if (offer.status !== "pending") throw new Error("This offer can no longer be accepted.");
+  await patchOfferStatus(offer.id, "accepted");
 }
 
 export async function rejectOffer(
   offer: VehicleOffer,
   currentUserId: string,
-  message = "",
+  _message = "",
 ): Promise<void> {
-  ensureRole(offer, currentUserId, "seller");
-
-  if (!["pending", "countered"].includes(offer.status)) {
-    throw new Error("This offer can no longer be rejected.");
-  }
-
-  await updateOfferDocument(offer.id, {
-    status: "rejected",
-    sellerMessage: message.trim(),
-  });
-
-  await createNotification({
-    userId: offer.buyerId,
-    type: "offer",
-    title: "Offer Rejected",
-    message: "Seller rejected your offer.",
-    actionUrl: "/offers",
-    link: "/offers",
-  });
-}
-
-export async function counterOffer(
-  offer: VehicleOffer,
-  currentUserId: string,
-  counterPrice: number,
-  message: string,
-): Promise<void> {
-  ensureRole(offer, currentUserId, "seller");
-  ensureValidOfferAmount(counterPrice, "counter-offer");
-
-  if (offer.status !== "pending") {
-    throw new Error("This offer can no longer be countered.");
-  }
-
-  await updateOfferDocument(offer.id, {
-    status: "countered",
-    counterPrice,
-    sellerMessage: message.trim(),
-  });
-
-  await createNotification({
-    userId: offer.buyerId,
-    type: "offer",
-    title: "Counter Offer",
-    message: "Seller made a counter offer.",
-    actionUrl: "/offers",
-    link: "/offers",
-  });
-}
-
-export async function acceptCounterOffer(offer: VehicleOffer, currentUserId: string): Promise<void> {
-  ensureRole(offer, currentUserId, "buyer");
-
-  if (offer.status !== "countered" || !offer.counterPrice) {
-    throw new Error("There is no valid counter offer to accept.");
-  }
-
-  await updateOfferDocument(offer.id, { status: "accepted" });
-
-  await createNotification({
-    userId: offer.sellerId,
-    type: "offer",
-    title: "Counter Accepted",
-    message: "The buyer accepted your counter offer.",
-    actionUrl: "/offers",
-    link: "/offers",
-  });
+  if (offer.sellerId !== currentUserId) throw new Error("Only the seller can reject this offer.");
+  if (offer.status !== "pending") throw new Error("This offer can no longer be rejected.");
+  await patchOfferStatus(offer.id, "rejected");
 }
 
 export async function withdrawOffer(offer: VehicleOffer, currentUserId: string): Promise<void> {
-  ensureRole(offer, currentUserId, "buyer");
-
-  if (!["pending", "countered"].includes(offer.status)) {
-    throw new Error("This offer can no longer be withdrawn.");
-  }
-
-  await updateOfferDocument(offer.id, { status: "withdrawn" });
+  if (offer.buyerId !== currentUserId) throw new Error("Only the buyer can withdraw this offer.");
+  if (offer.status !== "pending") throw new Error("This offer can no longer be withdrawn.");
+  await patchOfferStatus(offer.id, "withdrawn");
 }
 
-export async function completeVehicleSale(offerId: string, currentUserId: string): Promise<void> {
-  if (!db) {
-    const offer = getLocalOffer(offerId);
+export async function counterOffer(
+  _offer: VehicleOffer,
+  _currentUserId: string,
+  _counterPrice: number,
+  _message: string,
+): Promise<void> {
+  unsupported("Counter-offers are not supported by the backend yet.");
+}
 
-    if (!offer) {
-      throw new Error("Offer not found.");
-    }
+export async function acceptCounterOffer(
+  _offer: VehicleOffer,
+  _currentUserId: string,
+): Promise<void> {
+  unsupported("Counter-offers are not supported by the backend yet.");
+}
 
-    ensureRole(offer, currentUserId, "seller");
-
-    if (offer.status !== "accepted") {
-      throw new Error("The offer must be accepted first.");
-    }
-
-    await updateListingStatus(offer.listingId, "sold");
-    const nextOffer = updateLocalOffer(offerId, (entry) => ({
-      ...entry,
-      status: "completed",
-    }));
-
-    await createNotification({
-      userId: nextOffer.buyerId,
-      type: "offer",
-      title: "Transaction Completed",
-      message: "The vehicle sale has been completed.",
-      actionUrl: "/offers",
-      link: "/offers",
-    });
-    return;
-  }
-
-  const firestore = db;
-
-  if (!firestore) {
-    throw new Error("Firestore is not available.");
-  }
-
-  const offerReference = doc(firestore, "offers", offerId);
-  const offerSnapshot = await getDoc(offerReference);
-  if (!offerSnapshot.exists()) throw new Error("Offer not found.");
-
-  const offer = normalizeOffer({
-    id: offerSnapshot.id,
-    ...(offerSnapshot.data() as Omit<VehicleOffer, "id">),
-  });
-  ensureRole(offer, currentUserId, "seller");
-  if (offer.status !== "accepted") throw new Error("The offer must be accepted first.");
-
-  // Vehicle state is authoritative in MongoDB; offers remain in their current store.
-  await updateListingStatus(offer.listingId, "sold");
-
-  await runTransaction(firestore, async (transaction) => {
-    const currentSnapshot = await transaction.get(offerReference);
-    if (!currentSnapshot.exists()) throw new Error("Offer not found.");
-    const currentOffer = normalizeOffer({
-      id: currentSnapshot.id,
-      ...(currentSnapshot.data() as Omit<VehicleOffer, "id">),
-    });
-    ensureRole(currentOffer, currentUserId, "seller");
-    if (currentOffer.status !== "accepted") {
-      throw new Error("The offer must still be accepted to complete the sale.");
-    }
-    transaction.update(offerReference, {
-      status: "completed",
-      updatedAt: Timestamp.now(),
-    });
-  });
-
-  await createNotification({
-    userId: offer.buyerId,
-    type: "offer",
-    title: "Transaction Completed",
-    message: "The vehicle sale has been completed.",
-    actionUrl: "/offers",
-    link: "/offers",
-  });
+export async function completeVehicleSale(
+  _offerId: string,
+  _currentUserId: string,
+): Promise<void> {
+  unsupported("Sale completion is not supported by the backend yet.");
 }
 
 export async function updateOfferStatus(
   offerId: string,
   status: OfferStatus,
-  data: Record<string, unknown> = {},
 ): Promise<void> {
-  await updateOfferDocument(offerId, {
-    status,
-    ...(data as Partial<VehicleOffer>),
-  });
+  if (status !== "accepted" && status !== "rejected" && status !== "withdrawn") {
+    unsupported("This offer status transition is not supported by the backend.");
+  }
+  await patchOfferStatus(offerId, status);
 }

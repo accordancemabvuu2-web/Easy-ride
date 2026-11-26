@@ -5,7 +5,8 @@ import Navbar from "@/Components/Navbar";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, CheckCircle, Clock, Loader2, XCircle } from "lucide-react";
+import { getUserOffers } from "@/lib/clientFirebaseServices";
+import type { VehicleOffer } from "@/Types/offer";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -21,67 +22,47 @@ export default function BuyerOffersPage() {
 
 function BuyerOffersContent() {
   const { profile } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [offers, setOffers] = useState<VehicleOffer[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    if (!profile) return;
+    let active = true;
+    void getUserOffers(profile.id)
+      .then((result) => {
+        if (active) setOffers(result.filter((offer) => offer.buyerId === profile.id));
+      })
+      .catch((requestError: unknown) => {
+        if (active) setError(requestError instanceof Error ? requestError.message : "Offers could not be loaded.");
+      });
+    return () => { active = false; };
+  }, [profile]);
 
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
-        <Navbar />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2 className="animate-spin text-[#0B5D3B]" size={32} />
-        </div>
-        <Footer />
-      </main>
-    );
-  }
-
-  const stats = {
-    total: 0,
-    pending: 0,
-    accepted: 0,
-    rejected: 0,
-  };
+  const pending = offers.filter((offer) => offer.status === "pending").length;
+  const accepted = offers.filter((offer) => offer.status === "accepted").length;
+  const rejected = offers.filter((offer) => offer.status === "rejected").length;
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] text-[#202124]">
       <Navbar />
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">
-            Buyer workspace
-          </p>
-          <h1 className="mt-2 text-4xl font-bold">Your offers</h1>
-          <p className="mt-3 text-gray-500">
-            Track all offers you've made and monitor seller responses.
-          </p>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#C9A227]">Buyer workspace</p>
+        <h1 className="mt-2 text-4xl font-bold">Your offers</h1>
+        <p className="mt-3 text-gray-600">Current totals come from your backend offer records.</p>
+
+        {error ? <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p> : null}
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Total offers" value={offers.length} />
+          <StatCard label="Pending" value={pending} />
+          <StatCard label="Accepted" value={accepted} />
+          <StatCard label="Rejected" value={rejected} />
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-4">
-          <StatCard label="Total offers" value={stats.total} color="blue" />
-          <StatCard label="Pending" value={stats.pending} color="amber" />
-          <StatCard label="Accepted" value={stats.accepted} color="green" />
-          <StatCard label="Rejected" value={stats.rejected} color="red" />
-        </div>
-
-        <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-12 text-center">
-          <h2 className="text-2xl font-bold">No offers yet</h2>
-          <p className="mt-2 text-gray-500">
-            Make an offer on a vehicle to start negotiating with sellers.
-          </p>
-
-          <Link
-            href="/"
-            className="mt-6 inline-flex rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white"
-          >
-            Browse vehicles
+        <div className="mt-8 rounded-3xl border border-dashed border-[#D1D5DB] bg-white p-10 text-center">
+          <p className="text-gray-600">{offers.length ? "Review seller responses to your offers." : "You have not made an offer yet."}</p>
+          <Link href="/offers" className="mt-5 inline-flex rounded-full bg-[#0B5D3B] px-6 py-3 font-bold text-white">
+            Open offers
           </Link>
         </div>
       </section>
@@ -90,26 +71,11 @@ function BuyerOffersContent() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  color = "blue",
-}: {
-  label: string;
-  value: number;
-  color?: "blue" | "green" | "amber" | "red";
-}) {
-  const colorMap = {
-    blue: "border-blue-200 bg-blue-50",
-    green: "border-green-200 bg-green-50",
-    amber: "border-amber-200 bg-amber-50",
-    red: "border-red-200 bg-red-50",
-  };
-
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className={`rounded-3xl border ${colorMap[color]} p-6`}>
+    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
       <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums">{value}</p>
     </div>
   );
 }

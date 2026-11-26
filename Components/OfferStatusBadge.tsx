@@ -6,6 +6,7 @@ const styles: Record<OfferStatus, string> = {
   rejected: "bg-red-100 text-red-700",
   countered: "bg-blue-100 text-blue-800",
   withdrawn: "bg-gray-100 text-gray-700",
+  expired: "bg-gray-100 text-gray-500",
   completed: "bg-purple-100 text-purple-800",
 };
 

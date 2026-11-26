@@ -1,76 +1,78 @@
 "use client";
 
-import { getBookingById } from "@/services/bookingService";
-import { getOfferById } from "@/services/offerService";
-import { createNotification } from "@/services/notificationService";
+import { ApiError, api } from "@/lib/apiClient";
 import type { EasyRideReview } from "@/Types/review";
-import {
-  generateId,
-  nowIso,
-  readRecords,
-  writeRecords,
-} from "@/utils/marketplaceStore";
 
-interface CreateReviewInput {
-  bookingId?: string;
-  transactionId?: string;
-  reviewerId: string;
-  reviewerName: string;
-  reviewedUserId: string;
-  listingId: string;
-  rating: number;
-  title: string;
-  comment: string;
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-const STORAGE_KEY = "easy-ride:reviews";
-
-function readReviews() {
-  return readRecords<EasyRideReview>(STORAGE_KEY);
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
 }
 
-function writeReviews(reviews: EasyRideReview[]) {
-  writeRecords(STORAGE_KEY, reviews, 200);
-}
-
-export async function createReview(input: CreateReviewInput) {
-  if (input.rating < 1 || input.rating > 5) {
-    throw new Error("Rating must be between 1 and 5.");
+function mapReview(value: unknown, reviewedUserId: string): EasyRideReview {
+  const record = asRecord(value);
+  const id = recordId(record);
+  const reviewerId = recordId(record.reviewerId);
+  const listingId = recordId(record.vehicleId);
+  if (!id || !reviewerId || !listingId || typeof record.rating !== "number") {
+    throw new ApiError("The reviews API returned an invalid record.", "INVALID_RESPONSE", 502);
   }
-
-  const booking = input.bookingId ? await getBookingById(input.bookingId) : null;
-  const offer = input.transactionId ? await getOfferById(input.transactionId) : null;
-
-  if (input.bookingId && booking?.status !== "completed") {
-    throw new Error("You can only review a completed booking.");
-  }
-
-  if (input.transactionId && offer?.status !== "completed") {
-    throw new Error("You can only review a completed transaction.");
-  }
-
-  const review: EasyRideReview = {
-    id: generateId(),
-    ...input,
-    approved: true,
+  return {
+    id,
+    bookingId: recordId(record.bookingId) || undefined,
+    reviewerId,
+    reviewerName: "Verified participant",
+    reviewedUserId,
+    listingId,
+    rating: record.rating,
+    title: undefined,
+    comment: typeof record.comment === "string" ? record.comment : "",
+    approved: record.moderationStatus === "approved" || record.moderationStatus === undefined,
     reported: false,
-    createdAt: nowIso(),
+    createdAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
   };
+}
 
-  writeReviews([review, ...readReviews()]);
-
-  await createNotification({
-    userId: input.reviewedUserId,
-    type: "review",
-    title: "New Review",
-    message: "Someone reviewed your vehicle.",
-    actionUrl: `/vehicle/${input.listingId}`,
-    link: `/vehicle/${input.listingId}`,
+export async function createReview(input: {
+  bookingId?: string;
+  rating: number;
+  comment: string;
+}): Promise<void> {
+  if (!input.bookingId) {
+    throw new ApiError("A completed booking is required to submit a review.", "INELIGIBLE_TRANSACTION", 400);
+  }
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
+    throw new ApiError("Rating must be between 1 and 5.", "VALIDATION_ERROR", 400);
+  }
+  await api.post("/reviews", {
+    bookingId: input.bookingId,
+    rating: input.rating,
+    comment: input.comment.trim(),
   });
 }
 
-export function getUserReviews(userId: string) {
-  return readReviews()
-    .filter((review) => review.reviewedUserId === userId && review.approved)
-    .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
+export async function getUserReviews(userId: string): Promise<EasyRideReview[]> {
+  const response = await api.get<unknown>(
+    "/reviews/users/" + encodeURIComponent(userId) + "?page=1&pageSize=100",
+  );
+  if (!Array.isArray(response.data)) {
+    throw new ApiError("The reviews API returned an invalid list.", "INVALID_RESPONSE", 502);
+  }
+  return response.data.map((record) => mapReview(record, userId));
 }
+
+export async function respondToReview(reviewId: string, responseText: string): Promise<void> {
+  const response = responseText.trim();
+  if (!response) throw new ApiError("Enter a response.", "VALIDATION_ERROR", 400);
+  await api.post("/reviews/" + encodeURIComponent(reviewId) + "/response", { response });
+}
+

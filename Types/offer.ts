@@ -4,6 +4,7 @@ export type OfferStatus =
   | "rejected"
   | "countered"
   | "withdrawn"
+  | "expired"
   | "completed";
 
 export interface VehicleOffer {

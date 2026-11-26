@@ -19,11 +19,21 @@ export default function MessageThread({ conversation, currentUser }: MessageThre
   const [messages, setMessages] = useState<EasyRideMessage[]>([]);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const bottomReference = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    markConversationRead(conversation.id, currentUser.id).catch(console.error);
-    return subscribeToMessages(conversation.id, setMessages);
+    markConversationRead(conversation.id, currentUser.id).catch((error: unknown) => {
+      setLoadError(error instanceof Error ? error.message : "Messages could not be marked as read.");
+    });
+    return subscribeToMessages(
+      conversation.id,
+      (items) => {
+        setMessages(items);
+        setLoadError("");
+      },
+      setLoadError,
+    );
   }, [conversation.id, currentUser.id]);
 
   useEffect(() => {
@@ -66,8 +76,13 @@ export default function MessageThread({ conversation, currentUser }: MessageThre
 
       <div className="flex-1 overflow-y-auto bg-[#F6F8F7] p-4 sm:p-6">
         <div className="mx-auto max-w-3xl space-y-3">
+          {loadError ? (
+            <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {loadError}
+            </p>
+          ) : null}
           {messages.length === 0 ? (
-            <div className="py-16 text-center text-sm text-gray-500">Start the conversation.</div>
+            loadError ? null : <div className="py-16 text-center text-sm text-gray-500">Start the conversation.</div>
           ) : (
             messages.map((item) => {
               const mine = item.senderId === currentUser.id;
@@ -99,6 +114,8 @@ export default function MessageThread({ conversation, currentUser }: MessageThre
         <div className="mx-auto flex max-w-3xl items-end gap-3">
           <textarea
             value={message}
+            aria-label="Type a message"
+            maxLength={5000}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {

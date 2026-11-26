@@ -1,7 +1,6 @@
 "use client";
 
 import { db } from "@/lib/firebase";
-import { createNotification } from "@/services/notificationService";
 import { getBookingById } from "@/services/bookingService";
 import { confirmBookingPayment } from "@/services/bookingService";
 import { activatePromotion } from "@/services/promotionService";
@@ -196,14 +195,6 @@ export async function completeMockPayment(
     if (bookingIdForNotification) {
       const booking = await getBookingById(bookingIdForNotification);
       if (booking) {
-        await createNotification({
-          userId: booking.ownerId,
-          type: "payment",
-          title: "Payment Received",
-          message: "Buyer completed payment.",
-          actionUrl: `/bookings/${booking.id}`,
-          link: `/bookings/${booking.id}`,
-        });
       }
     }
 
@@ -239,14 +230,6 @@ export async function completeMockPayment(
 
     const booking = await getBookingById(payment.referenceId);
     if (booking) {
-      await createNotification({
-        userId: booking.ownerId,
-        type: "payment",
-        title: "Payment Received",
-        message: "Buyer completed payment.",
-        actionUrl: `/bookings/${booking.id}`,
-        link: `/bookings/${booking.id}`,
-      });
     }
   }
 
@@ -260,3 +243,4 @@ export async function createBookingPaymentAlias(
 ): Promise<string> {
   return createBookingPayment(input);
 }
+

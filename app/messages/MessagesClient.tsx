@@ -26,6 +26,7 @@ function MessagesContent() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
 
   useEffect(() => {
@@ -33,22 +34,30 @@ function MessagesContent() {
       return;
     }
 
-    const unsubscribe = subscribeToUserConversations(firebaseUser.uid, (items) => {
-      setConversations(items);
-      setLoading(false);
+    const unsubscribe = subscribeToUserConversations(
+      firebaseUser.uid,
+      (items) => {
+        setConversations(items);
+        setLoading(false);
+        setLoadError("");
 
-      if (requestedConversationId) {
-        const requested = items.find((item) => item.id === requestedConversationId);
+        if (requestedConversationId) {
+          const requested = items.find((item) => item.id === requestedConversationId);
 
-        if (requested) {
-          setSelectedConversation(requested);
-          setMobileThreadOpen(true);
-          return;
+          if (requested) {
+            setSelectedConversation(requested);
+            setMobileThreadOpen(true);
+            return;
+          }
         }
-      }
 
-      setSelectedConversation((current) => current ?? items[0] ?? null);
-    });
+        setSelectedConversation((current) => current ?? items[0] ?? null);
+      },
+      (message) => {
+        setLoading(false);
+        setLoadError(message);
+      },
+    );
 
     return unsubscribe;
   }, [firebaseUser, requestedConversationId]);
@@ -58,7 +67,9 @@ function MessagesContent() {
       return;
     }
 
-    void markConversationRead(selectedConversation.id, firebaseUser.uid);
+    void markConversationRead(selectedConversation.id, firebaseUser.uid).catch((error: unknown) => {
+      setLoadError(error instanceof Error ? error.message : "The conversation could not be marked as read.");
+    });
   }, [firebaseUser, selectedConversation]);
 
   const selectConversation = async (conversation: Conversation) => {
@@ -66,7 +77,12 @@ function MessagesContent() {
     setMobileThreadOpen(true);
 
     if (firebaseUser) {
-      await markConversationRead(conversation.id, firebaseUser.uid);
+      try {
+        await markConversationRead(conversation.id, firebaseUser.uid);
+        setLoadError("");
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "The conversation could not be marked as read.");
+      }
     }
   };
 
@@ -81,6 +97,11 @@ function MessagesContent() {
             <h1 className="text-3xl font-bold sm:text-4xl">Messages</h1>
           </div>
           <p className="mt-2 text-gray-500">Chat securely with buyers and sellers.</p>
+          {loadError ? (
+            <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {loadError}
+            </p>
+          ) : null}
         </div>
 
         {loading ? (

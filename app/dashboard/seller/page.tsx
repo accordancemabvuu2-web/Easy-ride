@@ -4,12 +4,11 @@ import DashboardShell from "@/Components/DashboardShell";
 import RequireAuth from "@/Components/RequireAuth";
 import RoleGuard from "@/Components/RoleGuard";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserBookings } from "@/lib/clientFirebaseServices";
 import { deleteListing, getMyListings, updateListingStatus } from "@/lib/clientFirebaseServices";
 import { getUserOffers } from "@/lib/clientFirebaseServices";
 import { getMyDrafts } from "@/services/listingService";
 import type { Vehicle } from "@/Types/vehicle";
-import { AlertCircle, BarChart3, CheckCircle2, Eye, HandCoins, Loader2, Plus, Trash2, Users, CalendarDays, MessageCircle, Store } from "lucide-react";
+import { AlertCircle, BarChart3, CheckCircle2, Eye, Loader2, Plus, Trash2, MessageCircle, Store } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -30,25 +29,20 @@ function SellerDashboardContent() {
   const [listings, setListings] = useState<Vehicle[]>([]);
   const [drafts, setDrafts] = useState<Vehicle[]>([]);
   const [offerCount, setOfferCount] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [bookingCount, setBookingCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadDashboard = useCallback(async () => {
     if (!profile) return;
     try {
       setLoading(true);
-      const [nextListings, nextDrafts, offers, bookings] = await Promise.all([
+      const [nextListings, nextDrafts, offers] = await Promise.all([
         getMyListings(profile.id),
         getMyDrafts(),
         getUserOffers(profile.id),
-        getUserBookings(profile.id),
       ]);
       setListings(nextListings);
       setDrafts(nextDrafts);
-      setOfferCount(offers.filter((offer) => offer.sellerId === profile.id && ["pending", "countered"].includes(offer.status)).length);
-      setCompletedCount(offers.filter((offer) => offer.sellerId === profile.id && offer.status === "completed").length + bookings.filter((booking) => booking.ownerId === profile.id && booking.status === "completed").length);
-      setBookingCount(bookings.filter((booking) => booking.ownerId === profile.id && !["cancelled", "completed", "rejected"].includes(booking.status)).length);
+      setOfferCount(offers.filter((offer) => offer.sellerId === profile.id && offer.status === "pending").length);
     } catch {
       toast.error("Your seller workspace could not be loaded.");
     } finally {
@@ -63,8 +57,8 @@ function SellerDashboardContent() {
   const stats = useMemo(() => ({
     active: listings.filter((listing) => listing.status === "active").length,
     views: listings.reduce((total, listing) => total + (listing.views ?? 0), 0),
-    enquiries: offerCount + bookingCount,
-  }), [bookingCount, listings, offerCount]);
+    pendingOffers: offerCount,
+  }), [listings, offerCount]);
 
   const markUnavailable = async (listing: Vehicle, status: "sold" | "rented") => {
     try {
@@ -103,11 +97,10 @@ function SellerDashboardContent() {
           <Link href="/dashboard/seller/listings/new" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E7B319] px-5 py-3 font-black text-[#17201D] shadow-sm hover:bg-[#F4C83D]"><Plus size={18} /> Add vehicle</Link>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <SellerMetric icon={<CheckCircle2 className="text-[#08784D]" />} label="Active listings" value={stats.active} />
           <SellerMetric icon={<Eye className="text-blue-500" />} label="Total views" value={stats.views.toLocaleString()} />
-          <SellerMetric icon={<Users className="text-[#C9A227]" />} label="Enquiries" value={stats.enquiries} />
-          <SellerMetric icon={<HandCoins className="text-purple-500" />} label="Completed deals" value={completedCount} />
+          <SellerMetric icon={<MessageCircle className="text-[#C9A227]" />} label="Pending offers" value={stats.pendingOffers} />
         </div>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
@@ -125,7 +118,7 @@ function SellerDashboardContent() {
               </div>
             )}
           </section>
-          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/bookings" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><CalendarDays size={18} className="text-[#E7B319]" /> Manage rentals</Link><Link href="/dashboard/seller/listings/new" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
+          <section className="rounded-3xl border border-[#DCE5DF] bg-[#063F2C] p-6 text-white shadow-sm"><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#A8E6C3]">Seller actions</p><h2 className="mt-2 text-xl font-black">Keep your inventory moving</h2><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Link href="/dashboard/seller/leads" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><MessageCircle size={18} className="text-[#E7B319]" /> View buyer leads</Link><Link href="/dashboard/seller/listings/new" className="flex items-center gap-3 rounded-2xl bg-white/10 p-3 text-sm font-semibold hover:bg-white/15"><Store size={18} className="text-[#E7B319]" /> Add another vehicle</Link></div><Link href="/dashboard/seller/leads" className="mt-7 inline-flex rounded-full bg-white px-5 py-3 text-sm font-bold text-[#063F2C]">View enquiries</Link></section>
         </div>
 
         <div className="mt-10 flex items-end justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-[#08784D]">Inventory</p><h2 className="mt-1 text-2xl font-black">My listings</h2></div><Link href="/dashboard/seller" className="text-sm font-bold text-[#08784D] hover:underline">Manage all</Link></div>
@@ -140,7 +133,7 @@ function SellerDashboardContent() {
 
 function SellerMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) { return <div className="rounded-2xl border border-[#DCE5DF] bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div><div className="rounded-xl bg-[#F2F7F4] p-2">{icon}</div></div></div>; }
 
-function ListingRow({ listing, onMarkUnavailable, onDelete }: { listing: Vehicle; onMarkUnavailable: (listing: Vehicle, status: "sold" | "rented") => void; onDelete: (listing: Vehicle) => void }) { return <article className="grid gap-4 rounded-2xl border border-[#DCE5DF] bg-white p-4 shadow-sm sm:grid-cols-[140px_1fr_auto]"><div className="relative h-28 overflow-hidden rounded-xl"><Image src={listing.coverImage || "/images/pexels-cripsdog-24018795.webp"} alt={`${listing.make} ${listing.model}`} fill unoptimized className="object-cover" sizes="140px" /></div><div><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-black">{listing.make} {listing.model} {listing.year}</h3><StatusBadge status={listing.status} /></div><p className="mt-2 font-bold text-[#063F2C]">{listing.currency} {listing.price.toLocaleString()} <span className="text-sm font-medium text-gray-500">· {listing.location.city}</span></p><p className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500"><span className="flex items-center gap-1"><Eye size={14} /> {listing.views ?? 0} views</span><span className="flex items-center gap-1"><Users size={14} /> Enquiries tracked</span></p>{listing.status === "pending" && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-amber-700"><AlertCircle size={15} /> Awaiting verification</p>}</div><div className="flex flex-row gap-2 sm:flex-col"><Link href={`/vehicle/${listing.id}`} className="rounded-full border border-[#DCE5DF] px-4 py-2 text-center text-xs font-bold">View</Link>{listing.status === "active" && (listing.listingType === "both" ? <><button type="button" onClick={() => onMarkUnavailable(listing, "sold")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark sold</button><button type="button" onClick={() => onMarkUnavailable(listing, "rented")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark rented</button></> : <button type="button" onClick={() => onMarkUnavailable(listing, listing.listingType === "buy" ? "sold" : "rented")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark {listing.listingType === "buy" ? "sold" : "rented"}</button>)}<button type="button" onClick={() => onDelete(listing)} className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-600"><Trash2 className="mx-auto" size={15} /></button></div></article>; }
+function ListingRow({ listing, onMarkUnavailable, onDelete }: { listing: Vehicle; onMarkUnavailable: (listing: Vehicle, status: "sold" | "rented") => void; onDelete: (listing: Vehicle) => void }) { return <article className="grid gap-4 rounded-2xl border border-[#DCE5DF] bg-white p-4 shadow-sm sm:grid-cols-[140px_1fr_auto]"><div className="relative h-28 overflow-hidden rounded-xl"><Image src={listing.coverImage || "/images/pexels-cripsdog-24018795.webp"} alt={`${listing.make} ${listing.model}`} fill unoptimized className="object-cover" sizes="140px" /></div><div><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-black">{listing.make} {listing.model} {listing.year}</h3><StatusBadge status={listing.status} /></div><p className="mt-2 font-bold text-[#063F2C]">{listing.currency} {listing.price.toLocaleString()} <span className="text-sm font-medium text-gray-500">· {listing.location.city}</span></p><p className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500"><span className="flex items-center gap-1"><Eye size={14} /> {listing.views ?? 0} views</span></p>{listing.status === "pending" && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-amber-700"><AlertCircle size={15} /> Awaiting verification</p>}</div><div className="flex flex-row gap-2 sm:flex-col"><Link href={`/vehicle/${listing.id}`} className="rounded-full border border-[#DCE5DF] px-4 py-2 text-center text-xs font-bold">View</Link>{listing.status === "active" && (listing.listingType === "both" ? <><button type="button" onClick={() => onMarkUnavailable(listing, "sold")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark sold</button><button type="button" onClick={() => onMarkUnavailable(listing, "rented")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark rented</button></> : <button type="button" onClick={() => onMarkUnavailable(listing, listing.listingType === "buy" ? "sold" : "rented")} className="rounded-full border border-[#08784D] px-4 py-2 text-xs font-bold text-[#08784D]">Mark {listing.listingType === "buy" ? "sold" : "rented"}</button>)}<button type="button" onClick={() => onDelete(listing)} className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold text-red-600"><Trash2 className="mx-auto" size={15} /></button></div></article>; }
 
 function StatusBadge({ status }: { status: Vehicle["status"] }) { const styles: Record<Vehicle["status"], string> = { draft: "bg-gray-100 text-gray-700", pending: "bg-amber-100 text-amber-800", active: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", sold: "bg-blue-100 text-blue-700", rented: "bg-purple-100 text-purple-700", archived: "bg-gray-100 text-gray-700", suspended: "bg-red-100 text-red-700" }; return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${styles[status]}`}>{status}</span>; }
 

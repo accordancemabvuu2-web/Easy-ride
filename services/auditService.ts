@@ -1,90 +1,97 @@
 "use client";
 
-import { db, firebaseReady } from "@/lib/firebase";
-import type { AuditAction, AuditLog } from "@/Types/audit";
-import {
-  Timestamp,
-  addDoc,
-  collection,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { ApiError, api } from "@/lib/apiClient";
+import type { AuditLog } from "@/Types/audit";
 
-interface CreateAuditLogInput {
-  actorId: string;
-  actorName: string;
-  actorRole: string;
-  action: AuditAction;
-  targetType: AuditLog["targetType"];
-  targetId: string;
-  description: string;
-  metadata?: Record<string, unknown>;
+type UnknownRecord = Record<string, unknown>;
+
+export interface AuditLogPage {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
-const STORAGE_KEY = "easy-ride:audit-logs";
-
-function readLocalLogs(): AuditLog[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-
-  try {
-    return JSON.parse(raw) as AuditLog[];
-  } catch {
-    return [];
-  }
+function asRecord(value: unknown): UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as UnknownRecord
+    : {};
 }
 
-function writeLocalLogs(logs: AuditLog[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+function recordId(value: unknown): string {
+  if (typeof value === "string") return value;
+  const record = asRecord(value);
+  const candidate = record._id ?? record.id;
+  return typeof candidate === "string" ? candidate : "";
 }
 
-export async function createAuditLog(
-  input: CreateAuditLogInput,
-): Promise<void> {
-  const firestore = db;
+function invalidResponse(): never {
+  throw new ApiError("The audit API returned an invalid response.", "INVALID_RESPONSE", 502);
+}
 
-  if (!firebaseReady || !firestore) {
-    writeLocalLogs([
-      {
-        id: crypto.randomUUID(),
-        ...input,
-        createdAt: new Date().toISOString(),
-      },
-      ...readLocalLogs(),
-    ]);
-    return;
+function mapAuditLog(value: unknown): AuditLog {
+  const record = asRecord(value);
+  const id = recordId(record);
+  const actorId = recordId(record.actorId);
+  const action = record.action;
+  const targetType = record.resourceType;
+  const targetId = typeof record.resourceId === "string" ? record.resourceId : "";
+  const timestamp = record.timestamp;
+
+  if (
+    !id ||
+    !actorId ||
+    typeof action !== "string" ||
+    typeof targetType !== "string" ||
+    typeof timestamp !== "string"
+  ) {
+    return invalidResponse();
   }
 
-  await addDoc(collection(firestore, "auditLogs"), {
-    ...input,
-    createdAt: Timestamp.now(),
-  });
+  return {
+    id,
+    actorId,
+    actorName: "Actor " + actorId.slice(-6),
+    actorRole: "Not included in the audit record",
+    action,
+    targetType,
+    targetId,
+    description: [action, targetType, targetId].filter(Boolean).join(" · "),
+    createdAt: timestamp,
+  };
 }
 
-export async function getAuditLogs(): Promise<AuditLog[]> {
-  const firestore = db;
-
-  if (!firebaseReady || !firestore) {
-    return readLocalLogs();
-  }
-
-  const auditQuery = query(
-    collection(firestore, "auditLogs"),
-    orderBy("createdAt", "desc"),
-    limit(100),
-  );
-
-  const snapshot = await getDocs(auditQuery);
-
-  return snapshot.docs.map(
-    (auditDocument) =>
-      ({
-        id: auditDocument.id,
-        ...auditDocument.data(),
-      }) as AuditLog,
+/** Audit entries are created only by backend operations that also perform the audited action. */
+export async function createAuditLog(_input: unknown): Promise<void> {
+  throw new ApiError(
+    "Audit entries can only be created by audited backend operations.",
+    "FEATURE_UNAVAILABLE",
+    501,
   );
 }
+
+export async function getAuditLogs(page = 1, pageSize = 30): Promise<AuditLogPage> {
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    throw new ApiError("Audit pagination is invalid.", "VALIDATION_ERROR", 400);
+  }
+
+  const response = await api.get<unknown>(
+    "/admin/audit-logs?" + new URLSearchParams({ page: String(page), pageSize: String(pageSize) }),
+  );
+  const meta = asRecord(response.meta);
+  if (
+    !Array.isArray(response.data) ||
+    !Number.isInteger(meta.total) ||
+    (meta.total as number) < 0
+  ) {
+    return invalidResponse();
+  }
+
+  return {
+    logs: response.data.map(mapAuditLog),
+    total: meta.total as number,
+    page,
+    pageSize,
+  };
+}
+
