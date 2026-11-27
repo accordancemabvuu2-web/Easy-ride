@@ -24,6 +24,7 @@ vi.mock("@/lib/apiClient", () => ({
 
 import {
   createListing,
+  getSimilarListings,
   getListingById,
   getMyDrafts,
   getMyListings,
@@ -49,6 +50,24 @@ describe("vehicle service API contract", () => {
 
     expect(apiMocks.get).toHaveBeenCalledWith("/vehicles/me?page=1&pageSize=100");
     expect(listings).toMatchObject([{ id: "listing-1", ownerId: "owner-1", status: "pending" }]);
+  });
+
+  it("loads similar vehicles from the bounded detail endpoint instead of the full catalog", async () => {
+    apiMocks.get.mockResolvedValue({
+      success: true,
+      data: [{ _id: "similar-1", make: "Toyota", model: "Corolla", year: 2021, listingType: "sale", moderationStatus: "published", availabilityStatus: "available" }],
+      meta: { limit: 12 },
+    });
+
+    const [first, second] = await Promise.all([
+      getSimilarListings("source-vehicle"),
+      getSimilarListings("source-vehicle"),
+    ]);
+
+    expect(first).toMatchObject([{ id: "similar-1" }]);
+    expect(second).toEqual(first);
+    expect(apiMocks.get).toHaveBeenCalledOnce();
+    expect(apiMocks.get).toHaveBeenCalledWith("/vehicles/source-vehicle/similar");
   });
 
   it("falls back to the protected owner detail route only after a public 404", async () => {

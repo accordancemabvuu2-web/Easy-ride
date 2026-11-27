@@ -12,7 +12,7 @@ import OfferForm from "@/Components/OfferForm";
 import ReportListingModal from "@/Components/ReportListingModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { recordContactClick } from "@/lib/clientFirebaseServices";
-import { getActiveListings, getListingById } from "@/services/listingService";
+import { getListingById, getSimilarListings } from "@/services/listingService";
 import { createWhatsAppUrl } from "@/utils/whatsapp";
 import type { Vehicle } from "@/Types/vehicle";
 import {
@@ -87,7 +87,7 @@ export default function VehiclePage() {
     const photos = [...new Set([vehicle.coverImage, ...vehicle.images])].filter(Boolean);
     setActivePhoto(photos[0] || "");
     setActivePhotoIndex(0);
-    getActiveListings()
+    getSimilarListings(vehicle.id)
       .then((listings) => {
         if (!active) return;
         setSimilarVehicles(

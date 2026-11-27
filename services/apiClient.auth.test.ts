@@ -100,7 +100,15 @@ describe("API authentication refresh", () => {
   it("turns a non-JSON 429 into a useful rate-limit error and never retries it", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("upstream rate limit", {
       status: 429,
-      headers: { "content-type": "text/html", "retry-after": "30" },
+      headers: {
+        "content-type": "text/html",
+        "retry-after": "30",
+        "x-request-id": "request-123",
+        "ratelimit": '"public-vehicle-browse"; r=0; t=30',
+        "ratelimit-policy": '"public-vehicle-browse"; q=1200; w=60',
+        server: "cloudflare",
+        "cf-ray": "ray-123-HRE",
+      },
     }));
     vi.stubGlobal("fetch", fetchMock);
     const client = await import("@/lib/apiClient");
@@ -110,6 +118,15 @@ describe("API authentication refresh", () => {
       statusCode: 429,
       retryAfterSeconds: 30,
       message: "Too many requests. Please try again in 30 seconds.",
+      responseMetadata: {
+        contentType: "text/html",
+        retryAfter: "30",
+        rateLimit: '"public-vehicle-browse"; r=0; t=30',
+        rateLimitPolicy: '"public-vehicle-browse"; q=1200; w=60',
+        requestId: "request-123",
+        server: "cloudflare",
+        cfRay: "ray-123-HRE",
+      },
     });
     expect(fetchMock).toHaveBeenCalledOnce();
   });

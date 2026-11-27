@@ -12,6 +12,7 @@ const PUBLIC_LISTING_CACHE_TTL_MS = 15_000;
 type CachedRequest<T> = { expiresAt: number; promise: Promise<T> };
 const activeListingPageCache = new Map<string, CachedRequest<ListingPage>>();
 const activeListingsCache = new Map<string, CachedRequest<Vehicle[]>>();
+const similarListingsCache = new Map<string, CachedRequest<Vehicle[]>>();
 
 function cachedRequest<T>(
   cache: Map<string, CachedRequest<T>>,
@@ -41,6 +42,7 @@ function cachedRequest<T>(
 export function clearPublicListingCache(): void {
   activeListingPageCache.clear();
   activeListingsCache.clear();
+  similarListingsCache.clear();
 }
 
 export interface ApiListingCursor {
@@ -271,6 +273,14 @@ export async function getListingById(id: string): Promise<Vehicle | null> {
     }
     throw error;
   }
+}
+
+export function getSimilarListings(id: string): Promise<Vehicle[]> {
+  const cacheKey = `${getAccessToken() ?? "anonymous"}:${id}`;
+  return cachedRequest(similarListingsCache, cacheKey, async () => {
+    const response = await api.get<unknown>(`/vehicles/${encodeURIComponent(id)}/similar`);
+    return recordsFrom(response as VehicleListResponse).map(adaptVehicle);
+  });
 }
 
 export async function getAdminListingById(id: string): Promise<Vehicle | null> {

@@ -20,11 +20,22 @@ export interface ApiResponse<T = unknown> {
   requires2FA?: boolean;
 }
 
+export interface ApiErrorResponseMetadata {
+  contentType: string | null;
+  retryAfter: string | null;
+  rateLimit: string | null;
+  rateLimitPolicy: string | null;
+  requestId: string | null;
+  server: string | null;
+  cfRay: string | null;
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly statusCode: number;
   readonly details?: unknown;
   readonly retryAfterSeconds?: number;
+  readonly responseMetadata?: ApiErrorResponseMetadata;
 
   constructor(
     message: string,
@@ -32,6 +43,7 @@ export class ApiError extends Error {
     statusCode = 500,
     details?: unknown,
     retryAfterSeconds?: number,
+    responseMetadata?: ApiErrorResponseMetadata,
   ) {
     super(message);
     this.name = "ApiError";
@@ -39,6 +51,7 @@ export class ApiError extends Error {
     this.statusCode = statusCode;
     this.details = details;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.responseMetadata = responseMetadata;
   }
 }
 
@@ -303,6 +316,15 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
       429,
       error?.details,
       retryAfterSeconds,
+      {
+        contentType: response.headers.get("Content-Type"),
+        retryAfter: response.headers.get("Retry-After"),
+        rateLimit: response.headers.get("RateLimit"),
+        rateLimitPolicy: response.headers.get("RateLimit-Policy"),
+        requestId: response.headers.get("X-Request-Id"),
+        server: response.headers.get("Server"),
+        cfRay: response.headers.get("CF-Ray"),
+      },
     );
   }
 

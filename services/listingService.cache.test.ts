@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMocks = vi.hoisted(() => ({
   get: vi.fn(),
+  patch: vi.fn(),
   getAccessToken: vi.fn(() => "session-a"),
 }));
 
@@ -25,7 +26,7 @@ describe("public listing request cache", () => {
     vi.clearAllMocks();
   });
 
-  it("deduplicates concurrent full-list loads, including Strict Mode remounts", async () => {
+  it("deduplicates concurrent full-list loads across direct and legacy service imports", async () => {
     apiMocks.get.mockImplementation(() => new Promise((resolve) => {
       setTimeout(() => resolve({
         success: true,
@@ -33,11 +34,19 @@ describe("public listing request cache", () => {
         meta: { page: 1, pageSize: 100, total: 1 },
       }), 5);
     }));
-    const { getActiveListings } = await import("@/services/listingService");
+    const [{ getActiveListings }, legacyServices] = await Promise.all([
+      import("@/services/listingService"),
+      import("@/lib/clientFirebaseServices"),
+    ]);
 
-    const [first, second] = await Promise.all([getActiveListings(), getActiveListings()]);
+    const [first, second, throughLegacyFacade] = await Promise.all([
+      getActiveListings(),
+      getActiveListings(),
+      legacyServices.getActiveListings(),
+    ]);
 
     expect(first).toEqual(second);
+    expect(throughLegacyFacade).toEqual(first);
     expect(apiMocks.get).toHaveBeenCalledOnce();
     expect(apiMocks.get).toHaveBeenCalledWith("/vehicles?page=1&pageSize=100");
   });
@@ -67,6 +76,22 @@ describe("public listing request cache", () => {
     expect(apiMocks.get).toHaveBeenCalledOnce();
 
     await expect(getActiveListingPage()).resolves.toMatchObject({ listings: [], hasMore: false });
+    expect(apiMocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidates browse results after a listing availability change", async () => {
+    apiMocks.get.mockResolvedValue({ success: true, data: [], meta: { page: 1, pageSize: 20, total: 0 } });
+    apiMocks.patch.mockResolvedValue({ success: true, data: {}, meta: {} });
+    const { getActiveListingPage, updateListingStatus } = await import("@/services/listingService");
+
+    await getActiveListingPage();
+    await getActiveListingPage();
+    expect(apiMocks.get).toHaveBeenCalledOnce();
+
+    await updateListingStatus("vehicle-1", "sold");
+    await getActiveListingPage();
+
+    expect(apiMocks.patch).toHaveBeenCalledWith("/vehicles/vehicle-1/availability", { availabilityStatus: "sold" });
     expect(apiMocks.get).toHaveBeenCalledTimes(2);
   });
 });
