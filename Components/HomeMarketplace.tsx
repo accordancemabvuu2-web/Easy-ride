@@ -3,12 +3,13 @@
 import CarCard from "@/Components/CarCard";
 import VehicleFilters from "@/Components/VehicleFilters";
 import { getActiveListingPage } from "@/lib/clientFirebaseServices";
+import { ApiError } from "@/lib/apiClient";
 import type { ListingPage, ListingPageFilters } from "@/services/listingService";
 import type { ListingType, Vehicle } from "@/Types/vehicle";
 import { Grid2X2, List, Loader2, Map, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type FilterType = ListingType | "all";
 type ViewMode = "grid" | "list";
@@ -19,15 +20,17 @@ const optionalNumber = (value: string | null) => value ? Number(value) : "";
 export default function HomeMarketplace() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const search = searchParams.get("q") ?? "";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [searchDraft, setSearchDraft] = useState(search);
   const [lastDocument, setLastDocument] = useState<ListingPage["lastDocument"]>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  const search = searchParams.get("q") ?? "";
   const pickupDate = searchParams.get("pickupDate") ?? "";
   const returnDate = searchParams.get("returnDate") ?? "";
   const requestedType = searchParams.get("mode") ?? searchParams.get("type");
@@ -67,7 +70,7 @@ export default function HomeMarketplace() {
   useEffect(() => {
     let active = true;
     setLoadingVehicles(true);
-    setLoadError(false);
+    setLoadError(null);
     setVehicles([]);
     setLastDocument(null);
     setHasMore(false);
@@ -81,13 +84,17 @@ export default function HomeMarketplace() {
       })
       .catch((error) => {
         console.error("Could not load marketplace listings:", error);
-        if (active) setLoadError(true);
+        if (active) {
+          setLoadError(error instanceof ApiError
+            ? error.message
+            : "Marketplace listings could not be loaded. Please try again.");
+        }
       })
       .finally(() => {
         if (active) setLoadingVehicles(false);
       });
     return () => { active = false; };
-  }, [listingFilters]);
+  }, [listingFilters, loadAttempt]);
 
   const loadMore = async () => {
     if (!lastDocument || !hasMore || loadingMore) return;
@@ -100,13 +107,15 @@ export default function HomeMarketplace() {
       setHasMore(page.hasMore);
     } catch (error) {
       console.error("Could not load more marketplace listings:", error);
-      setLoadError(true);
+      setLoadError(error instanceof ApiError
+        ? error.message
+        : "More marketplace listings could not be loaded. Please try again.");
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const updateFilter = (key: string, value: string | number) => {
+  const updateFilter = useCallback((key: string, value: string | number) => {
     const params = new URLSearchParams(searchParams.toString());
     const normalized = String(value);
     const defaultValue = key === "sort" ? "newest" : key === "type" || key === "mode" ? "buy" : "";
@@ -120,7 +129,17 @@ export default function HomeMarketplace() {
     }
     const query = params.toString();
     router.replace(query ? `/marketplace?${query}` : "/marketplace", { scroll: false });
-  };
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
+
+  useEffect(() => {
+    if (searchDraft.trim() === search) return;
+    const timeout = window.setTimeout(() => updateFilter("q", searchDraft.trim()), 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchDraft, search, updateFilter]);
 
   const locations = useMemo(() => unique(vehicles.map((vehicle) => vehicle.location?.city ?? "")), [vehicles]);
   const makes = useMemo(() => unique(vehicles.map((vehicle) => vehicle.make)), [vehicles]);
@@ -148,7 +167,7 @@ export default function HomeMarketplace() {
           <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">{listingType === "rent" ? "Find available rental vehicles, compare daily rates and choose dates before requesting a booking." : "Browse vehicles from trusted sellers and dealers. Search the whole marketplace and narrow your results to find the right vehicle."}</p>
           <label className="mt-7 flex min-h-14 max-w-3xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-[#0B5D3B] focus-within:ring-4 focus-within:ring-emerald-100">
             <Search size={20} className="shrink-0 text-[#0B5D3B]" />
-            <input value={search} onChange={(event) => updateFilter("q", event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search make, model, keyword..." aria-label="Search vehicles" />
+            <input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} className="min-w-0 flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search make, model, keyword..." aria-label="Search vehicles" />
           </label>
           {listingType === "rent" && (
             <div className="mt-4 grid max-w-3xl gap-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -195,7 +214,7 @@ export default function HomeMarketplace() {
             </div>
 
             {loadingVehicles ? <div className="flex min-h-72 items-center justify-center rounded-2xl border border-slate-200 bg-white"><Loader2 className="animate-spin text-[#0B5D3B]" size={32} /></div>
-              : loadError ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-800">Marketplace listings could not be loaded. Please try again later.</div>
+              : loadError ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-800"><p>{loadError}</p><button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-100">Try again</button></div>
               : filteredVehicles.length ? <div className={`grid min-w-0 gap-5 ${viewMode === "grid" ? "sm:grid-cols-2 2xl:grid-cols-3" : "grid-cols-1"}`}>{filteredVehicles.map((vehicle) => <CarCard key={vehicle.id} vehicle={vehicle} layout={viewMode} />)}</div>
               : <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-[#0B5D3B]"><Search /></div><h3 className="mt-5 text-xl font-bold text-slate-900">No vehicles found</h3><p className="mx-auto mt-2 max-w-md text-slate-500">Try a broader search or clear some filters to see more listings.</p><button type="button" onClick={clearFilters} className="mt-6 rounded-lg bg-[#0B5D3B] px-5 py-3 font-semibold text-white hover:bg-[#084B30]">Clear filters</button></div>}
 

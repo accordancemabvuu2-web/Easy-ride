@@ -97,6 +97,40 @@ describe("API authentication refresh", () => {
     expect(authFailure).not.toHaveBeenCalled();
   });
 
+  it("turns a non-JSON 429 into a useful rate-limit error and never retries it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("upstream rate limit", {
+      status: 429,
+      headers: { "content-type": "text/html", "retry-after": "30" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = await import("@/lib/apiClient");
+
+    await expect(client.api.get("/vehicles?page=1&pageSize=20")).rejects.toMatchObject({
+      code: "RATE_LIMIT_EXCEEDED",
+      statusCode: 429,
+      retryAfterSeconds: 30,
+      message: "Too many requests. Please try again in 30 seconds.",
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("uses the backend Retry-After metadata when the header is missing", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(429, {
+      success: false,
+      error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests." },
+      meta: { retryAfterSeconds: 12 },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = await import("@/lib/apiClient");
+
+    await expect(client.api.get("/vehicles?page=2&pageSize=20")).rejects.toMatchObject({
+      statusCode: 429,
+      retryAfterSeconds: 12,
+      message: "Too many requests. Please try again in 12 seconds.",
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("clears the session only when refresh rejects the session as unauthenticated", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse(401, { success: false, error: { code: "UNAUTHORIZED", message: "Expired" } }))

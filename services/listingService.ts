@@ -7,6 +7,41 @@ import { adaptVehicle } from "@/services/vehicleAdapter";
 const LISTING_PAGE_SIZE = 20;
 const INVENTORY_PAGE_SIZE = 100;
 const MAX_VEHICLE_IMAGES = 10;
+const PUBLIC_LISTING_CACHE_TTL_MS = 15_000;
+
+type CachedRequest<T> = { expiresAt: number; promise: Promise<T> };
+const activeListingPageCache = new Map<string, CachedRequest<ListingPage>>();
+const activeListingsCache = new Map<string, CachedRequest<Vehicle[]>>();
+
+function cachedRequest<T>(
+  cache: Map<string, CachedRequest<T>>,
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  for (const [cachedKey, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(cachedKey);
+  }
+  const existing = cache.get(key);
+  if (existing && existing.expiresAt > now) return existing.promise;
+
+  const promise = load();
+  cache.set(key, { expiresAt: now + PUBLIC_LISTING_CACHE_TTL_MS, promise });
+  while (cache.size > 50) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+  void promise.catch(() => {
+    if (cache.get(key)?.promise === promise) cache.delete(key);
+  });
+  return promise;
+}
+
+export function clearPublicListingCache(): void {
+  activeListingPageCache.clear();
+  activeListingsCache.clear();
+}
 
 export interface ApiListingCursor {
   source: "api";
@@ -153,34 +188,40 @@ async function listPage(endpoint: string, page: number, pageSize = INVENTORY_PAG
   return { listings: items, hasMore: typeof total === "number" ? page * pageSize < total : items.length === pageSize };
 }
 
-export async function getActiveListingPage(
+export function getActiveListingPage(
   filters: ListingPageFilters = {},
   lastDocument?: ApiListingCursor | null,
 ): Promise<ListingPage> {
   const pageNumber = lastDocument?.source === "api" ? lastDocument.page : 1;
   const params = mapListingFilters(filters, pageNumber);
-  const response = (await api.get<unknown>(`/vehicles?${params.toString()}`)) as VehicleListResponse;
-  const listings = recordsFrom(response).map(adaptVehicle);
-  const total = response.meta?.total;
-  const hasMore = typeof total === "number" ? pageNumber * LISTING_PAGE_SIZE < total : listings.length === LISTING_PAGE_SIZE;
-  return {
-    listings,
-    lastDocument: listings.length && hasMore ? { source: "api", page: pageNumber + 1 } : null,
-    hasMore,
-  };
+  const cacheKey = `${getAccessToken() ?? "anonymous"}:${params.toString()}`;
+  return cachedRequest(activeListingPageCache, cacheKey, async () => {
+    const response = (await api.get<unknown>(`/vehicles?${params.toString()}`)) as VehicleListResponse;
+    const listings = recordsFrom(response).map(adaptVehicle);
+    const total = response.meta?.total;
+    const hasMore = typeof total === "number" ? pageNumber * LISTING_PAGE_SIZE < total : listings.length === LISTING_PAGE_SIZE;
+    return {
+      listings,
+      lastDocument: listings.length && hasMore ? { source: "api", page: pageNumber + 1 } : null,
+      hasMore,
+    };
+  });
 }
 
-export async function getActiveListings(): Promise<Vehicle[]> {
-  const listings: Vehicle[] = [];
-  let page = 1;
-  let hasMore = true;
-  while (hasMore) {
-    const result = await listPage("/vehicles", page);
-    listings.push(...result.listings);
-    hasMore = result.hasMore;
-    page += 1;
-  }
-  return listings;
+export function getActiveListings(): Promise<Vehicle[]> {
+  const cacheKey = getAccessToken() ?? "anonymous";
+  return cachedRequest(activeListingsCache, cacheKey, async () => {
+    const listings: Vehicle[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const result = await listPage("/vehicles", page);
+      listings.push(...result.listings);
+      hasMore = result.hasMore;
+      page += 1;
+    }
+    return listings;
+  });
 }
 
 export async function getPendingListings(): Promise<Vehicle[]> {
@@ -251,6 +292,7 @@ export async function createListing(
   const payload = toVehicleWritePayload(listing);
   if (options.saveAsDraft) payload.moderationStatus = "draft";
   const response = await api.post<unknown>("/vehicles", payload);
+  clearPublicListingCache();
   const data = response.data && typeof response.data === "object" ? response.data as Record<string, unknown> : {};
   const id = String(data.id ?? data._id ?? "");
   if (!id) throw new ApiError("The vehicle creation response did not include its ID.", "INVALID_RESPONSE", 502);
@@ -301,10 +343,12 @@ export async function getMyDrafts(): Promise<Vehicle[]> {
 
 export async function reorderVehicleImages(listingId: string, imageIds: string[]): Promise<void> {
   await api.patch(`/vehicles/${encodeURIComponent(listingId)}/images/order`, { imageIds });
+  clearPublicListingCache();
 }
 
 export async function removeVehicleImage(listingId: string, imageId: string): Promise<void> {
   await api.delete(`/vehicles/${encodeURIComponent(listingId)}/images/${encodeURIComponent(imageId)}`);
+  clearPublicListingCache();
 }
 
 export async function updateListing(listingId: string, changes: Partial<Vehicle>): Promise<Vehicle> {
@@ -315,6 +359,7 @@ export async function updateListing(listingId: string, changes: Partial<Vehicle>
     listingType: changes.listingType ?? current.listingType,
     rentalPricing: changes.rentalPricing ?? current.rentalPricing,
   }));
+  clearPublicListingCache();
   const updated = (await getMyListings()).find((listing) => listing.id === listingId);
   if (!updated) throw new ApiError("The updated vehicle could not be reloaded.", "INVALID_RESPONSE", 502);
   return updated;
@@ -362,25 +407,30 @@ export async function updateListingStatus(listingId: string, status: ListingStat
     } else {
       throw new ApiError("Only a pending or suspended listing can be made active.", "INVALID_STATE", 409);
     }
+    clearPublicListingCache();
     return;
   }
   if (status === "rejected") {
     if (!reason?.trim()) throw new ApiError("A rejection reason is required.", "VALIDATION_ERROR", 400);
     await api.patch(`/admin/vehicles/${id}/review`, { decision: "reject", reason: reason.trim() });
+    clearPublicListingCache();
     return;
   }
   if (status === "suspended") {
     if (!reason?.trim()) throw new ApiError("A suspension reason is required.", "VALIDATION_ERROR", 400);
     await api.patch(`/admin/vehicles/${id}/status`, { moderationStatus: "suspended", reason: reason.trim() });
+    clearPublicListingCache();
     return;
   }
   if (status === "pending" || status === "draft") {
     await api.post(`/vehicles/${id}/publish`);
+    clearPublicListingCache();
     return;
   }
   const availabilityStatus = status === "sold" ? "sold" : status === "rented" ? "rented" : status === "archived" ? "archived" : null;
   if (availabilityStatus) {
     await api.patch(`/vehicles/${id}/availability`, { availabilityStatus });
+    clearPublicListingCache();
     return;
   }
   throw new ApiError("This status can only be changed by an administrator.", "FORBIDDEN", 403);
@@ -388,6 +438,7 @@ export async function updateListingStatus(listingId: string, status: ListingStat
 
 export async function deleteListing(listingId: string): Promise<void> {
   await api.delete(`/vehicles/${encodeURIComponent(listingId)}`);
+  clearPublicListingCache();
 }
 
 export interface VehicleAvailability {
@@ -431,6 +482,7 @@ export async function uploadVehicleImages(vehicleId: string, files: File[]): Pro
   files.forEach((file) => form.append("images", file, file.name));
   const response = await api.post<unknown>(`/vehicles/${encodeURIComponent(vehicleId)}/images`, form);
   if (!Array.isArray(response.data)) throw new ApiError("The image upload response was invalid.", "INVALID_RESPONSE", 502);
+  clearPublicListingCache();
   return response.data.map((item) => {
     const image = item as Record<string, unknown>;
     return {

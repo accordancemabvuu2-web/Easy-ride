@@ -3,6 +3,7 @@
 import FavoriteButton from "@/Components/FavoriteButton";
 import Footer from "@/Components/Footer";
 import type { Vehicle } from "@/Types/vehicle";
+import { ApiError } from "@/lib/apiClient";
 import { getMediaUrl } from "@/lib/media";
 import {
   ArrowRight,
@@ -74,7 +75,8 @@ export default function LandingPage() {
   const [model, setModel] = useState("Any Model");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
-  const [vehicleLoadError, setVehicleLoadError] = useState(false);
+  const [vehicleLoadError, setVehicleLoadError] = useState<string | null>(null);
+  const [vehicleLoadAttempt, setVehicleLoadAttempt] = useState(0);
   const heroVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -86,6 +88,8 @@ export default function LandingPage() {
 
   useEffect(() => {
     let active = true;
+    setLoadingVehicles(true);
+    setVehicleLoadError(null);
     import("@/services/listingService")
       .then(({ getActiveListings }) => getActiveListings())
       .then((listings) => {
@@ -93,13 +97,17 @@ export default function LandingPage() {
       })
       .catch((error) => {
         console.error("Could not load approved listings:", error);
-        if (active) setVehicleLoadError(true);
+        if (active) {
+          setVehicleLoadError(error instanceof ApiError
+            ? error.message
+            : "Vehicle listings could not be loaded. Please try again.");
+        }
       })
       .finally(() => {
         if (active) setLoadingVehicles(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [vehicleLoadAttempt]);
 
   useEffect(() => {
     const video = heroVideoRef.current;
@@ -229,7 +237,7 @@ export default function LandingPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {featuredVehicles.map((vehicle) => <VehicleCard key={vehicle.id} vehicle={vehicle} />)}
           {loadingVehicles && Array.from({ length: 4 }, (_, index) => <div key={index} className="h-[330px] animate-pulse rounded-xl border border-slate-200 bg-slate-50" />)}
-          {!loadingVehicles && vehicleLoadError && <div role="alert" className="col-span-full rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-red-800">Vehicle listings could not be loaded. Please try again later.</div>}
+          {!loadingVehicles && vehicleLoadError && <div role="alert" className="col-span-full rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-red-800"><p>{vehicleLoadError}</p><button type="button" onClick={() => setVehicleLoadAttempt((attempt) => attempt + 1)} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-100">Try again</button></div>}
           {!loadingVehicles && !vehicleLoadError && featuredVehicles.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><SlidersHorizontal className="mx-auto text-slate-400" /><h3 className="mt-3 font-bold">No vehicles listed {mode === "buy" ? "for sale" : "for rent"} yet</h3><p className="mt-1 text-sm text-slate-500">Try the other listing type or check back soon.</p><Link href={marketplaceHref} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#0B5D3B]">Browse marketplace <ArrowRight size={16} /></Link></div>}
         </div>
         <Link href={marketplaceHref} className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-[#0B5D3B] py-3 text-sm font-bold text-[#0B5D3B] sm:hidden">View All Vehicles <ArrowRight size={16} /></Link>

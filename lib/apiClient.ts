@@ -24,18 +24,21 @@ export class ApiError extends Error {
   readonly code: string;
   readonly statusCode: number;
   readonly details?: unknown;
+  readonly retryAfterSeconds?: number;
 
   constructor(
     message: string,
     code = "API_ERROR",
     statusCode = 500,
-    details?: unknown
+    details?: unknown,
+    retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.statusCode = statusCode;
     this.details = details;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -254,17 +257,64 @@ function isAuthEndpoint(endpoint: string): boolean {
   return endpoint.includes("/auth/login") || endpoint.includes("/auth/refresh");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function retryDelaySeconds(response: Response, payload: unknown): number | undefined {
+  const header = response.headers.get("Retry-After")?.trim();
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+    const retryAt = Date.parse(header);
+    if (Number.isFinite(retryAt)) return Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
+  }
+
+  if (isRecord(payload) && isRecord(payload.meta)) {
+    const seconds = payload.meta.retryAfterSeconds;
+    if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) {
+      return Math.ceil(seconds);
+    }
+  }
+  return undefined;
+}
+
 async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
+  const responseText = await response.text();
+  let payload: unknown;
+  try {
+    payload = responseText ? JSON.parse(responseText) : undefined;
+  } catch {
+    payload = undefined;
+  }
+
+  if (response.status === 429) {
+    const retryAfterSeconds = retryDelaySeconds(response, payload);
+    const error = isRecord(payload) && isRecord(payload.error) ? payload.error : undefined;
+    const serverMessage = typeof error?.message === "string" ? error.message : "Too many requests.";
+    const waitMessage = retryAfterSeconds === undefined
+      ? "Please wait a moment before trying again."
+      : retryAfterSeconds === 0
+        ? "You can try again now."
+        : `Please try again in ${retryAfterSeconds} seconds.`;
     throw new ApiError(
-      `Received a non-JSON response from the API (${response.status}).`,
-      "INVALID_RESPONSE",
-      response.status
+      `${serverMessage} ${waitMessage}`,
+      typeof error?.code === "string" ? error.code : "RATE_LIMIT_EXCEEDED",
+      429,
+      error?.details,
+      retryAfterSeconds,
     );
   }
 
-  return (await response.json()) as ApiResponse<T>;
+  if (!isRecord(payload)) {
+    throw new ApiError(
+      `Received a non-JSON response from the API (${response.status}).`,
+      "INVALID_RESPONSE",
+      response.status,
+    );
+  }
+
+  return payload as unknown as ApiResponse<T>;
 }
 
 export async function apiRequest<T = unknown>(
